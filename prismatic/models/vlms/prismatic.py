@@ -101,13 +101,19 @@ class PrismaticVLM(VLM):
 
         # Load from Checkpoint (Custom --> should load both *projector* and *llm* weights)
         model_state_dict = torch.load(pretrained_checkpoint, map_location="cpu")["model"]
+
         assert (
-            "projector" in model_state_dict and "llm_backbone" in model_state_dict
+            "projector" in model_state_dict or "llm_backbone" in model_state_dict
         ), "PrismaticVLM `from_pretrained` expects checkpoint with keys for `projector` AND `llm_backbone`!"
-
-        vlm.projector.load_state_dict(model_state_dict["projector"])
-        vlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
-
+        #If only projector in model_state_dict, then print that, if both, then print that.
+        if "projector" in model_state_dict and "llm_backbone" in model_state_dict:
+            overwatch.info("Loading `projector` and `llm_backbone` from checkpoint", ctx_level=1)
+            vlm.projector.load_state_dict(model_state_dict["projector"])
+            vlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
+        elif "projector" in model_state_dict:
+            overwatch.info("Loading only `projector` from checkpoint", ctx_level=1)
+            vlm.projector.load_state_dict(model_state_dict["projector"])
+            
         # Freeze Weights
         vlm.requires_grad_(False)
         vlm.eval()
@@ -208,13 +214,17 @@ class PrismaticVLM(VLM):
             return
 
         # [Contract] If no `pretrained_checkpoint`, assume `align` lives in the run directory; string substitution!
+        # print(f"run_name: {run_dir.name}, split: {run_dir.name.split('+')}")
+        # # parents.iterdir
+        # for d in run_dir.parent.iterdir():
+        #     print(d)
         model, scale, _, seed = run_dir.name.split("+")
         align_dirs = [
             d
             for d in run_dir.parent.iterdir()
             if (d.name.startswith(f"{model}+{scale}") and d.name.endswith(f"+stage-align+{seed}"))
         ]
-        assert len(align_dirs) == 1, "Multiple or No Valid Pretrained Directories Exist -- Double Check `runs`!"
+        assert len(align_dirs) == 1, f"Multiple or No Valid Pretrained Directories Exist -- Double Check `runs`! align_dirs: {align_dirs}"
         if (pretrained_checkpoint := (align_dirs[0] / "checkpoints" / "latest-checkpoint.pt")).exists():
             overwatch.info(f"Loading from Discovered Checkpoint `{pretrained_checkpoint}`", ctx_level=1)
             model_state_dict = torch.load(pretrained_checkpoint)["model"]

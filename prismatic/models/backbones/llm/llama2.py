@@ -58,6 +58,7 @@ class LLaMa2LLMBackbone(HFCausalLLMBackbone):
         llm_max_length: int = 2048,
         hf_token: Optional[str] = None,
         inference_mode: bool = False,
+        load_from_hf_anyway: bool = False,
         use_flash_attention_2: bool = True,
     ) -> None:
         super().__init__(
@@ -65,6 +66,7 @@ class LLaMa2LLMBackbone(HFCausalLLMBackbone):
             llm_max_length=llm_max_length,
             hf_token=hf_token,
             inference_mode=inference_mode,
+            load_from_hf_anyway=load_from_hf_anyway,
             use_flash_attention_2=use_flash_attention_2,
             **LLAMA2_MODELS[llm_backbone_id],
         )

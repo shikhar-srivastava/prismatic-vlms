@@ -160,6 +160,7 @@ class FSDPStrategy(TrainingStrategy):
             device_id=torch.cuda.current_device(),
             limit_all_gathers=True,
             use_orig_params=True,
+            cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True)
         )
 
         # Gradient Checkpoint Setup

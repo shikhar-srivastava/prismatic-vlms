@@ -145,3 +145,9 @@ dmypy.json
 # Caches and Datasets
 cache/
 data/
+runs/*
+evaluations/*
+results/*
+viz/*
+lm_cache/*
+test_nlu_eval/*

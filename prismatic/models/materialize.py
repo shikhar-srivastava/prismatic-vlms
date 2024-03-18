@@ -87,6 +87,7 @@ def get_llm_backbone_and_tokenizer(
     llm_max_length: int = 2048,
     hf_token: Optional[str] = None,
     inference_mode: bool = False,
+    load_from_hf_anyway: bool = False
 ) -> Tuple[LLMBackbone, PreTrainedTokenizerBase]:
     if llm_backbone_id in LLM_BACKBONES:
         llm_cfg = LLM_BACKBONES[llm_backbone_id]
@@ -95,6 +96,7 @@ def get_llm_backbone_and_tokenizer(
             llm_max_length=llm_max_length,
             hf_token=hf_token,
             inference_mode=inference_mode,
+            load_from_hf_anyway=load_from_hf_anyway,
             **llm_cfg["kwargs"],
         )
         tokenizer = llm_backbone.get_tokenizer()

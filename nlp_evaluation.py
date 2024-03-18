@@ -1,9 +1,7 @@
-"""
-load.py
 
-Entry point for loading pretrained VLMs for inference; exposes functions for listing available models (with canonical
-IDs, mappings to paper experiments, and short descriptions), as well as for loading models (from disk or HF Hub).
-"""
+import argparse
+import logging
+import sys
 import json
 import os
 from pathlib import Path
@@ -17,6 +15,7 @@ from prismatic.models.vlms import PrismaticVLM
 from prismatic.overwatch import initialize_overwatch
 
 import torch
+from lm_eval import evaluator
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -25,6 +24,7 @@ overwatch = initialize_overwatch(__name__)
 # === HF Hub Repository ===
 HF_HUB_REPO = "TRI-ML/prismatic-vlms"
 
+SELECTED_NLP_TASKS = ["wsc273"]#["wsc273","arc_easy","arc_challenge","winogrande","lambada_standard"] #, "webqs"]
 
 # === Available Models ===
 def available_models() -> List[str]:
@@ -47,9 +47,12 @@ def get_model_description(model_id_or_name: str) -> str:
 
 # === Load Pretrained Model ===
 def load(
-    model_id_or_path: Union[str, Path], hf_token: Optional[str] = None, cache_dir: Optional[Union[str, Path]] = None,
+    write_checkpoint_path, model_id_or_path: Union[str, Path], cache_dir: Optional[Union[str, Path]] = None,
 ) -> PrismaticVLM:
     """Loads a pretrained PrismaticVLM from either local disk or the HuggingFace Hub."""
+    hf_token: Union[str, Path] = Path(".hf_token") 
+    hf_token = hf_token.read_text().strip() if isinstance(hf_token, Path) else os.environ[hf_token]
+
     if os.path.isdir(model_id_or_path):
         overwatch.info(f"Loading from local path `{(run_dir := Path(model_id_or_path))}`")
 
@@ -104,14 +107,45 @@ def load(
         load_from_hf_anyway = load_from_hf_anyway
     )
 
-    # Load VLM using `from_pretrained` (clobbers HF syntax... eventually should reconcile)
-    overwatch.info(f"Loading VLM [bold blue]{model_cfg['model_id']}[/] from Checkpoint; Freezing Weights 🥶")
-    vlm = PrismaticVLM.from_pretrained(
-        checkpoint_pt,
-        model_cfg["model_id"],
-        vision_backbone,
-        llm_backbone,
-        arch_specifier=model_cfg["arch_specifier"],
+    llm_hugface_save_path = os.path.join(
+        write_checkpoint_path,
+        "checkpoint_llm_only",
     )
+    print(f'Saving to {llm_hugface_save_path}')
+    
+    llm_backbone.llm.save_pretrained(llm_hugface_save_path)
+    tokenizer.save_pretrained(llm_hugface_save_path)
+    overwatch.info(f"Writing LLM to checkpoint")
 
-    return vlm
+    return llm_hugface_save_path
+
+
+def nlp_evaluation(llm_checkpoint_path):
+    print(f"\n\t NLP Evaluation: {llm_checkpoint_path}")
+    task_names = SELECTED_NLP_TASKS
+    model_args = f"pretrained={str(llm_checkpoint_path)},trust_remote_code=True"
+    print(f"Evaluating on {task_names} with model_args: {model_args}")
+    
+    results = evaluator.simple_evaluate( 
+            model="hf",
+            model_args=model_args,
+            tasks=task_names,
+            device="cuda:0",
+            log_samples=True,
+            output_path=llm_checkpoint_path
+        )
+    with open(f"{llm_checkpoint_path}/nlp_evaluation_results.log", "w") as log_file:
+        log_file.write(json.dumps(results, indent=4))
+    return results
+
+def main(write_path, checkpoint_path):
+    llm_path = load(write_path, model_id_or_path=checkpoint_path)
+    results = nlp_evaluation(llm_path)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process VLM checkpoint for NLP evaluation.")
+    parser.add_argument('--write_path', type=str, required=True, help='Path to write the LLM checkpoint')
+    parser.add_argument('--checkpoint_path', type=str, required=True, help='Path to the VLM checkpoint')
+    args = parser.parse_args()
+    
+    main(args.write_path, args.checkpoint_path)

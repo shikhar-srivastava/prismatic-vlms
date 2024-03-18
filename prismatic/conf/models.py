@@ -112,6 +112,9 @@ class LLaVa_v15_Reproduction_7B(ModelConfig):
 
     finetune_train_strategy: str = "fsdp-full-shard"
 
+    # Permanent Freeze Backbone settings
+    freeze_llm_permanently: bool = False
+
 
 @dataclass
 class LLaVa_v15_Reproduction_13B(LLaVa_v15_Reproduction_7B):
