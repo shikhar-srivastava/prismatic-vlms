@@ -111,6 +111,9 @@ class PretrainConfig:
             self.lr_scheduler_type = self.model.finetune_lr_scheduler_type
             self.warmup_ratio = self.model.finetune_warmup_ratio
 
+            # if 'align-only' in self.model.model_id:
+            #     self.train_strategy = self.model.align_train_strategy
+            # else:
             self.train_strategy = self.model.finetune_train_strategy
 
         else:
@@ -222,7 +225,10 @@ def pretrain(cfg: PretrainConfig) -> None:
         wandb_project=cfg.wandb_project,
         wandb_entity=cfg.wandb_entity,
         grad_accumulation_steps=train_strategy.grad_accumulation_steps,
-    )
+    )  
+
+    # # Check VLM Trainability
+    # vlm.check_trainability()
 
     # Run Training
     overwatch.info("Starting Training Loop")

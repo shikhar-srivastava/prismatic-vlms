@@ -35,7 +35,7 @@ MODEL_REGISTRY = {
             "train_epochs": 1,
         }
     },
-
+    #"one-stage-align-only+7b"
     # === Section 4.1 :: Optimization Procedure ===
     "one-stage+7b": {
         "model_id": "one-stage+7b",
@@ -51,6 +51,28 @@ MODEL_REGISTRY = {
         ],
         "description": {
             "name": "Single-Stage 7B",
+            "optimization_procedure": "single-stage",
+            "visual_representation": "CLIP ViT-L/14 @ 336px",
+            "image_processing": "Letterbox",
+            "language_model": "Vicuña v1.5 7B",
+            "datasets": ["LLaVa v1.5 Instruct"],
+            "train_epochs": 1,
+        }
+    },
+    "one-stage-align-only+7b": {
+        "model_id": "one-stage-align-only+7b",
+        "names": [
+            "One-Stage 7B Alignment Only",
+            "Single-Stage 7B Alignmenty Only",
+            "Frozen ViT (Single-Stage)",
+            "CLIP ViT-L 336px (Letterbox)",
+            "CLIP ViT-L 336px",
+            "Vicuña v1.5 7B",
+            "1 Epoch",
+            "Base",
+        ],
+        "description": {
+            "name": "Single-Stage 7B Alignment Only",
             "optimization_procedure": "single-stage",
             "visual_representation": "CLIP ViT-L/14 @ 336px",
             "image_processing": "Letterbox",

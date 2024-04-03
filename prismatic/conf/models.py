@@ -112,9 +112,6 @@ class LLaVa_v15_Reproduction_7B(ModelConfig):
 
     finetune_train_strategy: str = "fsdp-full-shard"
 
-    # Permanent Freeze Backbone settings
-    freeze_llm_permanently: bool = False
-
 
 @dataclass
 class LLaVa_v15_Reproduction_13B(LLaVa_v15_Reproduction_7B):
@@ -148,6 +145,13 @@ class Exp_7B_Full_Finetune_Multi_Stage(LLaVa_v15_Reproduction_7B):
 @dataclass
 class Exp_7B_Full_Finetune_One_Stage(Exp_7B_One_Stage):
     model_id: str = "full-ft-one-stage+7b"
+
+
+# [Shikhar] Training just the projection
+    
+@dataclass
+class Exp_7B_One_Stage_Align_Only(Exp_7B_One_Stage):
+    model_id: str = "one-stage-align-only+7b"
 
 
 # === Section 4.2 :: Image Processing and Visual Representations ===
@@ -449,6 +453,7 @@ class ModelRegistry(Enum):
     # === Section 4.1 :: Optimization Procedure ===
     EXP_ONE_STAGE_7B = Exp_7B_One_Stage
     EXP_ONE_STAGE_13B = Exp_13B_One_Stage
+    EXP_ONE_STAGE_7B_ALIGN_ONLY = Exp_7B_One_Stage_Align_Only
 
     EXP_FULL_FT_MULTI_STAGE = Exp_7B_Full_Finetune_Multi_Stage
     EXP_FULL_FT_ONE_STAGE = Exp_7B_Full_Finetune_One_Stage

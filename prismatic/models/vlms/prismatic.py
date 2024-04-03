@@ -65,6 +65,8 @@ class PrismaticVLM(VLM):
         else:
             raise ValueError(f"PrismaticVLM with `{arch_specifier = }` is not supported!")
 
+        print(f'Dimensions of Projector: \n vision_dim: {vision_backbone.embed_dim}, llm_dim: {llm_backbone.embed_dim}')
+        print(f'Total Parameters: {vision_backbone.embed_dim * llm_backbone.embed_dim + llm_backbone.embed_dim * llm_backbone.embed_dim }')
         # Trackers
         self.vision_backbone_requires_grad = False
 
@@ -152,18 +154,29 @@ class PrismaticVLM(VLM):
 
         elif stage == "finetune":
             self.vision_backbone.requires_grad_(False)
-            self.llm_backbone.requires_grad_(True)
+            if 'align-only' in self.model_id:
+                self.llm_backbone.requires_grad_(False)
+            else:
+                self.llm_backbone.requires_grad_(True)
             self.projector.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["projector", "llm_backbone"]
+            if 'align-only' in self.model_id:
+                self.trainable_module_keys = ["projector"]
+            else:
+                self.trainable_module_keys = ["projector", "llm_backbone"]
+
 
             # Update Trackers
             self.vision_backbone_requires_grad = False
 
             # Explicitly Log Frozen / Unfrozen Components
             overwatch.info(f"[Frozen]    🥶 =>> Vision Backbone `{self.vision_backbone.identifier}`", ctx_level=1)
-            overwatch.info(f"[TRAINABLE] 🔥 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
+            if 'align-only' in self.model_id:
+                overwatch.info(f"[Frozen]    🥶 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
+            else:
+                overwatch.info(f"[TRAINABLE] 🔥 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
+                
             overwatch.info(f"[TRAINABLE] 🔥 =>> Projector `{self.arch_specifier}`", ctx_level=1)
 
         elif stage == "full-finetune":
@@ -569,3 +582,25 @@ class PrismaticVLM(VLM):
         generated_text = tokenizer.decode(generated_ids[0, input_ids.shape[1] :], skip_special_tokens=True).strip()
 
         return generated_text
+
+    def check_trainability(self):
+        """
+        Prints whether the llm_backbone, projector, and visual_backbone are trainable.
+        """
+        components = {
+            "LLM Backbone": self.llm_backbone,
+            "Projector": self.projector,
+            "Visual Backbone": self.vision_backbone,
+        }
+        
+        for comp_name, comp in components.items():
+            print(f"Checking trainability for: {comp_name}")
+            trainable = any(param.requires_grad for param in comp.parameters())
+            print(f"  Trainable: {trainable}")
+            if not trainable:
+                print("  All parameters are frozen.")
+            else:
+                for name, param in comp.named_parameters():
+                    if param.requires_grad:
+                        print(f"  {name} is trainable")
+
