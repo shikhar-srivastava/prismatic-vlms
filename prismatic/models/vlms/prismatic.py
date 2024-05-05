@@ -126,7 +126,7 @@ class PrismaticVLM(VLM):
         prompt_initializer: Type[PromptBuilder] = self.llm_backbone.prompt_builder_fn
         return prompt_initializer(self.model_family, system_prompt=system_prompt)
 
-    def freeze_backbones(self, stage: str) -> None:
+    def freeze_backbones(self, stage: str, mitigation: str = None) -> None:
         """
         This function sets `requires_grad_` on each of the component modules explicitly, depending on stage.
 
@@ -156,7 +156,8 @@ class PrismaticVLM(VLM):
             self.vision_backbone.requires_grad_(False)
             if 'align-only' in self.model_id:
                 self.llm_backbone.requires_grad_(False)
-            else:
+            elif mitigation is None:
+                overwatch.info(f"LLM Backbone has requires_grad = True. Mitigation is None", ctx_level=1)
                 self.llm_backbone.requires_grad_(True)
             self.projector.requires_grad_(True)
 

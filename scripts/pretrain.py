@@ -82,7 +82,7 @@ class PretrainConfig:
     wandb_entity: str = "klab-shikhar"
 
     # Mitigation method. Default is None
-    mitigation: Optional[str] = None
+    mitigation: str = None
 
     
 
@@ -105,7 +105,7 @@ class PretrainConfig:
         elif self.stage.endswith("finetune"):
             self.epochs = self.model.finetune_epochs
             self.max_steps = self.model.finetune_max_steps
-            self.global_batch_size = self.model.finetune_global_batch_size
+            self.global_batch_size = self.model.finetune_global_batch_size if self.mitigation is None else self.model.align_global_batch_size
             self.per_device_batch_size = self.model.finetune_per_device_batch_size
 
             self.learning_rate = self.model.finetune_learning_rate
@@ -117,8 +117,7 @@ class PretrainConfig:
             # if 'align-only' in self.model.model_id:
             #     self.train_strategy = self.model.align_train_strategy
             # else:
-            self.train_strategy = self.model.finetune_train_strategy
-
+            self.train_strategy = self.model.finetune_train_strategy #if self.mitigation is None else self.model.align_train_strategy
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")
 
@@ -140,8 +139,9 @@ def pretrain(cfg: PretrainConfig) -> None:
     else:
         cfg.run_id = f"{dataset_id}+{model_id}+stage-{cfg.stage}+x{cfg.seed}" if cfg.run_id is None else cfg.run_id
 
-    # Start =>> Build Directories and Set Randomness
     overwatch.info(f'Mitigation method: {cfg.mitigation}', ctx_level=1)
+
+    # Start =>> Build Directories and Set Randomness
     hf_token = cfg.hf_token.read_text().strip() if isinstance(cfg.hf_token, Path) else os.environ[cfg.hf_token]
     worker_init_fn = set_global_seed(cfg.seed, get_worker_init_fn=True)
     os.makedirs(run_dir := (cfg.run_root_dir / cfg.run_id), exist_ok=True)
@@ -162,7 +162,7 @@ def pretrain(cfg: PretrainConfig) -> None:
     # Load LLM Backbone --> on CPU, in Full Precision (initializing Tokenizer + handling special tokens if necessary)
     overwatch.info(f"Loading Pretrained LLM [bold]{cfg.model.llm_backbone_id}[/] via HF Transformers")
     llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
-        cfg.model.llm_backbone_id, llm_max_length=cfg.model.llm_max_length, hf_token=hf_token
+        cfg.model.llm_backbone_id, llm_max_length=cfg.model.llm_max_length, hf_token=hf_token, mitigation=cfg.mitigation
     )
 
     # Create VLM => wraps `vision_backbone` and `llm`
@@ -175,13 +175,22 @@ def pretrain(cfg: PretrainConfig) -> None:
         enable_mixed_precision_training=cfg.model.enable_mixed_precision_training,
     )
 
-    # [Explicit] Call to `freeze_backbones` here for clarity => will log exactly what is frozen / what's not!
-    overwatch.info(f"Invoking `VLM.freeze_backbones()` for `{model_id}` => Training Stage: `{cfg.stage}`")
-    vlm.freeze_backbones(cfg.stage)
-
     # Load Weights from Checkpoint (depends on stage, config)
     overwatch.info(f"Invoking `VLM.load_checkpoint()` for `{model_id}` => Training Stage: `{cfg.stage}`")
     vlm.load_from_checkpoint(cfg.stage, run_dir, pretrained_checkpoint=cfg.pretrained_checkpoint)
+
+    # Apply mitigation PEFT
+    # if cfg.mitigation == 'peft':
+    #     overwatch.info(f"Applying PEFT mitigation")
+    #     vlm.llm_backbone  = apply_mitigation(vlm.llm_backbone, cfg.mitigation)
+    
+    # [Explicit] Call to `freeze_backbones` here for clarity => will log exactly what is frozen / what's not!
+    overwatch.info(f"Invoking `VLM.freeze_backbones()` for `{model_id}` => Training Stage: `{cfg.stage}`")
+    vlm.freeze_backbones(cfg.stage, cfg.mitigation)
+
+    # Get count of trainable parameters of the llm model
+    trainable_params = sum(p.numel() for p in vlm.llm_backbone.parameters() if p.requires_grad)
+    overwatch.info(f"Trainable parameters in LLM model: {trainable_params}")
 
     # Get Dataset for Specified Stage
     overwatch.info(f"Creating Dataset `{cfg.dataset.dataset_id}` => Stage: `{cfg.stage}`")
