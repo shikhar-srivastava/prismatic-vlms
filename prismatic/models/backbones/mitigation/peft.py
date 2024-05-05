@@ -22,7 +22,7 @@ overwatch = initialize_overwatch(__name__)
 def get_lora_target_modules(llm_model):
     return ["q_proj", "v_proj"]
 def get_ia3_target_feedforward_modules(llm_model):
-    target_modules, feedforward_modules = ["q_proj", "v_proj"], ["down_proj"]
+    target_modules, feedforward_modules = ["q_proj", "v_proj", "down_proj"], ["down_proj"]
     
     return target_modules, feedforward_modules
 

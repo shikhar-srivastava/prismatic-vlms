@@ -152,3 +152,5 @@ viz/*
 lm_cache/*
 test_nlu_eval/*
 history.txt
+*/continual.sh
+
