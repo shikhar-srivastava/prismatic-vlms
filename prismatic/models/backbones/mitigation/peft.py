@@ -59,18 +59,47 @@ def apply_prompt(llm_model):
     llm_model = get_peft_model(llm_model, peft_config)
     return llm_model
 
+# def apply_olf(llm_model):
+#     print('Applying Output Layer Freezing')
+#     # implemented for the case of Llama2 llm
+#     main_model_attr = getattr(llm_model, 'llama2', None)
+#     if main_model_attr is not None and hasattr(main_model_attr, 'layers'):
+#         last_layer = main_model_attr.layers[-1]
+#         # Freeze all parameters in the last layer.
+#         for param in last_layer.parameters():
+#             param.requires_grad = False
+#         return llm_model
+#     else:
+#         raise ValueError("LLM architecture does not have the expected 'layers' attribute or main model attribute.")
+
 def apply_olf(llm_model):
     print('Applying Output Layer Freezing')
-    # implemented for the case of Llama2 llm
-    main_model_attr = getattr(llm_model, 'llama2', None)
-    if main_model_attr is not None and hasattr(main_model_attr, 'layers'):
-        last_layer = main_model_attr.layers[-1]
-        # Freeze all parameters in the last layer.
+    # Attempting to handle general cases where the model architecture includes a layers attribute
+    try:
+        # Attempt to access common layer attributes
+        if hasattr(llm_model, 'layers'):
+            model_layers = llm_model.layers
+        elif hasattr(llm_model, 'encoder') and hasattr(llm_model.encoder, 'layers'):
+            model_layers = llm_model.encoder.layers
+        else:
+            # Explore nested attributes if needed
+            for attr in dir(llm_model):
+                candidate = getattr(llm_model, attr)
+                if hasattr(candidate, 'layers'):
+                    model_layers = candidate.layers
+                    break
+            else:
+                raise ValueError("No layers attribute found in the model.")
+        
+        # Assuming the last layer is what needs to be frozen:
+        last_layer = model_layers[-1]
         for param in last_layer.parameters():
             param.requires_grad = False
         return llm_model
-    else:
-        raise ValueError("LLM architecture does not have the expected 'layers' attribute or main model attribute.")
+
+    except Exception as e:
+        raise ValueError(f"An error occurred while trying to freeze the last layer: {str(e)}")
+
 
 def apply_ia3(llm_model):
     print('Applying IA3')
