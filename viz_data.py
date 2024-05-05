@@ -32,4 +32,5 @@ pretrain_data = '/localdisk/ssrivas9/prismatic-vlms/data/download/llava-laion-cc
 instruct_data = '/localdisk/ssrivas9/prismatic-vlms/data/download/llava-v1.5-instruct/llava_v1_5_mix665k.json'
 vqd_data = '/localdisk/ssrivas9/datasets/VQD_dataset/train.json'
 instruct_158k_data = '/localdisk/ssrivas9/prismatic-vlms/data/continual/llava-158k-instruct/llava_instruct_150k-cleaned.json'
-read_json_file_with_ijson(instruct_158k_data, max_objects=None)
+instruct_80k_data = '/localdisk/ssrivas9/prismatic-vlms/data/continual/llava-80k-instruct/llava_instruct_80k.json'
+read_json_file_with_ijson(instruct_80k_data, max_objects=None)

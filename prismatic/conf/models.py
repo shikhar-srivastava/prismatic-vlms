@@ -101,7 +101,7 @@ class LLaVa_v15_Reproduction_7B(ModelConfig):
     # Finetune Stage Optimization Parameters
     finetune_epochs: int = 1
     finetune_max_steps: Optional[int] = None
-    finetune_global_batch_size: int = 128
+    finetune_global_batch_size: int = 128 
     finetune_per_device_batch_size: int = 16
 
     finetune_learning_rate: float = 2e-5

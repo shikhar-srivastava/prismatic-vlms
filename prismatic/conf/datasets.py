@@ -125,9 +125,26 @@ class LLaVa_V1_Config(DatasetConfig):
     dataset_root_dir: Path = Path("data")
 
 
+@dataclass
+class Test(DatasetConfig):
+    dataset_id: str = "test"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("llava_instruct_150k-cleaned-256.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+
+
 # === Define a Dataset Registry Enum for Reference & Validation =>> all *new* datasets must be added here! ===
 @unique
 class DatasetRegistry(Enum):
+    TEST_DATA = Test
     # === LLaVa v1 ===
     LLAVA_V1 = LLaVa_V1_Config
 
