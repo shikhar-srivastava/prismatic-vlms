@@ -114,6 +114,11 @@ class LLaVa_v15_Reproduction_7B(ModelConfig):
 
 
 @dataclass
+class Stage0_after_llava(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-after-llava+7b"
+
+
+@dataclass
 class LLaVa_v15_Reproduction_13B(LLaVa_v15_Reproduction_7B):
     model_id: str = "reproduction-llava-v15+13b"
     llm_backbone_id: str = "vicuna-v15-13b"
@@ -446,6 +451,10 @@ class Prism_13B_DINOSigLIP(Exp_13B_One_Stage):
 # === Define a Model Registry Enum for Reference & Validation ===
 @unique
 class ModelRegistry(Enum):
+
+    # === LLaVa Variants ===
+    STAGE0_AFTER_LLAVA = Stage0_after_llava
+    
     # === LLaVa v1.5 Base Reproductions ===
     REPRODUCTION_7B = LLaVa_v15_Reproduction_7B
     REPRODUCTION_13B = LLaVa_v15_Reproduction_13B

@@ -109,9 +109,28 @@ class LLaVa_LVIS4V_LRV_Config(DatasetConfig):
     dataset_root_dir: Path = Path("/mnt/fsx/skaramcheti/datasets/prismatic-vlms")
 
 
+
+@dataclass
+class LLaVa_V1_Config(DatasetConfig):
+    dataset_id: str = "llava-v1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/llava-158k-instruct/llava_instruct_150k-cleaned.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+
 # === Define a Dataset Registry Enum for Reference & Validation =>> all *new* datasets must be added here! ===
 @unique
 class DatasetRegistry(Enum):
+    # === LLaVa v1 ===
+    LLAVA_V1 = LLaVa_V1_Config
+
     # === LLaVa v1.5 ===
     LLAVA_V15 = LLaVa_V15_Config
 

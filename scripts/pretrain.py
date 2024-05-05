@@ -81,6 +81,9 @@ class PretrainConfig:
     wandb_project: str = "prismatic"
     wandb_entity: str = "klab-shikhar"
 
+    # Mitigation method. Default is None
+    mitigation: Optional[str] = None
+
     
 
     def __post_init__(self) -> None:
@@ -138,7 +141,7 @@ def pretrain(cfg: PretrainConfig) -> None:
         cfg.run_id = f"{dataset_id}+{model_id}+stage-{cfg.stage}+x{cfg.seed}" if cfg.run_id is None else cfg.run_id
 
     # Start =>> Build Directories and Set Randomness
-    overwatch.info('"Life is like a prism; what you see depends on how you turn the glass."', ctx_level=1)
+    overwatch.info(f'Mitigation method: {cfg.mitigation}', ctx_level=1)
     hf_token = cfg.hf_token.read_text().strip() if isinstance(cfg.hf_token, Path) else os.environ[cfg.hf_token]
     worker_init_fn = set_global_seed(cfg.seed, get_worker_init_fn=True)
     os.makedirs(run_dir := (cfg.run_root_dir / cfg.run_id), exist_ok=True)
