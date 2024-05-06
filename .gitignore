@@ -157,3 +157,5 @@ history.txt
 continual.sh
 nlp_eval copy.sh
 nlp_eval.sh
+mscoco_train2014_annotations.json
+OpenEnded_mscoco_train2014_questions.json
