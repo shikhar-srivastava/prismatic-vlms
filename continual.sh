@@ -17,21 +17,21 @@
 
 
 
-# # TEST - PTUNE
-# PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True OMP_NUM_THREADS=12 torchrun --standalone --nnodes 1 --nproc-per-node 4 scripts/pretrain.py   \
-# --stage "finetune" --model.type "stage0-after-llava+7b"  --dataset.type "llava-v1" \
-# --pretrained_checkpoint "/scratch/ssrivas9/prismatic-vlms/runs/reproduction-llava-v15+7b+stage-align+x7/checkpoints/latest-checkpoint.pt" \
-# --run_id "ptune-stage-0-after-llava-158k" --mitigation "ptune"
-
-# PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True OMP_NUM_THREADS=12 torchrun --standalone --nnodes 1 --nproc-per-node 4 scripts/pretrain.py   \
-# --stage "finetune" --model.type "stage0-after-llava+7b"  --dataset.type "llava-v1" \
-# --pretrained_checkpoint "/scratch/ssrivas9/prismatic-vlms/runs/reproduction-llava-v15+7b+stage-align+x7/checkpoints/latest-checkpoint.pt" \
-# --run_id "prompt-stage-0-after-llava-158k" --mitigation "prompt"
-
+# PTUNE
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True OMP_NUM_THREADS=12 torchrun --standalone --nnodes 1 --nproc-per-node 4 scripts/pretrain.py   \
---stage "finetune" --model.type "stage0-after-llava+7b"  --dataset.type "test" \
+--stage "finetune" --model.type "stage0-after-llava+7b"  --dataset.type "llava-v1" \
 --pretrained_checkpoint "/scratch/ssrivas9/prismatic-vlms/runs/reproduction-llava-v15+7b+stage-align+x7/checkpoints/latest-checkpoint.pt" \
---run_id "olf-stage-0-after-llava-158k" --mitigation "olf"
+--run_id "ptune-stage-0-after-llava-158k" --mitigation "ptune"
+# PROMPT
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True OMP_NUM_THREADS=12 torchrun --standalone --nnodes 1 --nproc-per-node 4 scripts/pretrain.py   \
+--stage "finetune" --model.type "stage0-after-llava+7b"  --dataset.type "llava-v1" \
+--pretrained_checkpoint "/scratch/ssrivas9/prismatic-vlms/runs/reproduction-llava-v15+7b+stage-align+x7/checkpoints/latest-checkpoint.pt" \
+--run_id "prompt-stage-0-after-llava-158k" --mitigation "prompt"
+
+# PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True OMP_NUM_THREADS=12 torchrun --standalone --nnodes 1 --nproc-per-node 4 scripts/pretrain.py   \
+# --stage "finetune" --model.type "stage0-after-llava+7b"  --dataset.type "test" \
+# --pretrained_checkpoint "/scratch/ssrivas9/prismatic-vlms/runs/reproduction-llava-v15+7b+stage-align+x7/checkpoints/latest-checkpoint.pt" \
+# --run_id "olf-stage-0-after-llava-158k" --mitigation "olf"
 
 # PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True OMP_NUM_THREADS=12 torchrun --standalone --nnodes 1 --nproc-per-node 4 scripts/pretrain.py   \
 # --stage "finetune" --model.type "stage0-after-llava+7b"  --dataset.type "llava-v1" \

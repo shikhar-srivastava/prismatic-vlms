@@ -92,6 +92,7 @@ def load(
     model_state_dict = torch.load(checkpoint_pt, map_location="cpu")["model"]
     load_from_hf_anyway = False
     if ("projector" in model_state_dict) and ("llm_backbone" not in model_state_dict):
+        overwatch.info(f"[bold blue]LLM Weights not found![/]", )
         load_from_hf_anyway = True
     del model_state_dict
 

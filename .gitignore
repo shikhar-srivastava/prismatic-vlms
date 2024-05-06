@@ -154,3 +154,6 @@ test_nlu_eval/*
 history.txt
 */continual.sh
 
+continual.sh
+nlp_eval copy.sh
+nlp_eval.sh
