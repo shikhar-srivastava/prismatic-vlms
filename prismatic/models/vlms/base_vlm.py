@@ -91,6 +91,7 @@ class VLM(nn.Module, GenerationMixin, ABC):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         multimodal_indices: Optional[torch.LongTensor] = None,
+        return_labels: Optional[bool] = False,
     ) -> CausalLMOutputWithPast: ...
 
     # === GenerationMixin Expected Properties & Methods (DO NOT MODIFY) ===

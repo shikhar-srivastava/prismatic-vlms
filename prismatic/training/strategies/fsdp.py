@@ -58,6 +58,7 @@ class FSDPStrategy(TrainingStrategy):
         worker_init_fn: Optional[Callable[[int], None]] = None,
         sharding_strategy: str = "shard-grad-op",
         state_dict_type: StateDictType = StateDictType.FULL_STATE_DICT,
+        soft_alpha = None
     ) -> None:
         super().__init__(
             vlm=vlm,
@@ -76,13 +77,16 @@ class FSDPStrategy(TrainingStrategy):
             reduce_in_full_precision=reduce_in_full_precision,
             mixed_precision_dtype=mixed_precision_dtype,
             worker_init_fn=worker_init_fn,
+            soft_alpha=soft_alpha
         )
 
         # FSDP-Specific Parameters
         if sharding_strategy == "shard-grad-op":
-            self.fsdp_sharding_strategy = ShardingStrategy.SHARD_GRAD_OP
+            #self.fsdp_sharding_strategy = ShardingStrategy.SHARD_GRAD_OP
+            self.fsdp_sharding_strategy = ShardingStrategy._HYBRID_SHARD_ZERO2
         elif sharding_strategy == "full-shard":
-            self.fsdp_sharding_strategy = ShardingStrategy.FULL_SHARD
+            #self.fsdp_sharding_strategy = ShardingStrategy.FULL_SHARD
+            self.fsdp_sharding_strategy = ShardingStrategy.HYBRID_SHARD
         else:
             raise ValueError(f"FSDP Sharding Strategy {sharding_strategy} is not supported!")
 

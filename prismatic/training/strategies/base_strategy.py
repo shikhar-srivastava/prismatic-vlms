@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import torch
+import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from tqdm import tqdm
@@ -27,6 +28,8 @@ from prismatic.util.data_utils import PaddedCollatorForLanguageModeling
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
 
+# HuggingFace Default / LLaMa-2 IGNORE_INDEX (for labels)
+IGNORE_INDEX = -100
 
 # === Abstract Base Class for an arbitrary Training Strategy ===
 class TrainingStrategy(ABC):
@@ -48,8 +51,12 @@ class TrainingStrategy(ABC):
         reduce_in_full_precision: bool = False,
         mixed_precision_dtype: torch.dtype = torch.bfloat16,
         worker_init_fn: Optional[Callable[[int], None]] = None,
+        soft_alpha = None,
         **_: str,
     ) -> None:
+        
+        self.soft_alpha = soft_alpha
+
         self.vlm, self.device_id = vlm, device_id
 
         # Get relevant VLM instance parameters before they get (potentially) wrapped
@@ -177,14 +184,46 @@ class TrainingStrategy(ABC):
                         "cuda",
                         dtype=self.mixed_precision_dtype,
                         enabled=self.enable_mixed_precision_training,
-                    ):
-                        output: CausalLMOutputWithPast = self.vlm(
-                            input_ids=batch["input_ids"],
-                            attention_mask=batch["attention_mask"],
-                            pixel_values=batch["pixel_values"],
-                            labels=batch["labels"],
-                            multimodal_indices=batch["multimodal_indices"],
-                        )
+                    ):  
+                        if self.soft_alpha is None:
+                            output: CausalLMOutputWithPast = self.vlm(
+                                input_ids=batch["input_ids"],
+                                attention_mask=batch["attention_mask"],
+                                pixel_values=batch["pixel_values"],
+                                labels=batch["labels"],
+                                multimodal_indices=batch["multimodal_indices"],
+                            )
+                        else:
+                            output, fused_labels = self.vlm(
+                                input_ids=batch["input_ids"],
+                                attention_mask=batch["attention_mask"],
+                                pixel_values=batch["pixel_values"],
+                                labels=batch["labels"],
+                                multimodal_indices=batch["multimodal_indices"],
+                                return_labels=True if self.soft_alpha is not None else False,
+                            )
+                    if self.soft_alpha is not None:
+                        num_classes = output.logits.size(-1)  # Assuming shape [batch_size, seq_length, num_classes]
+                        valid_mask = fused_labels != IGNORE_INDEX
+                        valid_labels = fused_labels[valid_mask]
+
+                        if valid_labels.numel() > 0:
+                            # Adjusted smoothing value calculation
+                            base_smoothing = self.soft_alpha / (num_classes - 1) if num_classes > 1 else 0
+                            confidence = 1 - self.soft_alpha
+
+                            # Initialize the tensor for smoothed labels
+                            targets_smooth = torch.full((valid_labels.size(0), num_classes), base_smoothing, device=fused_labels.device)
+                            targets_smooth.scatter_(1, valid_labels.unsqueeze(1), confidence + base_smoothing)
+
+                            # Gather logits corresponding to valid labels for loss computation
+                            logits = output.logits[valid_mask].view(-1, num_classes)
+                            loss = F.cross_entropy(logits, targets_smooth, reduction='mean')
+                        else:
+                            # If there are no valid labels, default to a zero loss
+                            loss = torch.tensor(0.0, device=output.logits.device)
+                    else:
+                        # Use the default loss calculated by the model when label smoothing is not applied
                         loss = output.loss
 
                     # Commit Loss (Prior to Gradient Accumulation Normalization)
