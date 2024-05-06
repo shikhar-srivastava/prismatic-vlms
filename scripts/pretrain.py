@@ -83,6 +83,7 @@ class PretrainConfig:
 
     # Mitigation method. Default is None
     mitigation: str = None
+    soft_alpha: float = None
 
     
 
@@ -129,7 +130,8 @@ def pretrain(cfg: PretrainConfig) -> None:
     overwatch.info("Prismatic VLM Training :: Gathering Light")
 
     # Note => Under `torchrun` initializing `overwatch` will automatically set up `torch.distributed`
-    torch.cuda.set_device(device_id := (overwatch.rank() % torch.cuda.device_count()))
+    # torch.cuda.set_device(device_id := (overwatch.rank() % torch.cuda.device_count()))
+    torch.cuda.set_device(device_id := (overwatch.local_rank()))
     torch.cuda.empty_cache()
 
     # Create Unique Run Name & Save Directory
@@ -140,6 +142,8 @@ def pretrain(cfg: PretrainConfig) -> None:
         cfg.run_id = f"{dataset_id}+{model_id}+stage-{cfg.stage}+x{cfg.seed}" if cfg.run_id is None else cfg.run_id
 
     overwatch.info(f'Mitigation method: {cfg.mitigation}', ctx_level=1)
+    if cfg.soft_alpha is not None:
+        overwatch.info(f'Soft Alpha: {cfg.soft_alpha}', ctx_level=1)
 
     # Start =>> Build Directories and Set Randomness
     hf_token = cfg.hf_token.read_text().strip() if isinstance(cfg.hf_token, Path) else os.environ[cfg.hf_token]
@@ -223,6 +227,7 @@ def pretrain(cfg: PretrainConfig) -> None:
         enable_mixed_precision_training=cfg.model.enable_mixed_precision_training,
         reduce_in_full_precision=cfg.model.reduce_in_full_precision,
         worker_init_fn=worker_init_fn,
+        soft_alpha=cfg.soft_alpha, # Adding Soft Targets (Label Smoothing)
     )
     train_strategy.run_setup(run_dir=run_dir, n_train_examples=len(train_dataset))
 
