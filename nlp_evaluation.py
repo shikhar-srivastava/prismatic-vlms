@@ -24,7 +24,7 @@ overwatch = initialize_overwatch(__name__)
 # === HF Hub Repository ===
 HF_HUB_REPO = "TRI-ML/prismatic-vlms"
 
-SELECTED_NLP_TASKS = ["wsc273"]#["wsc273","arc_easy","arc_challenge","winogrande","lambada_standard"] #, "webqs"]
+SELECTED_NLP_TASKS = ["wsc273","arc_easy","arc_challenge","winogrande","lambada_standard"] #, "webqs"] ["wsc273"]#
 
 # === Available Models ===
 def available_models() -> List[str]:
