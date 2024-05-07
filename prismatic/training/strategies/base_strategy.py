@@ -202,29 +202,67 @@ class TrainingStrategy(ABC):
                                 multimodal_indices=batch["multimodal_indices"],
                                 return_labels=True if self.soft_alpha is not None else False,
                             )
+
+
                     if self.soft_alpha is not None:
-                        num_classes = output.logits.size(-1)  # Assuming shape [batch_size, seq_length, num_classes]
-                        valid_mask = fused_labels != IGNORE_INDEX
-                        valid_labels = fused_labels[valid_mask]
+                        shift_logits = output.logits[:, :-1, :].contiguous()
+                        valid_targets = fused_labels[:, 1:].contiguous()
 
-                        if valid_labels.numel() > 0:
-                            # Adjusted smoothing value calculation
-                            base_smoothing = self.soft_alpha / (num_classes - 1) if num_classes > 1 else 0
-                            confidence = 1 - self.soft_alpha
+                        num_classes = shift_logits.size(-1)
 
-                            # Initialize the tensor for smoothed labels
-                            targets_smooth = torch.full((valid_labels.size(0), num_classes), base_smoothing, device=fused_labels.device)
-                            targets_smooth.scatter_(1, valid_labels.unsqueeze(1), confidence + base_smoothing)
+                        # Handling special value -100 in targets
+                        mask = (valid_targets == -100)
+                        valid_targets[mask] = 0  # Replace -100 with 0 or another neutral index
 
-                            # Gather logits corresponding to valid labels for loss computation
-                            logits = output.logits[valid_mask].view(-1, num_classes)
-                            loss = F.cross_entropy(logits, targets_smooth, reduction='mean')
-                        else:
-                            # If there are no valid labels, default to a zero loss
-                            loss = torch.tensor(0.0, device=output.logits.device)
+                        confidence = 1.0 - self.soft_alpha
+                        label_smoothing = self.soft_alpha / (num_classes - 1)
+                        targets_smooth = torch.full_like(shift_logits, label_smoothing)
+
+                        # # Ensure all tensors are on the same device and have the same dtype
+                        # valid_targets = valid_targets.to(device=shift_logits.device, dtype=torch.int64)
+
+                        # Apply scatter only on valid targets
+                        targets_smooth.scatter_(-1, valid_targets.unsqueeze(-1), confidence)
+
+                        # Apply mask to neutralize the effect of -100 in loss calculation
+                        targets_smooth[mask.unsqueeze(-1).expand_as(targets_smooth)] = 0
+                        # Loss calculation with try-except block
+                        loss_fct = torch.nn.CrossEntropyLoss()
+                        try:
+                            loss = loss_fct(shift_logits.view(-1, num_classes), targets_smooth.view(-1, num_classes))
+                        except RuntimeError as e:
+                            print("Error during loss calculation:", e)
+                            print("Shapes at loss calculation:")
+                            print("shift_logits:", shift_logits.view(-1, num_classes).shape)
+                            print("targets_smooth:", targets_smooth.view(-1, num_classes).shape)
+                            raise e
+          
                     else:
-                        # Use the default loss calculated by the model when label smoothing is not applied
                         loss = output.loss
+
+                    # if self.soft_alpha is not None:
+                    #     num_classes = output.logits.size(-1)  # Assuming shape [batch_size, seq_length, num_classes]
+                    #     valid_mask = fused_labels != IGNORE_INDEX
+                    #     valid_labels = fused_labels[valid_mask]
+
+                    #     if valid_labels.numel() > 0:
+                    #         # Adjusted smoothing value calculation
+                    #         base_smoothing = self.soft_alpha / (num_classes - 1) if num_classes > 1 else 0
+                    #         confidence = 1 - self.soft_alpha
+
+                    #         # Initialize the tensor for smoothed labels
+                    #         targets_smooth = torch.full((valid_labels.size(0), num_classes), base_smoothing, device=fused_labels.device)
+                    #         targets_smooth.scatter_(1, valid_labels.unsqueeze(1), confidence + base_smoothing)
+
+                    #         # Gather logits corresponding to valid labels for loss computation
+                    #         logits = output.logits[valid_mask].view(-1, num_classes)
+                    #         loss = F.cross_entropy(logits, targets_smooth, reduction='mean')
+                    #     else:
+                    #         # If there are no valid labels, default to a zero loss
+                    #         loss = torch.tensor(0.0, device=output.logits.device)
+                    # else:
+                    #     # Use the default loss calculated by the model when label smoothing is not applied
+                    #     loss = output.loss
 
                     # Commit Loss (Prior to Gradient Accumulation Normalization)
                     metrics.commit(loss=loss)

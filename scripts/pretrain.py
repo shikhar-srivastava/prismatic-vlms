@@ -108,6 +108,9 @@ class PretrainConfig:
             self.max_steps = self.model.finetune_max_steps
             self.global_batch_size = self.model.finetune_global_batch_size if self.mitigation is None else self.model.align_global_batch_size
             self.per_device_batch_size = self.model.finetune_per_device_batch_size
+            if self.soft_alpha is not None:
+                self.global_batch_size = int(self.global_batch_size/4)
+                self.per_device_batch_size = int(self.per_device_batch_size/4)
 
             self.learning_rate = self.model.finetune_learning_rate
             self.weight_decay = self.model.finetune_weight_decay
