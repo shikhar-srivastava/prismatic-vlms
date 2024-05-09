@@ -84,6 +84,8 @@ class PretrainConfig:
     # Mitigation method. Default is None
     mitigation: str = None
     soft_alpha: float = None
+    lora_rank: int = 16
+    lora_alpha: int = 8
 
     
 
@@ -131,7 +133,7 @@ class PretrainConfig:
 @draccus.wrap()
 def pretrain(cfg: PretrainConfig) -> None:
     overwatch.info("Prismatic VLM Training :: Gathering Light")
-
+    overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
     # Note => Under `torchrun` initializing `overwatch` will automatically set up `torch.distributed`
     # torch.cuda.set_device(device_id := (overwatch.rank() % torch.cuda.device_count()))
     torch.cuda.set_device(device_id := (overwatch.local_rank()))
@@ -169,8 +171,7 @@ def pretrain(cfg: PretrainConfig) -> None:
     # Load LLM Backbone --> on CPU, in Full Precision (initializing Tokenizer + handling special tokens if necessary)
     overwatch.info(f"Loading Pretrained LLM [bold]{cfg.model.llm_backbone_id}[/] via HF Transformers")
     llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
-        cfg.model.llm_backbone_id, llm_max_length=cfg.model.llm_max_length, hf_token=hf_token, mitigation=cfg.mitigation
-    )
+        cfg.model.llm_backbone_id, llm_max_length=cfg.model.llm_max_length, hf_token=hf_token, cfg=cfg)
 
     # Create VLM => wraps `vision_backbone` and `llm`
     overwatch.info(f"Instantiating PrismaticVLM `{model_id}` for Training Stage = `{cfg.stage}`")

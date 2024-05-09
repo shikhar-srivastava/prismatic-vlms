@@ -60,7 +60,7 @@ class LLaMa2LLMBackbone(HFCausalLLMBackbone):
         inference_mode: bool = False,
         load_from_hf_anyway: bool = False,
         use_flash_attention_2: bool = True,
-        mitigation : str = None, 
+        cfg = None, 
     ) -> None:
         super().__init__(
             llm_backbone_id,
@@ -69,7 +69,7 @@ class LLaMa2LLMBackbone(HFCausalLLMBackbone):
             inference_mode=inference_mode,
             load_from_hf_anyway=load_from_hf_anyway,
             use_flash_attention_2=use_flash_attention_2,
-            mitigation=mitigation,
+            cfg=cfg,
             **LLAMA2_MODELS[llm_backbone_id],
         )
 

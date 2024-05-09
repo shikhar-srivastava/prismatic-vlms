@@ -19,15 +19,35 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
 
-def get_lora_target_modules(llm_model):
-    return ["q_proj", "v_proj"]
+def get_all_linear_layers(llm_model):
+    # Picked from DataBricks: https://www.databricks.com/blog/efficient-fine-tuning-lora-guide-llms
+    import re
+    model_modules = str(llm_model.modules)
+    pattern = r'\((\w+)\): Linear'
+    linear_layer_names = re.findall(pattern, model_modules)
+    names = []
+    # Print the names of the Linear layers
+    for name in linear_layer_names:
+        names.append(name)
+    target_modules = list(set(names))
+    return target_modules
+
+def get_lora_target_modules(mitigation_type, llm_model):
+    if mitigation_type == 'lora':
+        return ["q_proj", "v_proj"]
+    elif mitigation_type == 'lora-all-linear':
+        return get_all_linear_layers(llm_model)
+    elif mitigation_type == 'lora-mlp-block':
+        return ["down_proj", "up_proj", "gate_proj", "lm_head"]
+    else:
+        raise ValueError(f"Mitigation type {mitigation_type} not supported")
 def get_ia3_target_feedforward_modules(llm_model):
     target_modules, feedforward_modules = ["q_proj", "v_proj", "down_proj"], ["down_proj"]
     
     return target_modules, feedforward_modules
 
 def apply_lora(llm_model, lora_r, lora_target_modules, lora_alpha, lora_dropout):
-    llm_model = prepare_model_for_kbit_training(llm_model)
+    # llm_model = prepare_model_for_kbit_training(llm_model)
     loraconfig = LoraConfig(
         r=lora_r, lora_alpha=lora_alpha, target_modules=lora_target_modules,
         lora_dropout=lora_dropout, bias="none", task_type="CAUSAL_LM"
@@ -114,14 +134,17 @@ def freeze_model_weights(model, freeze = True):
         param.requires_grad = False if freeze else True
     return model
 
-def apply_mitigation(llm_model, mitigation_type):
+def apply_mitigation(llm_model, cfg):
+    mitigation_type = cfg.mitigation
     if mitigation_type is None:
         return llm_model
     else:
         overwatch.info(f"Applying mitigation: {mitigation_type}")
         
     if mitigation_type == 'lora':
-        llm_model = apply_lora(llm_model, lora_r=4, lora_target_modules=get_lora_target_modules(llm_model), lora_alpha=16, lora_dropout=0.05)
+        lora_target_modules = get_lora_target_modules(cfg.mitigation, llm_model)
+        llm_model = apply_lora(llm_model, lora_r=cfg.lora_rank, \
+                               lora_target_modules=lora_target_modules, lora_alpha=cfg.lora_alpha, lora_dropout=0.05)
     elif mitigation_type == 'prefix':
         llm_model = apply_prefix(llm_model)
     elif mitigation_type == 'ptune':

@@ -88,7 +88,7 @@ def get_llm_backbone_and_tokenizer(
     hf_token: Optional[str] = None,
     inference_mode: bool = False,
     load_from_hf_anyway: bool = False,
-    mitigation: str = None,
+    cfg = None
 ) -> Tuple[LLMBackbone, PreTrainedTokenizerBase]:
     if llm_backbone_id in LLM_BACKBONES:
         llm_cfg = LLM_BACKBONES[llm_backbone_id]
@@ -98,7 +98,7 @@ def get_llm_backbone_and_tokenizer(
             hf_token=hf_token,
             inference_mode=inference_mode,
             load_from_hf_anyway=load_from_hf_anyway,
-            mitigation=mitigation,
+            cfg=cfg,
             **llm_cfg["kwargs"],
         )
         tokenizer = llm_backbone.get_tokenizer()
