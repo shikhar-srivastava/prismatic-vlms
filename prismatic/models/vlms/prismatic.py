@@ -107,6 +107,7 @@ class PrismaticVLM(VLM):
         assert (
             "projector" in model_state_dict or "llm_backbone" in model_state_dict
         ), "PrismaticVLM `from_pretrained` expects checkpoint with keys for `projector` AND `llm_backbone`!"
+        overwatch.info("Loading for Mitigation methods enabled")
         #If only projector in model_state_dict, then print that, if both, then print that.
         if "projector" in model_state_dict and "llm_backbone" in model_state_dict:
             overwatch.info("Loading `projector` and `llm_backbone` from checkpoint", ctx_level=1)
