@@ -109,8 +109,8 @@ class PretrainConfig:
             self.global_batch_size = self.model.finetune_global_batch_size if self.mitigation is None else self.model.align_global_batch_size
             self.per_device_batch_size = self.model.finetune_per_device_batch_size
             if self.soft_alpha is not None:
-                self.global_batch_size = int(self.global_batch_size/4)
-                self.per_device_batch_size = int(self.per_device_batch_size/4)
+                self.global_batch_size = int(self.global_batch_size/2)
+                self.per_device_batch_size = int(self.per_device_batch_size/2)
 
             self.learning_rate = self.model.finetune_learning_rate
             self.weight_decay = self.model.finetune_weight_decay
@@ -184,6 +184,7 @@ def pretrain(cfg: PretrainConfig) -> None:
 
     # Load Weights from Checkpoint (depends on stage, config)
     overwatch.info(f"Invoking `VLM.load_checkpoint()` for `{model_id}` => Training Stage: `{cfg.stage}`")
+    #@TODO: Currently only loads Projector. Need to load LLM weights as well 
     vlm.load_from_checkpoint(cfg.stage, run_dir, pretrained_checkpoint=cfg.pretrained_checkpoint)
 
     # Apply mitigation PEFT

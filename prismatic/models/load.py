@@ -69,7 +69,9 @@ def load(
 
     # Load Model Config from `config.json`
     with open(config_json, "r") as f:
-        model_cfg = json.load(f)["model"]
+        cfg = json.load(f)
+        model_cfg = cfg["model"]
+        mitigation = cfg.get("mitigation", None)
 
     # = Load Individual Components necessary for Instantiating a VLM =
     #   =>> Print Minimal Config
@@ -103,7 +105,8 @@ def load(
         llm_max_length=model_cfg.get("llm_max_length", 2048),
         hf_token=hf_token,
         inference_mode=True,
-        load_from_hf_anyway = load_from_hf_anyway
+        load_from_hf_anyway = load_from_hf_anyway,
+        mitigation=mitigation
     )
 
     # Load VLM using `from_pretrained` (clobbers HF syntax... eventually should reconcile)

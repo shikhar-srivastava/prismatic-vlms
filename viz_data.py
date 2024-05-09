@@ -33,4 +33,5 @@ instruct_data = '/localdisk/ssrivas9/prismatic-vlms/data/download/llava-v1.5-ins
 vqd_data = '/localdisk/ssrivas9/datasets/VQD_dataset/train.json'
 instruct_158k_data = '/localdisk/ssrivas9/prismatic-vlms/data/continual/llava-158k-instruct/llava_instruct_150k-cleaned.json'
 instruct_80k_data = '/localdisk/ssrivas9/prismatic-vlms/data/continual/llava-80k-instruct/llava_instruct_80k.json'
-read_json_file_with_ijson(instruct_80k_data, max_objects=None)
+refcoco_data = 'data/continual/splits/refcoco_48447k.json'
+read_json_file_with_ijson(refcoco_data, max_objects=None)
