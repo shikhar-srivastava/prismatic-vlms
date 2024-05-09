@@ -141,7 +141,7 @@ def apply_mitigation(llm_model, cfg):
     else:
         overwatch.info(f"Applying mitigation: {mitigation_type}")
         
-    if mitigation_type == 'lora':
+    if 'lora' in mitigation_type:
         lora_target_modules = get_lora_target_modules(cfg.mitigation, llm_model)
         llm_model = apply_lora(llm_model, lora_r=cfg.lora_rank, \
                                lora_target_modules=lora_target_modules, lora_alpha=cfg.lora_alpha, lora_dropout=0.05)

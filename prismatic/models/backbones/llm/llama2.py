@@ -17,6 +17,7 @@ from prismatic.models.backbones.llm.prompting import (
     PurePromptBuilder,
     VicunaV15ChatPromptBuilder,
 )
+from prismatic.models.backbones.mitigation import apply_mitigation
 
 # Registry =>> Support LLaMa-2 Models (from HF Transformers)
 # fmt: off
@@ -77,6 +78,7 @@ class LLaMa2LLMBackbone(HFCausalLLMBackbone):
         self.tokenizer.add_special_tokens({"pad_token": "<PAD>"})
         self.llm.config.pad_token_id = self.tokenizer.pad_token_id
         self.llm.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=64)
+        self.llm = apply_mitigation(self.llm, cfg=cfg)
 
     @property
     def prompt_builder_fn(self) -> Type[PromptBuilder]:

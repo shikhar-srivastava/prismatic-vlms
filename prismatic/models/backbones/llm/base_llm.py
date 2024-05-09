@@ -22,8 +22,6 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from transformers import AutoConfig, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from prismatic.models.backbones.mitigation import apply_mitigation
-
 from prismatic.models.backbones.llm.prompting import PromptBuilder
 from prismatic.overwatch import initialize_overwatch
 
@@ -129,7 +127,6 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                 temperature=1.0,
                 top_p=1.0,
             )
-            self.llm = apply_mitigation(self.llm, cfg=cfg)
             
         elif self.load_from_hf_anyway:
             overwatch.info(f"Loading [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
@@ -142,7 +139,6 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                 temperature=1.0,
                 top_p=1.0,
             )
-            self.llm = apply_mitigation(self.llm, cfg=cfg)
 
         # [Contract] `inference_mode` means we're loading from a pretrained checkpoint; no need to load base weights!
         # [Breaking Contract] we still load base weights, if load_from_hf_anyway is set to True
@@ -150,7 +146,6 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
             overwatch.info(f"Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
             llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token)
             self.llm = llm_cls._from_config(llm_config)
-            self.llm = apply_mitigation(self.llm, cfg=cfg)
             #
             # print("DEBUG EMPTY LLM INITIALIZE")
             # import IPython
