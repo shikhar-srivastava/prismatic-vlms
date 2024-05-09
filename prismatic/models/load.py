@@ -67,6 +67,7 @@ def load(
             repo_id=HF_HUB_REPO, filename=f"{model_id}/checkpoints/latest-checkpoint.pt", cache_dir=cache_dir
         )
 
+    overwatch.info("\n\n🚀 [bold green](LATEST) Loading Prismatic VLM for Inference 🚀[/] 🚀\n\n")
     # Load Model Config from `config.json`
     with open(config_json, "r") as f:
         cfg = json.load(f)
