@@ -111,12 +111,16 @@ class PrismaticVLM(VLM):
         if "projector" in model_state_dict and "llm_backbone" in model_state_dict:
             overwatch.info("Loading `projector` and `llm_backbone` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
-            if any(key.startswith('llm.') for key in model_state_dict['llm_backbone'].keys()):
-                adjusted_state_dict = {key.replace('llm.', ''): value for key, value in model_state_dict['llm_backbone'].items()}
-                vlm.llm_backbone.load_state_dict(adjusted_state_dict)
-            else:
-                vlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
-            del adjusted_state_dict
+            try:
+                if any(key.startswith('llm.') for key in model_state_dict['llm_backbone'].keys()):
+                    adjusted_state_dict = {key.replace('llm.', ''): value for key, value in model_state_dict['llm_backbone'].items()}
+                    vlm.llm_backbone.load_state_dict(adjusted_state_dict)
+                else:
+                    vlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
+                #del adjusted_state_dict
+            except Exception as e:
+                overwatch.error(f"Error loading llm_backbone from checkpoint: {e}")
+                exit()
         elif "projector" in model_state_dict:
             overwatch.info("Loading only `projector` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
