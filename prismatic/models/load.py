@@ -81,6 +81,7 @@ def load(
         f"             Vision Backbone =>> [bold]{model_cfg['vision_backbone_id']}[/]\n"
         f"             LLM Backbone    =>> [bold]{model_cfg['llm_backbone_id']}[/]\n"
         f"             Arch Specifier  =>> [bold]{model_cfg['arch_specifier']}[/]\n"
+        f"             Mitigation Strategy      =>> [bold]{mitigation}[/]"
         f"             Checkpoint Path =>> [underline]`{checkpoint_pt}`[/]"
     )
 
