@@ -135,7 +135,13 @@ def freeze_model_weights(model, freeze = True):
     return model
 
 def apply_mitigation(llm_model, cfg):
-    mitigation_type = cfg["mitigation"]
+    if isinstance(cfg, dict):
+        mitigation_type = cfg.get("mitigation", None)
+    elif hasattr(cfg, 'mitigation'):
+        mitigation_type = getattr(cfg, 'mitigation', None)
+    else:
+        mitigation_type = None
+    
     if mitigation_type is None:
         return llm_model
     else:
@@ -143,7 +149,7 @@ def apply_mitigation(llm_model, cfg):
         
     if 'lora' in mitigation_type:
         overwatch.info(f"Applying LORA with rank {cfg['lora_rank']} and alpha {cfg['lora_alpha']}", ctx_level=1)
-        lora_target_modules = get_lora_target_modules(cfg['mitigation'], llm_model)
+        lora_target_modules = get_lora_target_modules(cfg.get('mitigation', None), llm_model)
         llm_model = apply_lora(llm_model, lora_r=cfg['lora_rank'], \
                                lora_target_modules=lora_target_modules, lora_alpha=cfg['lora_alpha'], lora_dropout=0.05)
     elif mitigation_type == 'prefix':
