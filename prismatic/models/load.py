@@ -72,7 +72,6 @@ def load(
     with open(config_json, "r") as f:
         cfg = json.load(f)
         model_cfg = cfg["model"]
-        mitigation = cfg.get("mitigation", None)
 
     # = Load Individual Components necessary for Instantiating a VLM =
     #   =>> Print Minimal Config
@@ -81,7 +80,7 @@ def load(
         f"             Vision Backbone =>> [bold]{model_cfg['vision_backbone_id']}[/]\n"
         f"             LLM Backbone    =>> [bold]{model_cfg['llm_backbone_id']}[/]\n"
         f"             Arch Specifier  =>> [bold]{model_cfg['arch_specifier']}[/]\n"
-        f"             Mitigation Strategy      =>> [bold]{mitigation}[/]"
+        f"             Mitigation Strategy      =>> [bold]{cfg["mitigation"]}[/]"
         f"             Checkpoint Path =>> [underline]`{checkpoint_pt}`[/]"
     )
 
@@ -108,7 +107,7 @@ def load(
         hf_token=hf_token,
         inference_mode=True,
         load_from_hf_anyway = load_from_hf_anyway,
-        mitigation=mitigation
+        cfg=cfg
     )
 
     # Load VLM using `from_pretrained` (clobbers HF syntax... eventually should reconcile)
