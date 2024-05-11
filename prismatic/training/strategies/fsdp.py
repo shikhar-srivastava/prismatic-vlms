@@ -169,7 +169,7 @@ class FSDPStrategy(TrainingStrategy):
                 use_orig_params=False, #
                 sync_module_states=True, #
                 forward_prefetch=False, #
-                cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=False) #
+                cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True) #
             )
 
         else:
