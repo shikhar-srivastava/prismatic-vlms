@@ -51,11 +51,10 @@ class TrainingStrategy(ABC):
         reduce_in_full_precision: bool = False,
         mixed_precision_dtype: torch.dtype = torch.bfloat16,
         worker_init_fn: Optional[Callable[[int], None]] = None,
-        soft_alpha = None,
+        cfg = None,
         **_: str,
     ) -> None:
-        
-        self.soft_alpha = soft_alpha
+        self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
 
         self.vlm, self.device_id = vlm, device_id
 

@@ -232,7 +232,7 @@ def pretrain(cfg: PretrainConfig) -> None:
         enable_mixed_precision_training=cfg.model.enable_mixed_precision_training,
         reduce_in_full_precision=cfg.model.reduce_in_full_precision,
         worker_init_fn=worker_init_fn,
-        soft_alpha=cfg.soft_alpha, # Adding Soft Targets (Label Smoothing)
+        cfg=cfg,
     )
     train_strategy.run_setup(run_dir=run_dir, n_train_examples=len(train_dataset))
 

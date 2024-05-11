@@ -58,7 +58,7 @@ class FSDPStrategy(TrainingStrategy):
         worker_init_fn: Optional[Callable[[int], None]] = None,
         sharding_strategy: str = "shard-grad-op",
         state_dict_type: StateDictType = StateDictType.FULL_STATE_DICT,
-        soft_alpha = None
+        cfg = None,
     ) -> None:
         super().__init__(
             vlm=vlm,
@@ -77,7 +77,7 @@ class FSDPStrategy(TrainingStrategy):
             reduce_in_full_precision=reduce_in_full_precision,
             mixed_precision_dtype=mixed_precision_dtype,
             worker_init_fn=worker_init_fn,
-            soft_alpha=soft_alpha
+            cfg=cfg
         )
 
         # FSDP-Specific Parameters
@@ -93,6 +93,7 @@ class FSDPStrategy(TrainingStrategy):
         assert state_dict_type == StateDictType.FULL_STATE_DICT, "Sharded state saving is not yet implemented!"
         self.fsdp_state_dict_type = state_dict_type
         self.fsdp_save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+        self.mitigation = cfg['mitigation'] if isinstance(cfg, dict) else getattr(cfg, 'mitigation', None)
 
     def save_checkpoint(
         self,
@@ -156,16 +157,33 @@ class FSDPStrategy(TrainingStrategy):
             )
 
         # <FSDP> => note that FSDP will automatically take care of device placement (similar to `autocast`)
-        self.vlm = FSDP(
-            self.vlm,
-            auto_wrap_policy=vlm_fsdp_wrapping_policy,
-            mixed_precision=fsdp_precision_policy,
-            sharding_strategy=self.fsdp_sharding_strategy,
-            device_id=torch.cuda.current_device(),
-            limit_all_gathers=True,
-            use_orig_params=True,
-            cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True)
-        )
+        if self.mitigation is not None:
+            self.vlm = FSDP(
+                self.vlm,
+                auto_wrap_policy=vlm_fsdp_wrapping_policy,
+                mixed_precision=fsdp_precision_policy,
+                sharding_strategy=self.fsdp_sharding_strategy,
+                device_id=torch.cuda.current_device(),
+                backward_prefetch="backward_pre",
+                limit_all_gathers=False, #
+                use_orig_params=False, #
+                sync_module_states=True, #
+                forward_prefetch=False, #
+                cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=False) #
+            )
+
+        else:
+
+            self.vlm = FSDP(
+                self.vlm,
+                auto_wrap_policy=vlm_fsdp_wrapping_policy,
+                mixed_precision=fsdp_precision_policy,
+                sharding_strategy=self.fsdp_sharding_strategy,
+                device_id=torch.cuda.current_device(),
+                limit_all_gathers=True,
+                use_orig_params=True,
+                cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True)
+            )
 
         # Gradient Checkpoint Setup
         if self.enable_gradient_checkpointing:

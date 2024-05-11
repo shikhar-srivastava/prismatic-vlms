@@ -19,6 +19,8 @@ from typing import Callable, List, Optional, Type
 import torch
 import torch.nn as nn
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from peft.utils.other import fsdp_auto_wrap_policy
+
 from transformers import AutoConfig, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
@@ -113,6 +115,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         self.llm_max_length = llm_max_length
         self.inference_mode = inference_mode
         self.load_from_hf_anyway = load_from_hf_anyway
+        self.cfg = cfg
 
         # Initialize LLM (downloading from HF Hub if necessary) --> `llm_cls` is the actual {Model}ForCausalLM class!
         #   => Note: We're eschewing use of the AutoModel API so that we can be more explicit about LLM-specific details
@@ -187,10 +190,15 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
 
     def get_fsdp_wrapping_policy(self) -> Callable:
         """Return a `transformer_auto_wrap_policy` where we wrap each instance of `self.transformer_layer_cls`"""
-        transformer_block_policy = partial(
-            transformer_auto_wrap_policy, transformer_layer_cls={self.transformer_layer_cls}
-        )
-
+        mitigation = self.cfg['mitigation'] if isinstance(self.cfg, dict) else getattr(self.cfg, 'mitigation', None)
+        if mitigation is None:
+            overwatch.info(f"LLM's FSDP Wrap Policy: [bold]STANDARD[/]", ctx_level=1)
+            transformer_block_policy = partial(
+                transformer_auto_wrap_policy, transformer_layer_cls={self.transformer_layer_cls}
+            )
+        else:
+            overwatch.info(f"LLM's FSDP Wrap Policy: [bold]PEFT[/]", ctx_level=1)
+            transformer_block_policy = fsdp_auto_wrap_policy(self.llm)
         return transformer_block_policy
 
     def enable_gradient_checkpointing(self) -> None:
