@@ -161,17 +161,16 @@ class FSDPStrategy(TrainingStrategy):
             self.vlm = FSDP(
                 self.vlm,
                 auto_wrap_policy=vlm_fsdp_wrapping_policy,
-                mixed_precision=fsdp_precision_policy,
+                mixed_precision=fsdp_precision_policy if self.mitigation!='qlora' else None,
                 sharding_strategy=self.fsdp_sharding_strategy,
                 device_id=torch.cuda.current_device(),
                 backward_prefetch="backward_pre",
                 limit_all_gathers=False, #
-                use_orig_params=False, #
+                use_orig_params=False if (self.mitigation!='ia3') else True, #
                 sync_module_states=True, #
                 forward_prefetch=False, #
                 cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True) #
             )
-
         else:
 
             self.vlm = FSDP(

@@ -33,21 +33,24 @@ def get_all_linear_layers(llm_model):
     return target_modules
 
 def get_lora_target_modules(mitigation_type, llm_model):
-    if mitigation_type == 'lora':
-        return ["q_proj", "v_proj"]
-    elif mitigation_type == 'lora-all-linear':
-        return get_all_linear_layers(llm_model)
-    elif mitigation_type == 'lora-mlp-block':
-        return ["down_proj", "up_proj", "gate_proj", "lm_head"]
-    else:
-        raise ValueError(f"Mitigation type {mitigation_type} not supported")
+    # if mitigation_type == 'lora':
+    #     return ["q_proj", "v_proj"]
+    # elif mitigation_type == 'lora-all-linear':
+    #     return get_all_linear_layers(llm_model)
+    # elif mitigation_type == 'lora-mlp-block':
+    #     return ["down_proj", "up_proj", "gate_proj", "lm_head"]
+    # else:
+    #     raise ValueError(f"Mitigation type {mitigation_type} not supported")
+    return 'all-linear' #["q_proj", "v_proj","down_proj"]
+    
 def get_ia3_target_feedforward_modules(llm_model):
     target_modules, feedforward_modules = ["q_proj", "v_proj", "down_proj"], ["down_proj"]
     
     return target_modules, feedforward_modules
 
 def apply_lora(llm_model, lora_r, lora_target_modules, lora_alpha, lora_dropout):
-    # llm_model = prepare_model_for_kbit_training(llm_model)
+    overwatch.info(f"Applying lora.",ctx_level=2)
+    llm_model = prepare_model_for_kbit_training(llm_model)
     loraconfig = LoraConfig(
         r=lora_r, lora_alpha=lora_alpha, target_modules=lora_target_modules,
         lora_dropout=lora_dropout, bias="none", task_type="CAUSAL_LM"

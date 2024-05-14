@@ -156,3 +156,6 @@ mscoco_train2014_annotations.json
 OpenEnded_mscoco_train2014_questions.json
 exec/*
 =4.38.1
+=0.19.4
+=0.28.0
+test_req.txt

@@ -27,6 +27,9 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from prismatic.models.backbones.llm.prompting import PromptBuilder
 from prismatic.overwatch import initialize_overwatch
 
+from transformers import BitsAndBytesConfig
+
+
 
 # Suppress HF Deprecation Warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -116,6 +119,14 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         self.inference_mode = inference_mode
         self.load_from_hf_anyway = load_from_hf_anyway
         self.cfg = cfg
+        self.mitigation= self.cfg['mitigation'] if isinstance(self.cfg, dict) else getattr(self.cfg, 'mitigation', None)
+        self.bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            #bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype="bfloat16",
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_storage="bfloat16",
+        )
 
         # Initialize LLM (downloading from HF Hub if necessary) --> `llm_cls` is the actual {Model}ForCausalLM class!
         #   => Note: We're eschewing use of the AutoModel API so that we can be more explicit about LLM-specific details
@@ -129,6 +140,8 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                 do_sample=False,
                 temperature=1.0,
                 top_p=1.0,
+                quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #load_in_4bit=True if self.mitigation=='qlora' else False,  #
+                torch_dtype = torch.bfloat16
             )
             
         elif self.load_from_hf_anyway:
@@ -141,13 +154,18 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                 do_sample=False,
                 temperature=1.0,
                 top_p=1.0,
+                quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #load_in_4bit=True if self.mitigation=='qlora' else False,  #
+                torch_dtype = torch.bfloat16
             )
 
         # [Contract] `inference_mode` means we're loading from a pretrained checkpoint; no need to load base weights!
         # [Breaking Contract] we still load base weights, if load_from_hf_anyway is set to True
         else:
             overwatch.info(f"Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
-            llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token)
+            llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token, 
+                    quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #load_in_4bit=True if self.mitigation=='qlora' else False,  #
+                    torch_dtype = torch.bfloat16
+            )
             self.llm = llm_cls._from_config(llm_config)
             #
             # print("DEBUG EMPTY LLM INITIALIZE")
@@ -190,8 +208,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
 
     def get_fsdp_wrapping_policy(self) -> Callable:
         """Return a `transformer_auto_wrap_policy` where we wrap each instance of `self.transformer_layer_cls`"""
-        mitigation = self.cfg['mitigation'] if isinstance(self.cfg, dict) else getattr(self.cfg, 'mitigation', None)
-        if mitigation is None:
+        if self.mitigation is None:
             overwatch.info(f"LLM's FSDP Wrap Policy: [bold]STANDARD[/]", ctx_level=1)
             transformer_block_policy = partial(
                 transformer_auto_wrap_policy, transformer_layer_cls={self.transformer_layer_cls}
