@@ -33,6 +33,7 @@ from prismatic.models.vlms import PrismaticVLM
 from prismatic.overwatch import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
 
+from peft import PeftModel, PeftModelForCausalLM
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
 
@@ -132,6 +133,21 @@ class FSDPStrategy(TrainingStrategy):
                 # Save Checkpoint & Copy Latest to `latest-checkpoint.pt`
                 torch.save({"model": model_state_dicts}, checkpoint_path)
                 shutil.copy(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
+                # supported_classes = (PeftModel,PeftModelForCausalLM)
+                # peft_dir = run_dir / "checkpoint_llm_only"
+                # if not isinstance(self.vlm.llm_backbone, supported_classes):
+                #     if isinstance(unwrap_model(self.vlm.llm_backbone), supported_classes):
+                #         overwatch.info(f"Saving LLM Backbone to {peft_dir}")
+                #         unwrap_model(self.vlm.llm_backbone).save_pretrained(
+                #     peft_dir, state_dict=model_state_dicts['model']['llm_backbone'], safe_serialization=self.args.save_safetensors
+                # )
+                # else:
+                #     overwatch.info(f"Saving LLM Backbone to {peft_dir}")
+                #     self.vlm.llm_backbone.save_pretrained(
+                #     peft_dir, state_dict=model_state_dicts['model']['llm_backbone'], safe_serialization=self.args.save_safetensors
+                # )
+
+
 
     def run_setup(self, run_dir: Path, n_train_examples: int) -> None:
         # Iteratively Assemble FSDP Wrapping Policy by fetching the wrapping policies for each backbone/constituent
@@ -261,3 +277,16 @@ class FSDPStrategy(TrainingStrategy):
     def clip_grad_norm(self) -> None:
         # Note =>> FSDP uses a custom `clip_grad_norm_` function; requires *uniform grad dtype*
         self.vlm.clip_grad_norm_(max_norm=self.max_grad_norm)
+
+def unwrap_model(model: nn.Module) -> nn.Module:
+    """
+    Recursively unwraps a model from potential containers (as used in distributed training).
+
+    Args:
+        model (`torch.nn.Module`): The model to unwrap.
+    """
+    # since there could be multiple levels of wrapping, unwrap recursively
+    if hasattr(model, "module"):
+        return unwrap_model(model.module)
+    else:
+        return model
