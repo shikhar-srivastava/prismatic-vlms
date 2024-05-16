@@ -109,7 +109,6 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         llm_max_length: int = 2048,
         hf_token: Optional[str] = None,
         inference_mode: bool = False,
-        load_from_hf_anyway: bool = False,
         use_flash_attention_2: bool = False,
         cfg = None,
     ) -> None:
@@ -117,12 +116,11 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         self.llm_family = llm_family
         self.llm_max_length = llm_max_length
         self.inference_mode = inference_mode
-        self.load_from_hf_anyway = load_from_hf_anyway
         self.cfg = cfg
         self.mitigation= self.cfg['mitigation'] if isinstance(self.cfg, dict) else getattr(self.cfg, 'mitigation', None)
         self.bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
-            #bnb_4bit_quant_type="nf4",
+            bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype="bfloat16",
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_storage="bfloat16",
@@ -140,33 +138,42 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                 do_sample=False,
                 temperature=1.0,
                 top_p=1.0,
-                quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #load_in_4bit=True if self.mitigation=='qlora' else False,  #
-                torch_dtype = torch.bfloat16
-            )
-            
-        elif self.load_from_hf_anyway:
-            overwatch.info(f"Loading [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
-            self.llm = llm_cls.from_pretrained(
-                hf_hub_path,
-                token=hf_token,
-                use_flash_attention_2=use_flash_attention_2 if not self.inference_mode else False,
-                # The following parameters are set to prevent `UserWarnings` from HF; we want greedy decoding!
-                do_sample=False,
-                temperature=1.0,
-                top_p=1.0,
-                quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #load_in_4bit=True if self.mitigation=='qlora' else False,  #
-                torch_dtype = torch.bfloat16
-            )
+                load_in_4bit=True if self.mitigation=='qlora' else False,  #quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #
+                #torch_dtype = torch.bfloat16 if self.mitigation=='qlora' else None
+            )            
+        # elif self.load_from_hf_anyway:
+        #     overwatch.info(f"Loading [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
+        #     self.llm = llm_cls.from_pretrained(
+        #         hf_hub_path,
+        #         token=hf_token,
+        #         use_flash_attention_2=use_flash_attention_2 if not self.inference_mode else False,
+        #         # The following parameters are set to prevent `UserWarnings` from HF; we want greedy decoding!
+        #         do_sample=False,
+        #         temperature=1.0,
+        #         top_p=1.0,
+        #         load_in_4bit=True if self.mitigation=='qlora' else False,  #quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #
+        #         #torch_dtype = torch.bfloat16 if self.mitigation=='qlora' else None
+        #     )
 
         # [Contract] `inference_mode` means we're loading from a pretrained checkpoint; no need to load base weights!
         # [Breaking Contract] we still load base weights, if load_from_hf_anyway is set to True
         else:
-            overwatch.info(f"Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
-            llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token, 
-                    quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #load_in_4bit=True if self.mitigation=='qlora' else False,  #
-                    torch_dtype = torch.bfloat16
-            )
-            self.llm = llm_cls._from_config(llm_config)
+            if self.mitigation == 'qlora':
+                overwatch.info(f"[QLORA BUILD] Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
+                llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token)
+                self.llm  = llm_cls.from_pretrained(
+                                hf_hub_path,
+                                config=llm_config, 
+                                token=hf_token,
+                                load_in_4bit=True 
+                            )
+            else:
+                overwatch.info(f"Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
+                llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token, 
+                        load_in_4bit=True if self.mitigation=='qlora' else False,  #quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #
+                        #torch_dtype = torch.bfloat16 if self.mitigation=='qlora' else None
+                )
+                self.llm = llm_cls._from_config(llm_config)
             #
             # print("DEBUG EMPTY LLM INITIALIZE")
             # import IPython

@@ -81,6 +81,7 @@ def load(
         f"             LLM Backbone    =>> [bold]{model_cfg['llm_backbone_id']}[/]\n"
         f"             Arch Specifier  =>> [bold]{model_cfg['arch_specifier']}[/]\n"
         f"             Mitigation Strategy      =>> [bold]{cfg.get('mitigation', None)}[/]"
+        f"             LoRA      =>> [bold]rank: {cfg.get('lora_rank', None)}, alpha: {cfg.get('lora_alpha', None)}, lora_target_modules: {cfg.get('lora_target_modules', None)}[/]"
         f"             Checkpoint Path =>> [underline]`{checkpoint_pt}`[/]"
     )
 
@@ -92,12 +93,11 @@ def load(
     )
 
     # Check if VLM checkpoint does not contain llm base weights. If not, then get_llm_backbone_and_tokenizer must load the default LLama2/Vicuna weights
-    model_state_dict = torch.load(checkpoint_pt, map_location="cpu")["model"]
-    load_from_hf_anyway = False
-    if ("projector" in model_state_dict) and ("llm_backbone" not in model_state_dict):
-        overwatch.info(f"[bold blue]LLM Weights not found![/]", )
-        load_from_hf_anyway = True
-    del model_state_dict
+    # model_state_dict = torch.load(checkpoint_pt, map_location="cpu")["model"]
+    # if ("projector" in model_state_dict) and ("llm_backbone" not in model_state_dict):
+    #     overwatch.info(f"[bold blue]LLM Weights not found![/]", )
+    #     load_from_hf_anyway = True
+    # del model_state_dict
 
     # Load LLM Backbone --> note `inference_mode = True` by default when calling `load()`
     overwatch.info(f"Loading Pretrained LLM [bold]{model_cfg['llm_backbone_id']}[/] via HF Transformers")
@@ -106,8 +106,7 @@ def load(
         llm_max_length=model_cfg.get("llm_max_length", 2048),
         hf_token=hf_token,
         inference_mode=True,
-        load_from_hf_anyway = load_from_hf_anyway,
-        cfg=cfg
+        cfg=cfg,
     )
 
     # Load VLM using `from_pretrained` (clobbers HF syntax... eventually should reconcile)

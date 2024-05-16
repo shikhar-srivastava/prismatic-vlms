@@ -86,6 +86,7 @@ class PretrainConfig:
     soft_alpha: float = None
     lora_rank: int = 16
     lora_alpha: int = 8
+    lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
 
     
 
@@ -113,9 +114,13 @@ class PretrainConfig:
             if self.soft_alpha is not None:
                 self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
+            elif self.mitigation =='qlora':
+                self.global_batch_size = int(self.global_batch_size/2)
+                self.per_device_batch_size = int(self.per_device_batch_size/2)
+            
 
             self.learning_rate = self.model.finetune_learning_rate
-            self.weight_decay = self.model.finetune_weight_decay
+            self.weight_decay = self.model.finetune_weight_decay if self.mitigation!='qlora' else 0.0
             self.max_grad_norm = self.model.finetune_max_grad_norm
             self.lr_scheduler_type = self.model.finetune_lr_scheduler_type
             self.warmup_ratio = self.model.finetune_warmup_ratio
@@ -123,7 +128,7 @@ class PretrainConfig:
             # if 'align-only' in self.model.model_id:
             #     self.train_strategy = self.model.align_train_strategy
             # else:
-            self.train_strategy = self.model.finetune_train_strategy #if self.mitigation is None else self.model.align_train_strategy
+            self.train_strategy = self.model.finetune_train_strategy if self.mitigation!='qlora' else "ddp-native"
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")
 
@@ -185,13 +190,8 @@ def pretrain(cfg: PretrainConfig) -> None:
 
     # Load Weights from Checkpoint (depends on stage, config)
     overwatch.info(f"Invoking `VLM.load_checkpoint()` for `{model_id}` => Training Stage: `{cfg.stage}`")
-    #@TODO: Currently only loads Projector. Need to load LLM weights as well 
+    #@TODO: Currently only loads Projector. Need to load LLM weights as well for CL
     vlm.load_from_checkpoint(cfg.stage, run_dir, pretrained_checkpoint=cfg.pretrained_checkpoint)
-
-    # Apply mitigation PEFT
-    # if cfg.mitigation == 'peft':
-    #     overwatch.info(f"Applying PEFT mitigation")
-    #     vlm.llm_backbone  = apply_mitigation(vlm.llm_backbone, cfg.mitigation)
     
     # [Explicit] Call to `freeze_backbones` here for clarity => will log exactly what is frozen / what's not!
     overwatch.info(f"Invoking `VLM.freeze_backbones()` for `{model_id}` => Training Stage: `{cfg.stage}`")

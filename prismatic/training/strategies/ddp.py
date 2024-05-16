@@ -11,11 +11,17 @@ from typing import Optional
 
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.nn as nn
 from torch.optim import AdamW
 from transformers.optimization import get_cosine_schedule_with_warmup
 
 from prismatic.overwatch import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
+
+from peft import PeftModel, PeftModelForCausalLM
+from transformers import AutoConfig
+from collections import OrderedDict
+
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -34,15 +40,26 @@ class DDPStrategy(TrainingStrategy):
         """Save a checkpoint to the `run_dir` only containing the state_dicts for trainable parameters by default."""
         assert isinstance(self.vlm, DDP), "save_checkpoint assumes VLM is already wrapped in DDP!"
 
-        # Splinter State Dictionary by Top-Level Submodules (or subset, if `only_trainable`)
+        # # Splinter State Dictionary by Top-Level Submodules (or subset, if `only_trainable`)
+        full_vlm_state_dict = self.vlm.state_dict()
+        # model_state_dicts = {
+        #     mkey: OrderedDict() for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
+        # }
         model_state_dicts = {
             mkey: getattr(self.vlm.module, mkey).state_dict()
             for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
         }
+        # Iterate through `full_vlm_state_dict` and split `mkey.{full_dotted_path}` -> `mkey: {full_dotted_path}`
+        for key, param in full_vlm_state_dict.items():
+            for mkey in model_state_dicts:
+                if key.startswith(mprefix := f"{mkey}."):
+                    model_state_dicts[mkey][key.removeprefix(mprefix)] = param
+                    
         optimizer_state_dict = self.optimizer.state_dict()
 
         # Set Checkpoint Path =>> Embed *minimal* training statistics!
         checkpoint_dir = run_dir / "checkpoints"
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
         if train_loss is None:
             checkpoint_path = checkpoint_dir / f"step-{global_step:06d}-epoch-{epoch:02d}-loss=inf.pt"
         else:
@@ -51,6 +68,22 @@ class DDPStrategy(TrainingStrategy):
         # Save Checkpoint & Copy Latest to `latest-checkpoint.pt`
         torch.save({"model": model_state_dicts, "optimizer": optimizer_state_dict}, checkpoint_path)
         shutil.copy(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
+        supported_classes = (PeftModel,PeftModelForCausalLM)
+        peft_dir = run_dir / "checkpoint_llm_only"
+        peft_dir.mkdir(parents=True, exist_ok=True)
+        llm_backbone = unwrap_model(self.vlm).llm_backbone
+        tokenizer = llm_backbone.tokenizer
+        llm_backbone = llm_backbone.llm
+        # print(llm_backbone)
+        if isinstance(llm_backbone, supported_classes):
+            overwatch.info(f"Saving LLM Backbone to {peft_dir}")
+            llm_backbone.save_pretrained(
+                peft_dir, state_dict=model_state_dicts['llm_backbone'],
+                safe_serialization=False
+            )
+            tokenizer.save_pretrained(peft_dir)
+            config = llm_backbone.config  # Access the config directly from the model
+            config.save_pretrained(peft_dir)
 
     def run_setup(self, run_dir: Path, n_train_examples: int) -> None:
         # Gradient Checkpointing Setup
@@ -66,7 +99,7 @@ class DDPStrategy(TrainingStrategy):
             # Additional Reference (to better understand gradient checkpointing in PyTorch writ large)
             #   => github.com/prigoyal/pytorch_memonger/blob/master/tutorial/Checkpointing_for_PyTorch_models.ipynb
             overwatch.info("Enabling Gradient Checkpointing on LLM Backbone", ctx_level=1)
-            self.vlm.llm_backbone.gradient_checkpointing_enable()
+            self.vlm.llm_backbone.enable_gradient_checkpointing()
 
         # Move to Device =>> Note parameters are in full precision (*mixed precision* will only autocast as appropriate)
         overwatch.info("Placing Entire VLM (Vision Backbone, LLM Backbone, Projector Weights) on GPU", ctx_level=1)
@@ -119,3 +152,16 @@ class DDPStrategy(TrainingStrategy):
 
     def clip_grad_norm(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.vlm.parameters(), max_norm=self.max_grad_norm)
+
+def unwrap_model(model: nn.Module) -> nn.Module:
+    """
+    Recursively unwraps a model from potential containers (as used in distributed training).
+
+    Args:
+        model (`torch.nn.Module`): The model to unwrap.
+    """
+    # since there could be multiple levels of wrapping, unwrap recursively
+    if hasattr(model, "module"):
+        return unwrap_model(model.module)
+    else:
+        return model

@@ -111,17 +111,19 @@ class PrismaticVLM(VLM):
         if "projector" in model_state_dict and "llm_backbone" in model_state_dict:
             overwatch.info("Loading `projector` and `llm_backbone` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
-            vlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
-            # try:
-            #     if any(key.startswith('llm.') for key in model_state_dict['llm_backbone'].keys()):
-            #         adjusted_state_dict = {key.replace('llm.', ''): value for key, value in model_state_dict['llm_backbone'].items()}
-            #         vlm.llm_backbone.load_state_dict(adjusted_state_dict)
-            #     else:
-            #         vlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
-            #     #del adjusted_state_dict
-            # except Exception as e:
-            #     overwatch.error(f"Error loading llm_backbone from checkpoint: {e}")
-            #     exit()
+            try:
+                new_model_state_dict = {}
+                for k, v in model_state_dict['llm_backbone'].items():
+                    if k.startswith('llm.'):
+                        new_model_state_dict[k.replace('llm.', '')] = v
+                    else:
+                        new_model_state_dict[k] = v
+                vlm.llm_backbone.llm.load_state_dict(new_model_state_dict)
+            except Exception as e:
+                overwatch.error(f"Error loading llm_backbone from checkpoint", ctx_level=1)
+                overwatch.info(f"State Dict Keys: {model_state_dict.keys()}", ctx_level=1)
+                exit(0)
+                #print(f"State Dict: {model_state_dict}")
         elif "projector" in model_state_dict:
             overwatch.info("Loading only `projector` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])

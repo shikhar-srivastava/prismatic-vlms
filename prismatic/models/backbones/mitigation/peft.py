@@ -6,10 +6,7 @@ from peft import (
     IA3Config,
     get_peft_model,
     get_peft_model_state_dict,
-    prepare_model_for_kbit_training,
-    set_peft_model_state_dict,
-    prepare_model_for_kbit_training
-)
+    prepare_model_for_kbit_training,)
 from prismatic.overwatch import initialize_overwatch
 
 import warnings
@@ -41,7 +38,7 @@ def get_lora_target_modules(mitigation_type, llm_model):
     #     return ["down_proj", "up_proj", "gate_proj", "lm_head"]
     # else:
     #     raise ValueError(f"Mitigation type {mitigation_type} not supported")
-    return 'all-linear' #["q_proj", "v_proj","down_proj"]
+    return ["q_proj", "v_proj","down_proj"] #'all-linear' #
     
 def get_ia3_target_feedforward_modules(llm_model):
     target_modules, feedforward_modules = ["q_proj", "v_proj", "down_proj"], ["down_proj"]
@@ -154,13 +151,14 @@ def apply_mitigation(llm_model, cfg):
         if isinstance(cfg, dict):
             lora_rank = cfg.get("lora_rank")
             lora_alpha = cfg.get("lora_alpha")
+            lora_target_modules = cfg.get("lora_target_modules")
         else:
             lora_rank = getattr(cfg, 'lora_rank')
             lora_alpha = getattr(cfg, 'lora_alpha')
-
+            lora_target_modules = getattr(cfg, 'lora_target_modules')
 
         overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}", ctx_level=1)
-        lora_target_modules = get_lora_target_modules(mitigation_type, llm_model)
+        # lora_target_modules = get_lora_target_modules(mitigation_type, llm_model)
         llm_model = apply_lora(llm_model, lora_r=lora_rank, \
                                lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05)
     elif mitigation_type == 'prefix':
