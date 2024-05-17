@@ -118,7 +118,7 @@ class PrismaticVLM(VLM):
                     new_model_state_dict[k.replace('llm.', '')] = v
                 else:
                     new_model_state_dict[k] = v
-            #new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
+            new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
             vlm.llm_backbone.llm.load_state_dict(new_model_state_dict)
             # except Exception as e:
             #     overwatch.error(f"Error loading llm_backbone from checkpoint", ctx_level=1)
@@ -246,9 +246,8 @@ class PrismaticVLM(VLM):
                         new_model_state_dict[k.replace('llm.', '')] = v
                     else:
                         new_model_state_dict[k] = v
-                #new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
+                new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
                 self.llm_backbone.llm.load_state_dict(new_model_state_dict)
-
             return
         else:
             raise ValueError(f"Could not find valid `align` checkpoint at {pretrained_checkpoint}!")

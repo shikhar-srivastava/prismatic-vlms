@@ -119,8 +119,10 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         self.cfg = cfg
         if isinstance(self.cfg, dict):
             self.mitigation = self.cfg['mitigation'] if 'mitigation' in self.cfg else None
+            self.stage = self.cfg['stage'] if 'stage' in self.cfg else None
         else:
             self.mitigation = getattr(self.cfg, 'mitigation', None)
+            self.stage = getattr(self.cfg, 'stage', None)
         self.bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -168,13 +170,23 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         # [Contract] `inference_mode` means we're loading from a pretrained checkpoint; no need to load base weights!
         # [Breaking Contract] we still load base weights, if load_from_hf_anyway is set to True
         else:
-            if self.mitigation == 'qlora':
+            if self.stage == 'align':
+                self.llm = llm_cls.from_pretrained(
+                    hf_hub_path,
+                    token=hf_token,
+                    use_flash_attention_2=False,
+                    # The following parameters are set to prevent `UserWarnings` from HF; we want greedy decoding!
+                    do_sample=True,
+                )  
+            elif self.mitigation == 'qlora':
                 overwatch.info(f"[QLORA BUILD] Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
                 llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token)
                 self.llm  = llm_cls.from_pretrained(
                                 hf_hub_path,
                                 config=llm_config, 
+                                use_flash_attention_2=False,
                                 token=hf_token,
+                                # do_sample=True,
                                 load_in_4bit=True if self.load_8bit is False else False,
                                 load_in_8bit=True if self.load_8bit is True else False,
                             )
