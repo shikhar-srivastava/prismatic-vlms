@@ -128,6 +128,12 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_storage="bfloat16",
         )
+        self.load_8bit = False
+        if isinstance(self.cfg, dict) and 'load_8bit' in self.cfg:
+            self.load_8bit = self.cfg['load_8bit']
+        else:
+            self.load_8bit = getattr(self.cfg, 'load_8bit', False)
+        assert self.load_8bit is False or self.load_8bit is True, "load_8bit must be a boolean"
 
         # Initialize LLM (downloading from HF Hub if necessary) --> `llm_cls` is the actual {Model}ForCausalLM class!
         #   => Note: We're eschewing use of the AutoModel API so that we can be more explicit about LLM-specific details
@@ -141,9 +147,10 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                 do_sample=False,
                 temperature=1.0,
                 top_p=1.0,
-                load_in_4bit=True if self.mitigation=='qlora' else False,  #quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #
+                load_in_4bit= True if (self.mitigation=='qlora' and self.load_8bit is False) else False,
+                load_in_8bit= True if (self.mitigation=='qlora' and self.load_8bit is True) else False,
                 #torch_dtype = torch.bfloat16 if self.mitigation=='qlora' else None
-            )            
+            )          
         # elif self.load_from_hf_anyway:
         #     overwatch.info(f"Loading [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
         #     self.llm = llm_cls.from_pretrained(
@@ -168,13 +175,12 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                                 hf_hub_path,
                                 config=llm_config, 
                                 token=hf_token,
-                                load_in_4bit=True 
+                                load_in_4bit=True if self.load_8bit is False else False,
+                                load_in_8bit=True if self.load_8bit is True else False,
                             )
             else:
                 overwatch.info(f"Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
                 llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token, 
-                        load_in_4bit=True if self.mitigation=='qlora' else False,  #quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #
-                        #torch_dtype = torch.bfloat16 if self.mitigation=='qlora' else None
                 )
                 self.llm = llm_cls._from_config(llm_config)
                 # self.llm = llm_cls.from_pretrained(

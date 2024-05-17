@@ -87,7 +87,8 @@ class PretrainConfig:
     lora_rank: int = 16
     lora_alpha: int = 8
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
-
+    load_8bit: bool = False
+    bigger_batch: bool = False
     
 
     def __post_init__(self) -> None:
@@ -111,6 +112,9 @@ class PretrainConfig:
             self.max_steps = self.model.finetune_max_steps
             self.global_batch_size = self.model.finetune_global_batch_size if self.mitigation is None else self.model.align_global_batch_size
             self.per_device_batch_size = self.model.finetune_per_device_batch_size
+            if self.bigger_batch is True:
+                self.global_batch_size =  192 # 128
+                self.per_device_batch_size = 24 # 16 (with 2 gradient accumulations) = 32
             if self.soft_alpha is not None:
                 self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
@@ -190,7 +194,7 @@ def pretrain(cfg: PretrainConfig) -> None:
 
     # Load Weights from Checkpoint (depends on stage, config)
     overwatch.info(f"Invoking `VLM.load_checkpoint()` for `{model_id}` => Training Stage: `{cfg.stage}`")
-    #@TODO: Currently only loads Projector. Need to load LLM weights as well for CL
+    # Loads both LLM Backbone (if available) and Projector
     vlm.load_from_checkpoint(cfg.stage, run_dir, pretrained_checkpoint=cfg.pretrained_checkpoint)
     
     # [Explicit] Call to `freeze_backbones` here for clarity => will log exactly what is frozen / what's not!

@@ -111,19 +111,21 @@ class PrismaticVLM(VLM):
         if "projector" in model_state_dict and "llm_backbone" in model_state_dict:
             overwatch.info("Loading `projector` and `llm_backbone` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
-            try:
-                new_model_state_dict = {}
-                for k, v in model_state_dict['llm_backbone'].items():
-                    if k.startswith('llm.'):
-                        new_model_state_dict[k.replace('llm.', '')] = v
-                    else:
-                        new_model_state_dict[k] = v
-                vlm.llm_backbone.llm.load_state_dict(new_model_state_dict)
-            except Exception as e:
-                overwatch.error(f"Error loading llm_backbone from checkpoint", ctx_level=1)
-                overwatch.info(f"State Dict Keys: {model_state_dict.keys()}", ctx_level=1)
-                exit(0)
-                #print(f"State Dict: {model_state_dict}")
+            # try:
+            new_model_state_dict = {}
+            for k, v in model_state_dict['llm_backbone'].items():
+                if k.startswith('llm.'):
+                    new_model_state_dict[k.replace('llm.', '')] = v
+                else:
+                    new_model_state_dict[k] = v
+            new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
+            vlm.llm_backbone.llm.load_state_dict(new_model_state_dict)
+            # except Exception as e:
+            #     overwatch.error(f"Error loading llm_backbone from checkpoint", ctx_level=1)
+            #     overwatch.info(f"State Dict Keys: {model_state_dict.keys()}", ctx_level=1)
+            #     print(e)
+            #     exit(0)
+            #     #print(f"State Dict: {model_state_dict}")
         elif "projector" in model_state_dict:
             overwatch.error("Loading only `projector` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
@@ -236,27 +238,38 @@ class PrismaticVLM(VLM):
             overwatch.info(f"Loading from Provided Checkpoint `{pretrained_checkpoint}`", ctx_level=1)
             model_state_dict = torch.load(pretrained_checkpoint)["model"]
             self.projector.load_state_dict(model_state_dict["projector"])
+            if 'llm_backbone' in model_state_dict.keys():
+                overwatch.info(f"Loading LLM Backbone from Provided Checkpoint", ctx_level=1)
+                new_model_state_dict = {}
+                for k, v in model_state_dict['llm_backbone'].items():
+                    if k.startswith('llm.'):
+                        new_model_state_dict[k.replace('llm.', '')] = v
+                    else:
+                        new_model_state_dict[k] = v
+                #new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
+                self.llm_backbone.llm.load_state_dict(new_model_state_dict)
 
             return
-
+        else:
+            raise ValueError(f"Could not find valid `align` checkpoint at {pretrained_checkpoint}!")
         # [Contract] If no `pretrained_checkpoint`, assume `align` lives in the run directory; string substitution!
         # print(f"run_name: {run_dir.name}, split: {run_dir.name.split('+')}")
         # # parents.iterdir
         # for d in run_dir.parent.iterdir():
         #     print(d)
-        model, scale, _, seed = run_dir.name.split("+")
-        align_dirs = [
-            d
-            for d in run_dir.parent.iterdir()
-            if (d.name.startswith(f"{model}+{scale}") and d.name.endswith(f"+stage-align+{seed}"))
-        ]
-        assert len(align_dirs) == 1, f"Multiple or No Valid Pretrained Directories Exist -- Double Check `runs`! align_dirs: {align_dirs}"
-        if (pretrained_checkpoint := (align_dirs[0] / "checkpoints" / "latest-checkpoint.pt")).exists():
-            overwatch.info(f"Loading from Discovered Checkpoint `{pretrained_checkpoint}`", ctx_level=1)
-            model_state_dict = torch.load(pretrained_checkpoint)["model"]
-            self.projector.load_state_dict(model_state_dict["projector"])
-        else:
-            raise ValueError(f"Could not find valid `align` checkpoint at {pretrained_checkpoint}!")
+        # model, scale, _, seed = run_dir.name.split("+")
+        # align_dirs = [
+        #     d
+        #     for d in run_dir.parent.iterdir()
+        #     if (d.name.startswith(f"{model}+{scale}") and d.name.endswith(f"+stage-align+{seed}"))
+        # ]
+        # assert len(align_dirs) == 1, f"Multiple or No Valid Pretrained Directories Exist -- Double Check `runs`! align_dirs: {align_dirs}"
+        # if (pretrained_checkpoint := (align_dirs[0] / "checkpoints" / "latest-checkpoint.pt")).exists():
+        #     overwatch.info(f"Loading from Discovered Checkpoint `{pretrained_checkpoint}`", ctx_level=1)
+        #     model_state_dict = torch.load(pretrained_checkpoint)["model"]
+        #     self.projector.load_state_dict(model_state_dict["projector"])
+        # else:
+        
 
     def get_fsdp_wrapping_policy(self) -> Callable:
         """Return an FSDP _or_policy over the policies returned by each individual backbone (and our VLM policy)."""

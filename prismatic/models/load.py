@@ -82,9 +82,9 @@ def load(
         f"             Arch Specifier  =>> [bold]{model_cfg['arch_specifier']}[/]\n"
         f"             Mitigation Strategy      =>> [bold]{cfg.get('mitigation', None)}[/]"
         f"             LoRA      =>> [bold]rank: {cfg.get('lora_rank', None)}, alpha: {cfg.get('lora_alpha', None)}, lora_target_modules: {cfg.get('lora_target_modules', None)}[/]"
+        f"             Load in 8bit     =>> [bold]{cfg.get('load_8bit', False)}[/]"
         f"             Checkpoint Path =>> [underline]`{checkpoint_pt}`[/]"
     )
-
     # Load Vision Backbone
     overwatch.info(f"Loading Vision Backbone [bold]{model_cfg['vision_backbone_id']}[/]")
     vision_backbone, image_transform = get_vision_backbone_and_transform(
