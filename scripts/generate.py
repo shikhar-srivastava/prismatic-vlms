@@ -116,7 +116,7 @@ def generate(cfg: GenerateConfig) -> None:
                         image,
                         prompt_text,
                         do_sample=cfg.do_sample,
-                        temperature=cfg.temperature,
+                        #temperature=cfg.temperature,
                         max_new_tokens=cfg.max_new_tokens,
                         min_length=cfg.min_length,
                     )
