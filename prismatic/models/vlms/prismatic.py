@@ -125,7 +125,7 @@ class PrismaticVLM(VLM):
                 exit(0)
                 #print(f"State Dict: {model_state_dict}")
         elif "projector" in model_state_dict:
-            overwatch.info("Loading only `projector` from checkpoint", ctx_level=1)
+            overwatch.error("Loading only `projector` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
             
         # Freeze Weights

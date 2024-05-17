@@ -117,7 +117,10 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         self.llm_max_length = llm_max_length
         self.inference_mode = inference_mode
         self.cfg = cfg
-        self.mitigation= self.cfg['mitigation'] if isinstance(self.cfg, dict) else getattr(self.cfg, 'mitigation', None)
+        if isinstance(self.cfg, dict):
+            self.mitigation = self.cfg['mitigation'] if 'mitigation' in self.cfg else None
+        else:
+            self.mitigation = getattr(self.cfg, 'mitigation', None)
         self.bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -174,6 +177,15 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                         #torch_dtype = torch.bfloat16 if self.mitigation=='qlora' else None
                 )
                 self.llm = llm_cls._from_config(llm_config)
+                # self.llm = llm_cls.from_pretrained(
+                #     hf_hub_path,
+                #     token=hf_token,
+                #     use_flash_attention_2=False,
+                #     # The following parameters are set to prevent `UserWarnings` from HF; we want greedy decoding!
+                #     do_sample=True,
+                #     load_in_4bit=True if self.mitigation=='qlora' else False,  #quantization_config=self.bnb_config if self.mitigation=='qlora' else None, #
+                #     #torch_dtype = torch.bfloat16 if self.mitigation=='qlora' else None
+                # )   
             #
             # print("DEBUG EMPTY LLM INITIALIZE")
             # import IPython

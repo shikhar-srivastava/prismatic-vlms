@@ -159,3 +159,4 @@ exec/*
 =0.19.4
 =0.28.0
 test_req.txt
+checkpoint_llava_instruct.tar.gz
