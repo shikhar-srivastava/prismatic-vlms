@@ -169,4 +169,4 @@ results_A.json
 highest_accuracy_models.json
 combined_results.json
 error.txt
-parse_results.py
+paper/*
