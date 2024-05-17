@@ -184,8 +184,10 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                 llm_config.update({
                     "do_sample": False,
                     "max_new_tokens": 2048,
-                    # "temperature": 1.0,  # Comment out or remove temperature as it's not relevant when do_sample is False
+                    "temperature": None,
+                    "top_p": None,
                 })
+                
                 self.llm  = llm_cls.from_pretrained(
                                 hf_hub_path,
                                 config=llm_config, 

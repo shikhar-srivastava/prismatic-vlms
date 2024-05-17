@@ -88,7 +88,7 @@ class PretrainConfig:
     lora_alpha: int = 8
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
     load_8bit: bool = False
-    bigger_batch: bool = False
+    bigger_batch: bool = True
     
 
     def __post_init__(self) -> None:
@@ -113,8 +113,8 @@ class PretrainConfig:
             self.global_batch_size = self.model.finetune_global_batch_size if self.mitigation is None else self.model.align_global_batch_size
             self.per_device_batch_size = self.model.finetune_per_device_batch_size
             if self.bigger_batch is True:
-                self.global_batch_size =  192 # 128
-                self.per_device_batch_size = 24 # 16 (with 2 gradient accumulations) = 32
+                self.global_batch_size = self.model.align_global_batch_size * 2 # 128
+                self.per_device_batch_size = self.model.finetune_per_device_batch_size # 16 (with 2 gradient accumulations) = 32
             if self.soft_alpha is not None:
                 self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
