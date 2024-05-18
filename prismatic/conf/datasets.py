@@ -167,6 +167,37 @@ class LLAVA_V1_VQA_ALL_Config(DatasetConfig):
     )
     dataset_root_dir: Path = Path("data")
 
+
+
+@dataclass
+class OCR_Config(DatasetConfig):
+    dataset_id: str = "ocr"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/splits/ocrvqa_80000k.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+
+@dataclass
+class Ref_Config(DatasetConfig):
+    dataset_id: str = "ref"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/splits/refcoco_48447k.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
 @dataclass
 class Test(DatasetConfig):
     dataset_id: str = "test"
@@ -186,6 +217,8 @@ class Test(DatasetConfig):
 # === Define a Dataset Registry Enum for Reference & Validation =>> all *new* datasets must be added here! ===
 @unique
 class DatasetRegistry(Enum):
+    REF = Ref_Config
+    OCR = OCR_Config
     LLAVA_VQA_ALL  = LLAVA_V1_VQA_ALL_Config
     LLAVA_INSTRUCT_VQA_ALL = LLAVA_V1_INSTRUCT_VQA_ALL_Config
     LLAVA_VQA_V2 = LLAVA_V1_VQAV2_Config

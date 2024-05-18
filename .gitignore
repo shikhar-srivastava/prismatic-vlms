@@ -178,3 +178,4 @@ vicuna.png
 parse_all_vicuna.ipynb
 parse_all.ipynb
 test.ipynb
+pythia/*
