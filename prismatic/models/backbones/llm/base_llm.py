@@ -230,7 +230,19 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
 
         # Load (Fast) Tokenizer
         overwatch.info(f"Loading [bold]{llm_family}[/] (Fast) Tokenizer via the AutoTokenizer API", ctx_level=1)
-        self.tokenizer = AutoTokenizer.from_pretrained(hf_hub_path, model_max_length=self.llm_max_length, token=hf_token)
+        
+        # if self.llm_family == 'pythia':
+        #     self.tokenizer = AutoTokenizer.from_pretrained(hf_hub_path, \
+        #                     model_max_length=self.llm_max_length, \
+        #                     token=hf_token,\
+        #                     padding_side="right",
+        #                     add_bos_token=False, # GPTNeoXTokenizerFast doesn't add BOS token by default
+        #                     add_eos_token=False) # GPTNeoXTokenizerFast doesn't add EOS token by default
+        # else:
+        self.tokenizer = AutoTokenizer.from_pretrained(hf_hub_path, \
+                            model_max_length=self.llm_max_length, \
+                            token=hf_token,\
+                            padding_side="right")
 
         # Validation =>> Our VLM logic currently operates under the assumption that the tokenization of a new input
         #                starts with a <BOS> token unless `add_special_tokens = False`; for these models, we empirically
@@ -238,9 +250,25 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         #
         # As a result we explicitly validate that a tokenizer conforms to the expected behavior; if you're reading this
         # line, it's probably because you're adding a new LLM with a different tokenizer behavior. If so, feel free to
-        # override this, but make sure to make the appropriate changes in the `datasets.py` and VLM `forward()` logic!
-        assert (self.tokenizer("Testing 123", add_special_tokens=True).input_ids[0] == self.tokenizer.bos_token_id) and (
-            self.tokenizer("Testing 123", add_special_tokens=False).input_ids[0] != self.tokenizer.bos_token_id
+        # override the `SPECIAL_CASES` set below, but make sure to make the appropriate changes in the `datasets.py`
+        # and VLM `forward()` logic!
+        SPECIAL_CASES = {
+             # Phi-2 Tokenizer doesn't add any BOS tokens by default, and sets BOS == EOS == "<|endoftext|>"
+             #   =>> We'll prepend BOS to first input (to play nicely with image token insertion logic; verified that
+             #       this works well with base LLM generation.
+             #   =>> Like Llama-2 Tokenizers -- we'll add a special PAD token for training purposes.
+             "phi-2-3b",\
+            "pythia-1p4b",\
+            "pythia-1b",\
+            "pythia-410m",\
+            # pythia-1p4b-instruct
+        }
+        if self.identifier in SPECIAL_CASES:
+            return
+
+        # Note =>> this assert should hold for all Llama-derived tokenizers (`LlamaTokenizerFast` ==> includes Mistral!
+        assert (self.tokenizer("Test 123", add_special_tokens=True).input_ids[0] == self.tokenizer.bos_token_id) and (
+            self.tokenizer("Test 123", add_special_tokens=False).input_ids[0] != self.tokenizer.bos_token_id
         ), (
             f"Default Tokenizer of type `{type(self.tokenizer)}` does not automatically prefix inputs with BOS token!\n"
             "Please read the comment in `base_llm.py` for more information!"

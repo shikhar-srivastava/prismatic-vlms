@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 
 from transformers import PreTrainedTokenizerBase
 
-from prismatic.models.backbones.llm import LLaMa2LLMBackbone, LLMBackbone
+from prismatic.models.backbones.llm import LLaMa2LLMBackbone, LLMBackbone, PhiLLMBackbone, PythiaLLMBackbone
 from prismatic.models.backbones.vision import (
     CLIPViTBackbone,
     DinoCLIPViTBackbone,
@@ -61,6 +61,17 @@ LLM_BACKBONES = {
     # === Vicuna-v1.5 Backbones ===
     "vicuna-v15-7b": {"cls": LLaMa2LLMBackbone, "kwargs": {}},
     "vicuna-v15-13b": {"cls": LLaMa2LLMBackbone, "kwargs": {}},
+
+    # === Pythia Backbones ===
+    "pythia-410m": {"cls": PythiaLLMBackbone, "kwargs": {}},
+    "pythia-1b": {"cls": PythiaLLMBackbone, "kwargs": {}},
+    "pythia-1p4b": {"cls": PythiaLLMBackbone, "kwargs": {}},
+    "pythia-1p4b-instruct": {"cls": PythiaLLMBackbone, "kwargs": {}},
+
+
+    # === Phi-2 Backbone ===
+    "phi-2-3b": {"cls": PhiLLMBackbone, "kwargs": {}},
+    
 }
 
 # fmt: on

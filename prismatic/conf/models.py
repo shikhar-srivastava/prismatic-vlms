@@ -117,6 +117,54 @@ class LLaVa_v15_Reproduction_7B(ModelConfig):
 class Stage0_after_llava(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-after-llava+7b"
 
+@dataclass
+class Stage0_pythia_410m(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-pythia+410m"
+    llm_backbone_id: str = "pythia-410m"
+
+    align_global_batch_size: int = 2048
+    align_per_device_batch_size: int = 64
+
+    finetune_global_batch_size: int = 1024 
+    finetune_per_device_batch_size: int = 64
+
+@dataclass
+class Stage0_pythia_1b(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-pythia+1b"
+    llm_backbone_id: str = "pythia-1b"
+
+    align_global_batch_size: int = 1024
+    align_per_device_batch_size: int = 32
+
+    finetune_global_batch_size: int = 512 
+    finetune_per_device_batch_size: int = 32
+
+@dataclass
+class Stage0_pythia_1p4b(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-pythia+1p4b"
+    llm_backbone_id: str = "pythia-1p4b"
+
+    align_global_batch_size: int = 1024
+    align_per_device_batch_size: int = 32
+
+    finetune_global_batch_size: int = 512 
+    finetune_per_device_batch_size: int = 32
+
+@dataclass
+class Stage0_pythia_1p4b_instruct(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-pythia+1p4b-instruct"
+    llm_backbone_id: str = "pythia-1p4b-instruct"
+
+    align_global_batch_size: int = 1024
+    align_per_device_batch_size: int = 32
+
+    finetune_global_batch_size: int = 512 
+    finetune_per_device_batch_size: int = 32
+
+@dataclass
+class Stage0_phi_2(LLaVa_v15_Reproduction_7B):
+    model_id: str = "phi-2+3b"
+    llm_backbone_id: str = "phi-2-3b"
 
 @dataclass
 class LLaVa_v15_Reproduction_13B(LLaVa_v15_Reproduction_7B):
@@ -451,7 +499,13 @@ class Prism_13B_DINOSigLIP(Exp_13B_One_Stage):
 # === Define a Model Registry Enum for Reference & Validation ===
 @unique
 class ModelRegistry(Enum):
-
+    # Other Model Variants
+    STAGE0_PYTHIA_410M = Stage0_pythia_410m
+    STAGE0_PYTHIA_1B = Stage0_pythia_1b
+    STAGE0_PYTHIA_1P4B = Stage0_pythia_1p4b
+    STAGE0_PYTHIA_1P4B_INSTRUCT = Stage0_pythia_1p4b_instruct
+    STAGE0_PHI_2 = Stage0_phi_2
+    
     # === LLaVa Variants ===
     STAGE0_AFTER_LLAVA = Stage0_after_llava
     

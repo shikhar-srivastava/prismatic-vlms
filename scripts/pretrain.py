@@ -88,7 +88,7 @@ class PretrainConfig:
     lora_alpha: int = 8
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
     load_8bit: bool = False
-    bigger_batch: bool = True
+    bigger_batch: bool = False
     
 
     def __post_init__(self) -> None:
