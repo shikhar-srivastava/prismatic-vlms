@@ -173,7 +173,7 @@ paper/*
 llava-runs-and-evaluations/*
 trash/*
 discarded/*
-pythia-runs-and-experiments/*
+pythia/*
 vicuna.png
 parse_all_vicuna.ipynb
 parse_all.ipynb

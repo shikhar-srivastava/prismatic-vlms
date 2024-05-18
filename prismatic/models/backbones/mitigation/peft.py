@@ -7,7 +7,8 @@ from peft import (
     get_peft_model,
     get_peft_model_state_dict,
     prepare_model_for_kbit_training,
-    PeftModelForCausalLM)
+    PeftModelForCausalLM
+    )
 from prismatic.overwatch import initialize_overwatch
 
 import warnings
@@ -30,15 +31,15 @@ def get_all_linear_layers(llm_model):
     target_modules = list(set(names))
     return target_modules
     
-def get_ia3_target_feedforward_modules(llm_model, run_id = None):
-    if run_id is None:
-        target_modules, feedforward_modules = ["q_proj", "v_proj", "down_proj"], ["down_proj"]
-    elif 'pythia' in run_id:
-        target_modules = ["query_key_value", "attention.dense"]
-        feedforward_modules = ["attention.dense"]
-    else:
-        target_modules = ["q_proj", "v_proj", "down_proj"]
-        feedforward_modules = ["down_proj"]
+def get_ia3_target_feedforward_modules(llm_model):
+    # if run_id is None:
+    target_modules, feedforward_modules = ["q_proj", "v_proj", "down_proj"], ["down_proj"]
+    # elif 'pythia' in run_id:
+    #     target_modules = ["query_key_value", "attention.dense"]
+    #     feedforward_modules = ["attention.dense"]
+    # else:
+    #     target_modules = ["q_proj", "v_proj", "down_proj"]
+    #     feedforward_modules = ["down_proj"]
     
     return target_modules, feedforward_modules
 
@@ -118,7 +119,7 @@ def apply_olf(llm_model):
 
 def apply_ia3(llm_model):
     print('Applying IA3')
-    target_modules, feedforward_modules = get_ia3_target_feedforward_modules(llm_model, run_id)
+    target_modules, feedforward_modules = get_ia3_target_feedforward_modules(llm_model)
     peft_config = IA3Config(
             task_type="CAUSAL_LM", target_modules=target_modules, feedforward_modules=feedforward_modules)
     llm_model = get_peft_model(llm_model, peft_config)
@@ -133,11 +134,11 @@ def apply_mitigation(llm_model, cfg):
     if isinstance(cfg, dict):
         mitigation_type = cfg.get("mitigation", None)
         olf = cfg.get("olf", False)
-        run_id = cfg.get("run_id", None)
+        # run_id = cfg.get("run_id", None)
     elif hasattr(cfg, 'mitigation'):
         mitigation_type = getattr(cfg, 'mitigation', None)
         olf = getattr(cfg, 'olf', False)
-        run_id = getattr(cfg, 'run_id', None)
+        # run_id = getattr(cfg, 'run_id', None)
     else:
         mitigation_type = None
         olf = False
@@ -167,7 +168,7 @@ def apply_mitigation(llm_model, cfg):
     elif mitigation_type == 'prompt':
         llm_model = apply_prompt(llm_model)
     elif mitigation_type == 'ia3':
-        llm_model = apply_ia3(llm_model, run_id)
+        llm_model = apply_ia3(llm_model)
     else:
         raise ValueError(f"Mitigation type {mitigation_type} not supported")
     if olf == True:
