@@ -103,16 +103,6 @@ def fetch_last_layer(llm_model):
             else:
                 raise ValueError("No layers attribute found in the model.")
         
-            model = llm_model
-        
-        if hasattr(model, 'layers'):
-            model_layers = model.layers
-        elif hasattr(model, 'encoder') and hasattr(model.encoder, 'layers'):
-            model_layers = model.encoder.layers
-        elif hasattr(model, 'block'):  # Sometimes layers are stored under 'block'
-            model_layers = model.block
-        else:
-            raise ValueError("No layers attribute found in the model.")
         last_layer = model_layers[-1]
         return last_layer
 
