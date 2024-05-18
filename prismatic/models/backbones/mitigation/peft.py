@@ -5,7 +5,6 @@ from peft import (
     PromptTuningConfig, # Prompt Tuning
     IA3Config,
     get_peft_model,
-    get_peft_model_state_dict,
     prepare_model_for_kbit_training,
     PeftModelForCausalLM
     )
