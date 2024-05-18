@@ -7,8 +7,8 @@ from typing import Optional, Type
 
 import torch
 from torch import nn as nn
-from phi2 import PhiForCausalLM
-from transformers.models.phi.modeling_phi import PhiDecoderLayer
+from prismatic.models.backbones.llm.phi2 import PhiForCausalLM
+from prismatic.models.backbones.llm.phi2.modeling_phi import PhiDecoderLayer
 
 from prismatic.models.backbones.llm.base_llm import HFCausalLLMBackbone
 from prismatic.models.backbones.llm.prompting import PhiPromptBuilder, PromptBuilder
