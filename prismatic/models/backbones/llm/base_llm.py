@@ -257,7 +257,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
              #   =>> We'll prepend BOS to first input (to play nicely with image token insertion logic; verified that
              #       this works well with base LLM generation.
              #   =>> Like Llama-2 Tokenizers -- we'll add a special PAD token for training purposes.
-             "phi-2-3b",\
+             #"phi-2-3b",\
             "pythia-1p4b",\
             "pythia-1b",\
             "pythia-410m",\
