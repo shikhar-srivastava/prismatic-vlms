@@ -133,8 +133,8 @@ class Stage0_pythia_1b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+1b"
     llm_backbone_id: str = "pythia-1b"
 
-    align_global_batch_size: int = 1024
-    align_per_device_batch_size: int = 32
+    align_global_batch_size: int = 2048
+    align_per_device_batch_size: int = 64
 
     finetune_global_batch_size: int = 512 
     finetune_per_device_batch_size: int = 32
@@ -144,8 +144,8 @@ class Stage0_pythia_1p4b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+1p4b"
     llm_backbone_id: str = "pythia-1p4b"
 
-    align_global_batch_size: int = 1024
-    align_per_device_batch_size: int = 32
+    align_global_batch_size: int = 2048
+    align_per_device_batch_size: int = 64
 
     finetune_global_batch_size: int = 512 
     finetune_per_device_batch_size: int = 32
@@ -155,8 +155,8 @@ class Stage0_pythia_1p4b_instruct(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+1p4b-instruct"
     llm_backbone_id: str = "pythia-1p4b-instruct"
 
-    align_global_batch_size: int = 1024
-    align_per_device_batch_size: int = 32
+    align_global_batch_size: int = 2048
+    align_per_device_batch_size: int = 64
 
     finetune_global_batch_size: int = 512 
     finetune_per_device_batch_size: int = 32
