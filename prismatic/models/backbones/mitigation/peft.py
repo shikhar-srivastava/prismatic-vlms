@@ -116,12 +116,6 @@ def apply_olf(llm_model):
         param.requires_grad = False
     return llm_model
 
-def apply_ia3(llm_model, run_id=None):
-    except Exception as e:
-        raise ValueError(f"An error occurred while trying to freeze the last layer: {str(e)}")
-
-
-
 def apply_ia3(llm_model):
     print('Applying IA3')
     target_modules, feedforward_modules = get_ia3_target_feedforward_modules(llm_model, run_id)
