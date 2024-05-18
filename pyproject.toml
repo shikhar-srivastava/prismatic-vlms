@@ -42,7 +42,7 @@ dependencies = [
     "torchaudio>=2.2.2",  # Updated to reflect current version
     "transformers>=4.34.1",  # Updated to reflect current version
     "wandb>=0.16.6",  # Updated to reflect current version
-    "bitsandbytes"
+    "bitsandbytes"  # Added to the list
 ]
 
 [project.optional-dependencies]

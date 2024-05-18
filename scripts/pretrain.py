@@ -84,6 +84,7 @@ class PretrainConfig:
     # Mitigation method. Default is None
     mitigation: str = None
     soft_alpha: float = None
+    olf: bool = False
     lora_rank: int = 16
     lora_alpha: int = 8
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
@@ -115,9 +116,9 @@ class PretrainConfig:
             if self.bigger_batch is True:
                 self.global_batch_size = self.model.align_global_batch_size * 2 # 128
                 self.per_device_batch_size = self.model.finetune_per_device_batch_size # 16 (with 2 gradient accumulations) = 32
-            # if self.soft_alpha is not None:
-            #     self.global_batch_size = int(self.global_batch_size/2)
-            #     self.per_device_batch_size = int(self.per_device_batch_size/2)
+            if self.soft_alpha is not None:
+                self.global_batch_size = int(self.global_batch_size/2)
+                self.per_device_batch_size = int(self.per_device_batch_size/2)
             elif self.mitigation =='qlora':
                 self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)

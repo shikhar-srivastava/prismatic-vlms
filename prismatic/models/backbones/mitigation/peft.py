@@ -79,39 +79,25 @@ def apply_prompt(llm_model):
     llm_model = get_peft_model(llm_model, peft_config)
     return llm_model
 
-# def apply_olf(llm_model):
-#     print('Applying Output Layer Freezing')
-#     # implemented for the case of Llama2 llm
-#     main_model_attr = getattr(llm_model, 'llama2', None)
-#     if main_model_attr is not None and hasattr(main_model_attr, 'layers'):
-#         last_layer = main_model_attr.layers[-1]
-#         # Freeze all parameters in the last layer.
-#         for param in last_layer.parameters():
-#             param.requires_grad = False
-#         return llm_model
-#     else:
-#         raise ValueError("LLM architecture does not have the expected 'layers' attribute or main model attribute.")
-
 def apply_olf(llm_model):
-    print('Applying Output Layer Freezing')
-    # Attempting to handle general cases where the model architecture includes a layers attribute
+    overwatch.info('Applying Output Layer Freezing')
     try:
-        # Attempt to access common layer attributes
-        if hasattr(llm_model, 'layers'):
-            model_layers = llm_model.layers
-        elif hasattr(llm_model, 'encoder') and hasattr(llm_model.encoder, 'layers'):
-            model_layers = llm_model.encoder.layers
+        # Try accessing common places where layers might be stored
+        if hasattr(llm_model, 'transformer'):
+            model = llm_model.transformer
+        elif hasattr(llm_model, 'model'):
+            model = llm_model.model
         else:
-            # Explore nested attributes if needed
-            for attr in dir(llm_model):
-                candidate = getattr(llm_model, attr)
-                if hasattr(candidate, 'layers'):
-                    model_layers = candidate.layers
-                    break
-            else:
-                raise ValueError("No layers attribute found in the model.")
+            model = llm_model
         
-        # Assuming the last layer is what needs to be frozen:
+        if hasattr(model, 'layers'):
+            model_layers = model.layers
+        elif hasattr(model, 'encoder') and hasattr(model.encoder, 'layers'):
+            model_layers = model.encoder.layers
+        elif hasattr(model, 'block'):  # Sometimes layers are stored under 'block'
+            model_layers = model.block
+        else:
+            raise ValueError("No layers attribute found in the model.")
         last_layer = model_layers[-1]
         for param in last_layer.parameters():
             param.requires_grad = False
@@ -119,6 +105,7 @@ def apply_olf(llm_model):
 
     except Exception as e:
         raise ValueError(f"An error occurred while trying to freeze the last layer: {str(e)}")
+
 
 
 def apply_ia3(llm_model):
@@ -137,10 +124,13 @@ def freeze_model_weights(model, freeze = True):
 def apply_mitigation(llm_model, cfg):
     if isinstance(cfg, dict):
         mitigation_type = cfg.get("mitigation", None)
+        olf = cfg.get("olf", False)
     elif hasattr(cfg, 'mitigation'):
         mitigation_type = getattr(cfg, 'mitigation', None)
+        olf = getattr(cfg, 'olf', False)
     else:
         mitigation_type = None
+        olf = False
     
     if mitigation_type is None:
         return llm_model
@@ -167,10 +157,11 @@ def apply_mitigation(llm_model, cfg):
         llm_model = apply_ptune(llm_model)
     elif mitigation_type == 'prompt':
         llm_model = apply_prompt(llm_model)
-    elif mitigation_type == 'olf':
-        llm_model = apply_olf(llm_model)
     elif mitigation_type == 'ia3':
         llm_model = apply_ia3(llm_model)
     else:
         raise ValueError(f"Mitigation type {mitigation_type} not supported")
+    if olf == True:
+        llm_model = apply_olf(llm_model)
+
     return llm_model 
