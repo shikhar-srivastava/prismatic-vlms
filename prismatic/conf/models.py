@@ -125,8 +125,8 @@ class Stage0_pythia_410m(LLaVa_v15_Reproduction_7B):
     align_global_batch_size: int = 2048
     align_per_device_batch_size: int = 64
 
-    finetune_global_batch_size: int = 1024 
-    finetune_per_device_batch_size: int = 64
+    finetune_global_batch_size: int = 256 
+    finetune_per_device_batch_size: int = 16
 
 @dataclass
 class Stage0_pythia_1b(LLaVa_v15_Reproduction_7B):
