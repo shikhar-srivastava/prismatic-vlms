@@ -27,7 +27,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from prismatic.models.backbones.llm.prompting import PromptBuilder
 from prismatic.overwatch import initialize_overwatch
 
-from transformers import BitsAndBytesConfig
+# from transformers import BitsAndBytesConfig
 
 
 
@@ -123,13 +123,13 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         else:
             self.mitigation = getattr(self.cfg, 'mitigation', None)
             self.stage = getattr(self.cfg, 'stage', None)
-        self.bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype="bfloat16",
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_storage="bfloat16",
-        )
+        # self.bnb_config = BitsAndBytesConfig(
+        #     load_in_4bit=True,
+        #     bnb_4bit_quant_type="nf4",
+        #     bnb_4bit_compute_dtype="bfloat16",
+        #     bnb_4bit_use_double_quant=True,
+        #     bnb_4bit_quant_storage="bfloat16",
+        # )
         self.load_8bit = False
         if isinstance(self.cfg, dict) and 'load_8bit' in self.cfg:
             self.load_8bit = self.cfg['load_8bit']
