@@ -1,8 +1,3 @@
-"""
- phi.py
- Class definition for all LLMs derived from PhiForCausalLM.
-"""
-
 from typing import Optional, Type
 
 import torch
