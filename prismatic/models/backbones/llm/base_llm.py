@@ -180,22 +180,31 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
                 )  
             elif self.mitigation == 'qlora':
                 overwatch.info(f"[QLORA BUILD] Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
-                llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token)
-                llm_config.update({
-                    "do_sample": False,
-                    "max_new_tokens": 2048,
-                    "temperature": None,
-                    "top_p": None,
-                })
+                # llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token)
+                # llm_config.update({
+                #     "do_sample": False,
+                #     "max_new_tokens": 2048,
+                #     "temperature": None,
+                #     "top_p": None,
+                # })
                 
-                self.llm  = llm_cls.from_pretrained(
-                                hf_hub_path,
-                                config=llm_config, 
-                                use_flash_attention_2=False,
-                                token=hf_token,
-                                load_in_4bit=True if self.load_8bit is False else False,
-                                load_in_8bit=True if self.load_8bit is True else False,
-                            )
+                # self.llm  = llm_cls.from_pretrained(
+                #                 hf_hub_path,
+                #                 config=llm_config, 
+                #                 use_flash_attention_2=False,
+                #                 token=hf_token,
+                #                 load_in_4bit=True if self.load_8bit is False else False,
+                #                 load_in_8bit=True if self.load_8bit is True else False,
+                #             )
+                self.llm = llm_cls.from_pretrained(
+                    hf_hub_path,
+                    token=hf_token,
+                    use_flash_attention_2=False,
+                    # The following parameters are set to prevent `UserWarnings` from HF; we want greedy decoding!
+                    do_sample=True,
+                    load_in_4bit=True if self.load_8bit is False else False,
+                    load_in_8bit=True if self.load_8bit is True else False,
+                ) 
             else:
                 overwatch.info(f"Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
                 llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token, 
