@@ -90,6 +90,7 @@ class PretrainConfig:
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
     load_8bit: bool = False
     bigger_batch: bool = False
+    continual: str = False
     
 
     def __post_init__(self) -> None:
@@ -144,6 +145,7 @@ class PretrainConfig:
 def pretrain(cfg: PretrainConfig) -> None:
     overwatch.info("Prismatic VLM Training :: Gathering Light")
     overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
+    overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
     # Note => Under `torchrun` initializing `overwatch` will automatically set up `torch.distributed`
     # torch.cuda.set_device(device_id := (overwatch.rank() % torch.cuda.device_count()))
     torch.cuda.set_device(device_id := (overwatch.local_rank()))

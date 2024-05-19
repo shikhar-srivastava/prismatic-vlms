@@ -26,6 +26,8 @@ from prismatic.models.vlms.base_vlm import VLM
 from prismatic.overwatch import initialize_overwatch
 from prismatic.util.nn_utils import FusedMLPProjector, LinearProjector, MLPProjector
 
+from prismatic.models.backbones.mitigation import apply_mitigation
+
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
 
@@ -214,7 +216,8 @@ class PrismaticVLM(VLM):
         else:
             raise ValueError(f"Stage `{stage}` is not supported for LLaVa! Try < align | finetune >")
 
-    def load_from_checkpoint(self, stage: str, run_dir: Path, pretrained_checkpoint: Optional[Path] = None) -> None:
+    def load_from_checkpoint(self, stage: str, run_dir: Path, pretrained_checkpoint: Optional[Path] = None,\
+                    cfg = None) -> None:
         """Load weights from checkpoint (if required by the given stage)."""
         assert stage in {"align", "finetune", "full-finetune"}, f"Stage {stage} is not supported!"
 
@@ -248,6 +251,18 @@ class PrismaticVLM(VLM):
                         new_model_state_dict[k] = v
                 new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
                 self.llm_backbone.llm.load_state_dict(new_model_state_dict)
+                overwatch.info(f"Successfully loaded LLM Backbone from Provided Checkpoint", ctx_level=1)
+                # Now importantly, if self.mitigation == 'lora' or 'ia3', then we must merge the weights into itself. 
+                # And create a new self.apply_mitigation
+                if isinstance(cfg, dict):
+                    mitigation = cfg['mitigation'] if 'mitigation' in cfg else None
+                else:
+                    mitigation = getattr(cfg, 'mitigation', None)
+                if mitigation == 'lora' or mitigation == 'ia3':
+                    self.llm_backbone.llm = self.llm_backbone.llm.merge_and_unload()
+                    self.llm_backbone.llm = apply_mitigation(self.llm_backbone.llm, cfg=cfg)
+
+
             return
         else:
             raise ValueError(f"Could not find valid `align` checkpoint at {pretrained_checkpoint}!")
