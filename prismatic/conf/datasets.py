@@ -199,6 +199,91 @@ class Ref_Config(DatasetConfig):
     dataset_root_dir: Path = Path("data")
 
 @dataclass
+class VO_Rehearse_R_Train_p1_Config(DatasetConfig):
+    dataset_id: str = "vo_rehearse_r_train_p1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/rehearse_vqa-v2_82787k_rehearse_ocrvqa_80000k_train_refcoco_48447k_0.1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class VO_Rehearse_R_Train_1_Config(DatasetConfig):
+    dataset_id: str = "vo_rehearse_r_train_1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/rehearse_vqa-v2_82787k_rehearse_ocrvqa_80000k_train_refcoco_48447k_1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+
+@dataclass
+class VO_Rehearse_R_Train_10_Config(DatasetConfig):
+    dataset_id: str = "vo_rehearse_r_train_10"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/rehearse_vqa-v2_82787k_rehearse_ocrvqa_80000k_train_refcoco_48447k_10.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class V_Rehearse_O_Train_p1_Config(DatasetConfig):
+    dataset_id: str = "v_rehearse_o_train_p1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/rehearse_vqa-v2_82787k_train_ocrvqa_80000k_0.1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class V_Rehearse_O_Train_1_Config(DatasetConfig):
+    dataset_id: str = "v_rehearse_o_train_1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/rehearse_vqa-v2_82787k_train_ocrvqa_80000k_1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class V_Rehearse_O_Train_10_Config(DatasetConfig):
+    dataset_id: str = "v_rehearse_o_train_10"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/rehearse_vqa-v2_82787k_train_ocrvqa_80000k_10.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
 class Test(DatasetConfig):
     dataset_id: str = "test"
 
@@ -217,8 +302,20 @@ class Test(DatasetConfig):
 # === Define a Dataset Registry Enum for Reference & Validation =>> all *new* datasets must be added here! ===
 @unique
 class DatasetRegistry(Enum):
+
+    # === Rehearsal Datasets ===
+    VO_REHEARSE_R_TRAIN_P1 = VO_Rehearse_R_Train_p1_Config
+    VO_REHEARSE_R_TRAIN_1 = VO_Rehearse_R_Train_1_Config
+    VO_REHEARSE_R_TRAIN_10 = VO_Rehearse_R_Train_10_Config
+    
+    V_REHEARSE_O_TRAIN_P1 = V_Rehearse_O_Train_p1_Config
+    V_REHEARSE_O_TRAIN_1 = V_Rehearse_O_Train_1_Config
+    V_REHEARSE_O_TRAIN_10 = V_Rehearse_O_Train_10_Config
+
+    # CL 
     REF = Ref_Config
     OCR = OCR_Config
+
     LLAVA_VQA_ALL  = LLAVA_V1_VQA_ALL_Config
     LLAVA_INSTRUCT_VQA_ALL = LLAVA_V1_INSTRUCT_VQA_ALL_Config
     LLAVA_VQA_V2 = LLAVA_V1_VQAV2_Config
