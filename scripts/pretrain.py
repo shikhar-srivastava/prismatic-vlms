@@ -198,7 +198,7 @@ def pretrain(cfg: PretrainConfig) -> None:
     # Load Weights from Checkpoint (depends on stage, config)
     overwatch.info(f"Invoking `VLM.load_checkpoint()` for `{model_id}` => Training Stage: `{cfg.stage}`")
     # Loads both LLM Backbone (if available) and Projector
-    vlm.load_from_checkpoint(cfg.stage, run_dir, pretrained_checkpoint=cfg.pretrained_checkpoint)
+    vlm.load_from_checkpoint(cfg.stage, run_dir, pretrained_checkpoint=cfg.pretrained_checkpoint, cfg=cfg)
     
     # [Explicit] Call to `freeze_backbones` here for clarity => will log exactly what is frozen / what's not!
     overwatch.info(f"Invoking `VLM.freeze_backbones()` for `{model_id}` => Training Stage: `{cfg.stage}`")

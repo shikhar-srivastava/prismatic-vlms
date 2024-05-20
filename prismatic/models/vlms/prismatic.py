@@ -259,10 +259,9 @@ class PrismaticVLM(VLM):
                 else:
                     mitigation = getattr(cfg, 'mitigation', None)
                 if mitigation == 'lora' or mitigation == 'ia3':
+                    overwatch.info(f"Applying another shell of: {mitigation}!", ctx_level=1)
                     self.llm_backbone.llm = self.llm_backbone.llm.merge_and_unload()
                     self.llm_backbone.llm = apply_mitigation(self.llm_backbone.llm, cfg=cfg)
-
-
             return
         else:
             raise ValueError(f"Could not find valid `align` checkpoint at {pretrained_checkpoint}!")
