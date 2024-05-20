@@ -91,6 +91,7 @@ class PretrainConfig:
     load_8bit: bool = False
     bigger_batch: bool = False
     continual: str = False
+    hot_fix: int = 0
     
 
     def __post_init__(self) -> None:

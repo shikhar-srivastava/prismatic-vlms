@@ -129,7 +129,7 @@ def freeze_model_weights(model, freeze = True):
         param.requires_grad = False if freeze else True
     return model
 
-def apply_mitigation(llm_model, cfg):
+def apply_mitigation(llm_model, cfg, hot_fix=0):
     if isinstance(cfg, dict):
         mitigation_type = cfg.get("mitigation", None)
         olf = cfg.get("olf", False)
@@ -156,8 +156,10 @@ def apply_mitigation(llm_model, cfg):
             lora_rank = getattr(cfg, 'lora_rank')
             lora_alpha = getattr(cfg, 'lora_alpha')
             lora_target_modules = getattr(cfg, 'lora_target_modules')
-
-        overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}", ctx_level=1)
+        if hot_fix >0:
+            lora_target_modules = 'all-linear'
+            lora_rank = lora_rank * 8
+        overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
         llm_model = apply_lora(llm_model, lora_r=lora_rank, \
                                lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05)
     elif mitigation_type == 'prefix':

@@ -256,12 +256,17 @@ class PrismaticVLM(VLM):
                 # And create a new self.apply_mitigation
                 if isinstance(cfg, dict):
                     mitigation = cfg['mitigation'] if 'mitigation' in cfg else None
+                    hot_fix = cfg['hot_fix'] if 'hot_fix' in cfg else 0
                 else:
                     mitigation = getattr(cfg, 'mitigation', None)
+                    hot_fix = getattr(cfg, 'hot_fix', 0)
                 if mitigation == 'lora' or mitigation == 'ia3':
                     overwatch.info(f"Applying another shell of: {mitigation}!", ctx_level=1)
                     self.llm_backbone.llm = self.llm_backbone.llm.merge_and_unload()
-                    self.llm_backbone.llm = apply_mitigation(self.llm_backbone.llm, cfg=cfg)
+                    if hot_fix > 0:
+                        self.llm_backbone.llm = apply_mitigation(self.llm_backbone.llm, cfg=cfg, hot_fix=hot_fix)
+                    else:
+                        self.llm_backbone.llm = apply_mitigation(self.llm_backbone.llm, cfg=cfg)
             return
         else:
             raise ValueError(f"Could not find valid `align` checkpoint at {pretrained_checkpoint}!")
