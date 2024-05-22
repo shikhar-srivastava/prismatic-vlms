@@ -137,6 +137,10 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
             self.load_8bit = getattr(self.cfg, 'load_8bit', False)
         assert self.load_8bit is False or self.load_8bit is True, "load_8bit must be a boolean"
 
+        use_flash_attention_2 = use_flash_attention_2 if not self.inference_mode else False
+        if 'pythia' in self.llm_family:
+            use_flash_attention_2 = False
+
         # Initialize LLM (downloading from HF Hub if necessary) --> `llm_cls` is the actual {Model}ForCausalLM class!
         #   => Note: We're eschewing use of the AutoModel API so that we can be more explicit about LLM-specific details
         if not self.inference_mode:
@@ -144,7 +148,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
             self.llm = llm_cls.from_pretrained(
                 hf_hub_path,
                 token=hf_token,
-                use_flash_attention_2=use_flash_attention_2 if not self.inference_mode else False,
+                use_flash_attention_2= use_flash_attention_2,
                 # The following parameters are set to prevent `UserWarnings` from HF; we want greedy decoding!
                 do_sample=False,
                 temperature=1.0,
