@@ -32,6 +32,7 @@ class PhiLLMBackbone(HFCausalLLMBackbone):
         hf_token: Optional[str] = None,
         inference_mode: bool = False,
         use_flash_attention_2: bool = True,
+        cfg=None
     ) -> None:
         super().__init__(
             llm_backbone_id,
@@ -39,6 +40,7 @@ class PhiLLMBackbone(HFCausalLLMBackbone):
             hf_token=hf_token,
             inference_mode=inference_mode,
             use_flash_attention_2=use_flash_attention_2,
+            cfg=cfg,
             **PHI_MODELS[llm_backbone_id],
         )
 

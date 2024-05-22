@@ -43,6 +43,8 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # Added by Shikhar
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 # Initialize Overwatch =>> Wraps `logging.Logger`
+os.environ['NCCL_BLOCKING_WAIT'] = '0'  # not to enforce timeout
+
 overwatch = initialize_overwatch(__name__)
 
 
