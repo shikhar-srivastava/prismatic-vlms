@@ -63,6 +63,7 @@ LLM_BACKBONES = {
     "vicuna-v15-13b": {"cls": LLaMa2LLMBackbone, "kwargs": {}},
 
     # === Pythia Backbones ===
+    "pythia-160m": {"cls": PythiaLLMBackbone, "kwargs": {}},
     "pythia-410m": {"cls": PythiaLLMBackbone, "kwargs": {}},
     "pythia-1b": {"cls": PythiaLLMBackbone, "kwargs": {}},
     "pythia-1p4b": {"cls": PythiaLLMBackbone, "kwargs": {}},

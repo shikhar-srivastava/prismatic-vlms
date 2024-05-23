@@ -130,6 +130,17 @@ class Stage0_after_llava_llama_chat(LLaVa_v15_Reproduction_7B):
 
 
 @dataclass
+class Stage0_pythia_160m(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-pythia+160m"
+    llm_backbone_id: str = "pythia-160m"
+
+    # align_global_batch_size: int = 256
+    # align_per_device_batch_size: int = 16
+
+    # finetune_global_batch_size: int = 256 
+    # finetune_per_device_batch_size: int = 16
+
+@dataclass
 class Stage0_pythia_410m(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+410m"
     llm_backbone_id: str = "pythia-410m"
@@ -519,6 +530,7 @@ class ModelRegistry(Enum):
     EXT_EXP_PHI_2_3B = Ext_Exp_3B_Phi_2
 
     # Other Model Variants
+    STAGE0_PYTHIA_160M = = Stage0_pythia_160m
     STAGE0_PYTHIA_410M = Stage0_pythia_410m
     STAGE0_PYTHIA_1B = Stage0_pythia_1b
     STAGE0_PYTHIA_1P4B = Stage0_pythia_1p4b

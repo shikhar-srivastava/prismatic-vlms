@@ -13,6 +13,9 @@ from prismatic.models.backbones.mitigation import apply_mitigation
 # Registry ==> Support Phi Models (from HF Transformers)
 # fmt: off
 PYTHIA_MODELS = {
+    "pythia-160m": {
+        "llm_family": "pythia", "llm_cls": GPTNeoXForCausalLM, "hf_hub_path": "EleutherAI/pythia-160m-deduped"
+    },
     "pythia-410m": {
         "llm_family": "pythia", "llm_cls": GPTNeoXForCausalLM, "hf_hub_path": "EleutherAI/pythia-410m-deduped"
     },
