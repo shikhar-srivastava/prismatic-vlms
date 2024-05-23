@@ -10,6 +10,7 @@ import os
 from contextlib import nullcontext
 from logging import LoggerAdapter
 from typing import Any, Callable, ClassVar, Dict, MutableMapping, Tuple, Union
+from datetime import timedelta
 
 # Overwatch Default Format String
 RICH_FORMATTER, DATEFMT = "| >> %(message)s", "%m/%d [%H:%M:%S]"
@@ -51,7 +52,8 @@ class DistributedOverwatch:
 
         # Note that PartialState is always safe to initialize regardless of `accelerate launch` or `torchrun`
         #   =>> However, might be worth actually figuring out if we need the `accelerate` dependency at all!
-        self.logger, self.distributed_state = ContextAdapter(logging.getLogger(name), extra={}), PartialState()
+        self.logger, self.distributed_state = ContextAdapter(logging.getLogger(name), extra={}), \
+            PartialState(timeout=timedelta(days=1))
 
         # Logger Delegation (for convenience; would be nice to just compose & dynamic dispatch eventually)
         self.debug = self.logger.debug

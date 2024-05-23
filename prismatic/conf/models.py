@@ -530,7 +530,7 @@ class ModelRegistry(Enum):
     EXT_EXP_PHI_2_3B = Ext_Exp_3B_Phi_2
 
     # Other Model Variants
-    STAGE0_PYTHIA_160M = = Stage0_pythia_160m
+    STAGE0_PYTHIA_160M = Stage0_pythia_160m
     STAGE0_PYTHIA_410M = Stage0_pythia_410m
     STAGE0_PYTHIA_1B = Stage0_pythia_1b
     STAGE0_PYTHIA_1P4B = Stage0_pythia_1p4b
