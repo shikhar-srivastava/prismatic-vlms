@@ -189,6 +189,9 @@ class Stage0_phi_2(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-phi-2+3b"
     llm_backbone_id: str = "phi-2-3b"
 
+    finetune_global_batch_size: int = 128 
+    finetune_per_device_batch_size: int = 8
+
 @dataclass
 class LLaVa_v15_Reproduction_13B(LLaVa_v15_Reproduction_7B):
     model_id: str = "reproduction-llava-v15+13b"
