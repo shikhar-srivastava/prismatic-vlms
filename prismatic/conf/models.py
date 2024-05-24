@@ -193,6 +193,11 @@ class Stage0_phi_2(LLaVa_v15_Reproduction_7B):
     finetune_per_device_batch_size: int = 8
 
 @dataclass
+class Stage0_phi_1_5(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-phi-1_5+1b"
+    llm_backbone_id: str = "phi-1_5-1b"
+
+@dataclass
 class LLaVa_v15_Reproduction_13B(LLaVa_v15_Reproduction_7B):
     model_id: str = "reproduction-llava-v15+13b"
     llm_backbone_id: str = "vicuna-v15-13b"
@@ -539,6 +544,7 @@ class ModelRegistry(Enum):
     STAGE0_PYTHIA_1P4B = Stage0_pythia_1p4b
     STAGE0_PYTHIA_1P4B_INSTRUCT = Stage0_pythia_1p4b_instruct
     STAGE0_PHI_2 = Stage0_phi_2
+    STAGE0_PHI_1_5 = Stage0_phi_1_5
     
     # === LLaVa Variants ===
     STAGE0_AFTER_LLAVA = Stage0_after_llava

@@ -19,7 +19,10 @@ PHI_MODELS = {
     # === Phi-2 ===
     "phi-2-3b": {
         "llm_family": "phi", "llm_cls": PhiForCausalLM, "hf_hub_path": "microsoft/phi-2"
-    }
+    },
+    "phi-1_5-1b": {
+        "llm_family": "phi", "llm_cls": PhiForCausalLM, "hf_hub_path": "microsoft/phi-1_5"
+    },
 }
 # fmt: on
 
@@ -52,6 +55,8 @@ class PhiLLMBackbone(HFCausalLLMBackbone):
     @property
     def prompt_builder_fn(self) -> Type[PromptBuilder]:
         if self.identifier.startswith("phi-2"):
+            return PhiPromptBuilder
+        elif self.identifier.startswith("phi-1_5"):
             return PhiPromptBuilder
 
         raise ValueError(f"No PromptBuilder defined for LLM Backbone `{self.identifier}`")
