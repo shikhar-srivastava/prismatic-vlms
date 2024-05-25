@@ -188,9 +188,8 @@ class Stage0_pythia_1p4b_instruct(LLaVa_v15_Reproduction_7B):
 class Stage0_phi_2(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-phi-2+3b"
     llm_backbone_id: str = "phi-2-3b"
-
-    finetune_global_batch_size: int = 128 
-    finetune_per_device_batch_size: int = 8
+    # finetune_global_batch_size: int = 128 
+    # finetune_per_device_batch_size: int = 8
 
 @dataclass
 class Stage0_phi_1_5(LLaVa_v15_Reproduction_7B):

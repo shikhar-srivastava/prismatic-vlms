@@ -116,7 +116,7 @@ class PretrainConfig:
         elif self.stage.endswith("finetune"):
             self.epochs = self.model.finetune_epochs
             self.max_steps = self.model.finetune_max_steps
-            self.global_batch_size = self.model.finetune_global_batch_size if self.mitigation is None else self.model.align_global_batch_size
+            self.global_batch_size = self.model.finetune_global_batch_size #if self.mitigation is None else self.model.align_global_batch_size
             self.per_device_batch_size = self.model.finetune_per_device_batch_size
             if self.bigger_batch is True:
                 self.global_batch_size = self.model.align_global_batch_size * 2 # 128
@@ -148,8 +148,6 @@ class PretrainConfig:
 @draccus.wrap()
 def pretrain(cfg: PretrainConfig) -> None:
     overwatch.info("Prismatic VLM Training :: Gathering Light")
-    overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
-    overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
     # Note => Under `torchrun` initializing `overwatch` will automatically set up `torch.distributed`
     # torch.cuda.set_device(device_id := (overwatch.rank() % torch.cuda.device_count()))
     torch.cuda.set_device(device_id := (overwatch.local_rank()))
@@ -163,6 +161,9 @@ def pretrain(cfg: PretrainConfig) -> None:
         cfg.run_id = f"{dataset_id}+{model_id}+stage-{cfg.stage}+x{cfg.seed}" if cfg.run_id is None else cfg.run_id
 
     overwatch.info(f'Mitigation method: {cfg.mitigation}', ctx_level=1)
+    if cfg.mitigation is not None:
+        overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
+        overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
     if cfg.soft_alpha is not None:
         overwatch.info(f'Soft Alpha: {cfg.soft_alpha}', ctx_level=1)
 
