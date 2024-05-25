@@ -27,7 +27,10 @@ PYTHIA_MODELS = {
     },
     "pythia-1p4b-instruct":{
         "llm_family": "pythia", "llm_cls": GPTNeoXForCausalLM, "hf_hub_path": "lambdalabs/pythia-1.4b-deduped-synthetic-instruct"
-    }
+    },
+    "pythia-2p8b":{
+        "llm_family": "pythia", "llm_cls": GPTNeoXForCausalLM, "hf_hub_path": "EleutherAI/pythia-2.8b-deduped"
+    },
 }
 # fmt: on
 

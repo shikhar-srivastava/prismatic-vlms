@@ -68,6 +68,7 @@ LLM_BACKBONES = {
     "pythia-1b": {"cls": PythiaLLMBackbone, "kwargs": {}},
     "pythia-1p4b": {"cls": PythiaLLMBackbone, "kwargs": {}},
     "pythia-1p4b-instruct": {"cls": PythiaLLMBackbone, "kwargs": {}},
+    "pythia-2p8b": {"cls": PythiaLLMBackbone, "kwargs": {}},
 
     # === Phi-2 Backbone ===
     "phi-2-3b": {"cls": PhiLLMBackbone, "kwargs": {}},
