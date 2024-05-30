@@ -88,6 +88,8 @@ class FSDPStrategy(TrainingStrategy):
         elif sharding_strategy == "full-shard":
             self.fsdp_sharding_strategy = ShardingStrategy.FULL_SHARD
             #self.fsdp_sharding_strategy = ShardingStrategy.HYBRID_SHARD
+        elif sharding_strategy == "hybrid-shard":
+            self.fsdp_sharding_strategy = ShardingStrategy._HYBRID_SHARD_ZERO2
         else:
             raise ValueError(f"FSDP Sharding Strategy {sharding_strategy} is not supported!")
 
@@ -257,6 +259,7 @@ class FSDPStrategy(TrainingStrategy):
         # Finalize Setup =>> Log!
         overwatch.info(
             "FSDP Full-Shard Strategy =>> Finalized Training Setup:\n"
+            f"Sharding Strategy = {self.fsdp_sharding_strategy}\n"
             f"         |-> Global (Effective) Batch Size = {self.global_batch_size}\n"
             f"         |-> Per-Device Batch Size = {self.per_device_batch_size}\n"
             f"         |-> Distributed World Size = {overwatch.world_size()}\n"

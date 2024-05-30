@@ -16,7 +16,7 @@ result = {}
 # Iterate through each model folder under the root directory
 for model_name in os.listdir(root_dir):
     model_path = os.path.join(root_dir, model_name)
-    if ('phi' not in model_path):
+    if ('phi' not in model_path) and ('pythia' not in model_path):
         continue
     if os.path.isdir(model_path):
         print(f"Processing model: {model_name}")

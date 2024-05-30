@@ -188,6 +188,9 @@ class Stage0_pythia_1p4b_instruct(LLaVa_v15_Reproduction_7B):
 class Stage0_pythia_2p8b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+2p8b"
     llm_backbone_id: str = "pythia-2p8b"
+    # finetune_train_strategy: str = "fsdp-hybrid-shard"
+    finetune_global_batch_size: int = 128 
+    finetune_per_device_batch_size: int = 8
 
 @dataclass
 class Stage0_phi_2(LLaVa_v15_Reproduction_7B):
