@@ -91,10 +91,13 @@ class PretrainConfig:
     lora_rank: int = 16
     lora_alpha: int = 8
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
+    
     load_8bit: bool = False
     bigger_batch: bool = False
     continual: str = False
     hot_fix: int = 0
+    reduce_lora_rank_by_factor_of_fullrank: int = 1
+    use_rslora: bool = False
     
 
     def __post_init__(self) -> None:
@@ -127,6 +130,7 @@ class PretrainConfig:
             elif self.mitigation =='qlora':
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
+        
             
 
             self.learning_rate = self.model.finetune_learning_rate
@@ -164,6 +168,8 @@ def pretrain(cfg: PretrainConfig) -> None:
     if cfg.mitigation is not None:
         overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
         overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
+        if cfg.reduce_lora_rank_by_factor_of_fullrank != 1:
+            overwatch.info(f"[bold green] Reducing lora rank by factor of full rank: {cfg.reduce_lora_rank_by_factor_of_fullrank} [/]")
     if cfg.soft_alpha is not None:
         overwatch.info(f'Soft Alpha: {cfg.soft_alpha}', ctx_level=1)
 

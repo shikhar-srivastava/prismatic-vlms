@@ -42,12 +42,12 @@ def get_ia3_target_feedforward_modules(llm_model):
     
     return target_modules, feedforward_modules
 
-def apply_lora(llm_model, lora_r, lora_target_modules, lora_alpha, lora_dropout):
+def apply_lora(llm_model, lora_r, lora_target_modules, lora_alpha, lora_dropout, use_rslora=False):
     overwatch.info(f"Applying lora.",ctx_level=2)
     llm_model = prepare_model_for_kbit_training(llm_model)
     loraconfig = LoraConfig(
         r=lora_r, lora_alpha=lora_alpha, target_modules=lora_target_modules,
-        lora_dropout=lora_dropout, bias="none", task_type="CAUSAL_LM"
+        lora_dropout=lora_dropout, bias="none", task_type="CAUSAL_LM", use_rslora=use_rslora
     )
     llm_model = get_peft_model(llm_model, loraconfig)
     return llm_model
@@ -152,16 +152,26 @@ def apply_mitigation(llm_model, cfg, hot_fix=0):
             lora_rank = cfg.get("lora_rank")
             lora_alpha = cfg.get("lora_alpha")
             lora_target_modules = cfg.get("lora_target_modules")
+            reduce_lora_rank_by_factor_of_fullrank = cfg.get("reduce_lora_rank_by_factor_of_fullrank", 1)
+            use_rslora = cfg.get("use_rslora", False)
         else:
             lora_rank = getattr(cfg, 'lora_rank')
             lora_alpha = getattr(cfg, 'lora_alpha')
             lora_target_modules = getattr(cfg, 'lora_target_modules')
+            reduce_lora_rank_by_factor_of_fullrank = getattr(cfg, 'reduce_lora_rank_by_factor_of_fullrank', 1)
+            use_rslora = getattr(cfg, 'use_rslora', False)
+
         if hot_fix >0:
             lora_target_modules = 'all-linear'
             lora_rank = lora_rank * 8
+        # if reduce_lora_rank_by_factor_of_fullrank != 1:
+        #     lora_rank = llm_model.config.hidden_size // reduce_lora_rank_by_factor_of_fullrank
+        #     # Lora_alpha should be 32
+        #     # lora_rank should be 16
         overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
         llm_model = apply_lora(llm_model, lora_r=lora_rank, \
-                               lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05)
+                            lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
+                            use_rslora=use_rslora)
     elif mitigation_type == 'prefix':
         llm_model = apply_prefix(llm_model)
     elif mitigation_type == 'ptune':
