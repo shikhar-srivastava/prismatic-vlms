@@ -192,6 +192,18 @@ class Stage0_pythia_2p8b(LLaVa_v15_Reproduction_7B):
     finetune_global_batch_size: int = 128 
     finetune_per_device_batch_size: int = 8
 
+
+@dataclass
+class Stage0_qwen_1_5_0p5b(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-qwen-1_5+0p5b"
+    llm_backbone_id: str = "qwen-1_5-0p5b"
+
+@dataclass
+class Stage0_qwen_1_5_0p5b_instruct(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-qwen-1_5+0p5b-instruct"
+    llm_backbone_id: str = "qwen-1_5-0p5b-instruct"
+
+
 @dataclass
 class Stage0_phi_2(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-phi-2+3b"
@@ -544,6 +556,10 @@ class ModelRegistry(Enum):
     # EXT 
     EXT_EXP_PHI_2_3B = Ext_Exp_3B_Phi_2
 
+    # QWEN  Model Variants
+    STAGE0_QWEN_1_5_0P5B = Stage0_qwen_1_5_0p5b
+    STAGE0_QWEN_1_5_0P5B_INSTRUCT = Stage0_qwen_1_5_0p5b_instruct
+    
     # Other Model Variants
     STAGE0_PYTHIA_160M = Stage0_pythia_160m
     STAGE0_PYTHIA_410M = Stage0_pythia_410m

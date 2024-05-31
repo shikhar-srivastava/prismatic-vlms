@@ -6,8 +6,7 @@ root_dir = 'evaluations/'
 datasets = {
     'vqa-v2': 'vqa-v2-slim',
     'text-vqa': 'text-vqa-slim',
-    'gqa': 'gqa-slim',
-    'refcoco': 'refcoco-slim'
+    'gqa': 'gqa-slim'
 }
 nlu_datasets = ["wsc273", "winogrande", "lambada_standard", "arc_easy", "arc_challenge"]
 
@@ -48,11 +47,7 @@ for model_name in os.listdir(root_dir):
                         accuracy = summary.get('accuracy')
                         if accuracy is not None:
                             model_result['gqa'] = accuracy / 100.0
-                    elif dataset == 'refcoco':
-                        accuracy = summary.get('accuracy__RefCOCO')
-                        if accuracy is not None:
-                            model_result['refcoco'] = accuracy
-
+        
         # Parse NLU/NLG results
         nlu_path = os.path.join(model_path, 'nlp/nlu', 'results.json')
         if os.path.isfile(nlu_path):
