@@ -98,6 +98,7 @@ class PretrainConfig:
     hot_fix: int = 0
     reduce_lora_rank_by_factor_of_fullrank: int = 1
     use_rslora: bool = False
+    half_batch_size: bool = False
     
 
     def __post_init__(self) -> None:
@@ -130,8 +131,8 @@ class PretrainConfig:
             elif self.mitigation =='qlora':
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
-        
-            
+            elif self.half_batch_size:
+                self.per_device_batch_size = int(self.per_device_batch_size/2)
 
             self.learning_rate = self.model.finetune_learning_rate
             self.weight_decay = self.model.finetune_weight_decay if self.mitigation!='qlora' else 0.0

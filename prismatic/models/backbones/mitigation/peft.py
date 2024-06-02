@@ -164,10 +164,10 @@ def apply_mitigation(llm_model, cfg, hot_fix=0):
         if hot_fix >0:
             lora_target_modules = 'all-linear'
             lora_rank = lora_rank * 8
-        # if reduce_lora_rank_by_factor_of_fullrank != 1:
-        #     lora_rank = llm_model.config.hidden_size // reduce_lora_rank_by_factor_of_fullrank
-        #     # Lora_alpha should be 32
-        #     # lora_rank should be 16
+        if reduce_lora_rank_by_factor_of_fullrank != 1:
+            lora_rank = llm_model.config.hidden_size // reduce_lora_rank_by_factor_of_fullrank
+            # Lora_alpha should be 32
+            # lora_rank should be 16
         overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
         llm_model = apply_lora(llm_model, lora_r=lora_rank, \
                             lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
