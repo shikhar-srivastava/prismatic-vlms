@@ -36,7 +36,7 @@ dependencies = [
     # "flash_attn>=2.3.3",  # Here for documentation -- install *AFTER* editable install (follow README)
     "jsonlines",
     "rich",
-    "timm>=0.9.10",
+    "timm==0.9.10",
     "torch>=2.1.0",
     "torchvision>=0.16.0",
     "torchaudio",

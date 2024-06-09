@@ -170,6 +170,35 @@ class LLAVA_V1_VQA_ALL_Config(DatasetConfig):
 
 
 @dataclass
+class INSTRUCT_Config(DatasetConfig):
+    dataset_id: str = "instruct"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/combined/instruct.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class VQA_Config(DatasetConfig):
+
+    dataset_id: str = "vqa"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/combined/vqa.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
 class OCR_Config(DatasetConfig):
     dataset_id: str = "ocr"
 
@@ -178,7 +207,7 @@ class OCR_Config(DatasetConfig):
         Path("download/llava-laion-cc-sbu-558k/"),
     )
     finetune_stage_components: Tuple[Path, Path] = (
-        Path("continual/splits/ocrvqa_80000k.json"), # Path to json with annotations
+        Path("continual/combined/ocr.json"), # Path to json with annotations
         Path("download/llava-v1.5-instruct/"), # Base path to image directories
     )
     dataset_root_dir: Path = Path("data")
@@ -193,7 +222,7 @@ class Ref_Config(DatasetConfig):
         Path("download/llava-laion-cc-sbu-558k/"),
     )
     finetune_stage_components: Tuple[Path, Path] = (
-        Path("continual/splits/refcoco_48447k.json"), # Path to json with annotations
+        Path("continual/combined/ref.json"), # Path to json with annotations
         Path("download/llava-v1.5-instruct/"), # Base path to image directories
     )
     dataset_root_dir: Path = Path("data")
@@ -313,12 +342,18 @@ class DatasetRegistry(Enum):
     V_REHEARSE_O_TRAIN_10 = V_Rehearse_O_Train_10_Config
 
     # CL 
+    INSTRUCT = INSTRUCT_Config
+    VQA = VQA_Config
     REF = Ref_Config
     OCR = OCR_Config
 
     LLAVA_VQA_ALL  = LLAVA_V1_VQA_ALL_Config
     LLAVA_INSTRUCT_VQA_ALL = LLAVA_V1_INSTRUCT_VQA_ALL_Config
     LLAVA_VQA_V2 = LLAVA_V1_VQAV2_Config
+
+
+
+
     TEST_DATA = Test
     # === LLaVa v1 ===
     LLAVA_V1 = LLaVa_V1_Config

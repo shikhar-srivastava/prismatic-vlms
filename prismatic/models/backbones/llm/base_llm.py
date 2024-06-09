@@ -277,7 +277,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
             "pythia-1b",\
             "pythia-410m",\
             "pythia-160m",\
-            # pythia-1p4b-instruct
+            "pythia-1p4b-instruct",\
         }
         if self.identifier in SPECIAL_CASES:
             return

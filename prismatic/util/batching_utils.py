@@ -72,10 +72,14 @@ class SplitModalitySampler(Sampler):
         of the same modality with each sub-sequence of `per_replica_batch_size` (the batch size each unique device sees
         during distributed training) is roughly grouped by sequence length (for training efficiency).
         """
-        multimodal_indices, multimodal_lengths = zip(
-            *[(idx, length) for idx, (is_multimodal, length) in enumerate(self.modality_lengths) if is_multimodal]
-        )
-
+        multimodal_split =[
+            (idx, length) for idx, (is_multimodal, length) in enumerate(self.modality_lengths) if is_multimodal
+        ]
+        
+        if len(multimodal_split) == 0:
+            multimodal_indices, multimodal_lengths = [], []
+        else:
+            multimodal_indices, multimodal_lengths = zip(*multimodal_split)
         # Handle Special Case --> no "unimodal" inputs
         unimodal_split = [
             (idx, length) for idx, (is_multimodal, length) in enumerate(self.modality_lengths) if not is_multimodal
@@ -97,7 +101,7 @@ class SplitModalitySampler(Sampler):
         uni_batch_idxs = [uni_shuffled_idxs[i : i + g_bsz].tolist() for i in range(0, len(uni_shuffled_idxs), g_bsz)]
 
         # If "last" batch is not of length `g_bsz` --> PAD by stealing indices from the first batch!
-        if len(mm_batch_idxs[-1]) < g_bsz:
+        if len(mm_batch_idxs) > 0 and len(mm_batch_idxs[-1]) < g_bsz:
             n_missing = g_bsz - len(mm_batch_idxs[-1])
             mm_batch_idxs[-1].extend(mm_batch_idxs[0][:n_missing])
 
