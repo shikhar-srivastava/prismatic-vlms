@@ -96,8 +96,8 @@ class PretrainConfig:
     bigger_batch: bool = False
     continual: str = False
     hot_fix: int = 0
-    reduce_lora_rank_by_factor_of_fullrank: int = 1
-    use_rslora: bool = False
+    reduce_lora_rank_by_factor_of_fullrank: int = 2
+    use_rslora: bool = True
     half_batch_size: bool = False
     
 
