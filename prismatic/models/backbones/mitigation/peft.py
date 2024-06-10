@@ -9,7 +9,7 @@ from peft import (
     PeftModelForCausalLM
     )
 from prismatic.overwatch import initialize_overwatch
-
+from transformers import GPTNeoXForCausalLM
 import warnings
 # Suppress HF Deprecation Warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -76,7 +76,8 @@ def apply_prompt(llm_model):
     llm_model = get_peft_model(llm_model, peft_config)
     return llm_model
 
-# def apply_olf(llm_model):
+# def apply_olf
+# (llm_model):
 #     print('Applying Output Layer Freezing')
 #     # implemented for the case of Llama2 llm
 #     main_model_attr = getattr(llm_model, 'llama2', None)
@@ -91,18 +92,23 @@ def apply_prompt(llm_model):
 
 def fetch_last_layer(llm_model):
     try:
+        
         if isinstance(llm_model, PeftModelForCausalLM):
+            # print(llm_model)
             # If the model is wrapped with PEFT (LoraModel)
-            model_layers = llm_model.base_model.model.model.layers
-        else:
+            llm_model = llm_model.base_model.model
+        if isinstance(llm_model, GPTNeoXForCausalLM):
             # If the model is a regular model
-            if hasattr(llm_model, 'transformer'):
-                model_layers = llm_model.transformer.layers
-            elif hasattr(llm_model, 'model'):
+            model_layers = llm_model.gpt_neox.layers
+        else:
+            if hasattr(llm_model, 'model'):
                 model_layers = llm_model.model.layers
+            elif hasattr(llm_model, 'transformer'):
+                model_layers = llm_model.transformer.layers
             else:
                 raise ValueError("No layers attribute found in the model.")
-        
+        # else:
+        #     raise ValueError("Model type not supported.")
         last_layer = model_layers[-1]
         return last_layer
 
