@@ -196,3 +196,8 @@ author_runs/*
 prism.txt
 eval.txt
 modality_lengths.txt
+results_pythia.json
+nlu_nlg_forgetting.png
+nlu_nlg_performance.png
+scaling1.png
+vl_performance.png
