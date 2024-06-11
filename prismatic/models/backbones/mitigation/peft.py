@@ -32,7 +32,7 @@ def get_all_linear_layers(llm_model):
     
 def get_ia3_target_feedforward_modules(llm_model):
     # if run_id is None:
-    target_modules, feedforward_modules = ["q_proj", "v_proj", "down_proj"], ["down_proj"]
+    target_modules, feedforward_modules = "all-linear", None #["q_proj", "v_proj", "down_proj"], ["down_proj"]
     # elif 'pythia' in run_id:
     #     target_modules = ["query_key_value", "attention.dense"]
     #     feedforward_modules = ["attention.dense"]
