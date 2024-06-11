@@ -272,6 +272,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
              #   =>> Like Llama-2 Tokenizers -- we'll add a special PAD token for training purposes.
             "phi-1_5-1b",\
             "phi-2-3b",\
+            "pythia-6p9b",\
             "pythia-2p8b",\
             "pythia-1p4b",\
             "pythia-1b",\

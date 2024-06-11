@@ -197,6 +197,14 @@ class Stage0_pythia_2p8b(LLaVa_v15_Reproduction_7B):
     finetune_global_batch_size: int = 128 
     finetune_per_device_batch_size: int = 8
 
+@dataclass
+class Stage0_pythia_6p9b(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-pythia+6p9b"
+    llm_backbone_id: str = "pythia-6p9b"
+    # finetune_train_strategy: str = "fsdp-hybrid-shard"
+    finetune_global_batch_size: int = 128 
+    finetune_per_device_batch_size: int = 8
+
 
 @dataclass
 class Stage0_qwen_1_5_0p5b(LLaVa_v15_Reproduction_7B):
@@ -572,6 +580,7 @@ class ModelRegistry(Enum):
     STAGE0_PYTHIA_1P4B = Stage0_pythia_1p4b
     STAGE0_PYTHIA_1P4B_INSTRUCT = Stage0_pythia_1p4b_instruct
     STAGE0_PYTHIA_2P8B = Stage0_pythia_2p8b
+    STAGE0_PYTHIA_6P9B = Stage0_pythia_6p9b
     STAGE0_PHI_2 = Stage0_phi_2
     STAGE0_PHI_1_5 = Stage0_phi_1_5
     
