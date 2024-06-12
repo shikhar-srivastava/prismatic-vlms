@@ -64,15 +64,6 @@ for model_name in os.listdir(root_dir):
                         if acc is not None:
                             model_result[nlu_dataset] = acc
 
-        # Parse MMLU results
-        mmlu_path = os.path.join(model_path, 'nlp/mmlu', 'results.json')
-        if os.path.isfile(mmlu_path):
-            with open(mmlu_path, 'r') as f:
-                mmlu_results = json.load(f).get('results', {})
-                mmlu_acc = mmlu_results.get('mmlu', {}).get('acc,none')
-                if mmlu_acc is not None:
-                    model_result['mmlu'] = mmlu_acc
-
         # Add the model results to the final result dictionary
         if model_result:
             result[model_name] = model_result
