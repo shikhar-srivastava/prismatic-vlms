@@ -478,6 +478,16 @@ class Test(DatasetConfig):
 @unique
 class DatasetRegistry(Enum):
 
+    # LLAVA FULL CL 
+    INSTRUCT = INSTRUCT_Config
+    VQA = VQA_Config
+    REF = Ref_Config
+    OCR = OCR_Config
+    # LLAVA PARTIAL CL    
+    LLAVA_VQA_ALL  = LLAVA_V1_VQA_ALL_Config
+    LLAVA_INSTRUCT_VQA_ALL = LLAVA_V1_INSTRUCT_VQA_ALL_Config
+    LLAVA_VQA_V2 = LLAVA_V1_VQAV2_Config
+
     # === Rehearsal Datasets ===
     VO_REHEARSE_R_TRAIN_P1 = VO_Rehearse_R_Train_p1_Config
     VO_REHEARSE_R_TRAIN_1 = VO_Rehearse_R_Train_1_Config
@@ -487,16 +497,18 @@ class DatasetRegistry(Enum):
     V_REHEARSE_O_TRAIN_1 = V_Rehearse_O_Train_1_Config
     V_REHEARSE_O_TRAIN_10 = V_Rehearse_O_Train_10_Config
 
-    # CL 
-    INSTRUCT = INSTRUCT_Config
-    VQA = VQA_Config
-    REF = Ref_Config
-    OCR = OCR_Config
+    # === Rehearsal Datasets for FULL LLaVA CL ===
+    I_REHEARSE_V_TRAIN_P1 = I_Rehearse_V_Train_p1_Config
+    IV_REHEARSE_O_TRAIN_P1 = IV_Rehearse_O_Train_p1_Config
+    IVO_REHEARSE_R_TRAIN_P1 = IVO_Rehearse_R_Train_p1_Config
 
-    LLAVA_VQA_ALL  = LLAVA_V1_VQA_ALL_Config
-    LLAVA_INSTRUCT_VQA_ALL = LLAVA_V1_INSTRUCT_VQA_ALL_Config
-    LLAVA_VQA_V2 = LLAVA_V1_VQAV2_Config
+    I_REHEARSE_V_TRAIN_1 = I_Rehearse_V_Train_1_Config
+    IV_REHEARSE_O_TRAIN_1 = IV_Rehearse_O_Train_1_Config
+    IVO_REHEARSE_R_TRAIN_1 = IVO_Rehearse_R_Train_1_Config
 
+    I_REHEARSE_V_TRAIN_10 = I_Rehearse_V_Train_10_Config
+    IV_REHEARSE_O_TRAIN_10 = IV_Rehearse_O_Train_10_Config
+    IVO_REHEARSE_R_TRAIN_10 = IVO_Rehearse_R_Train_10_Config
 
 
 
