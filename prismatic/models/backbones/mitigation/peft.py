@@ -9,7 +9,7 @@ from peft import (
     PeftModelForCausalLM
     )
 from prismatic.overwatch import initialize_overwatch
-from transformers import GPTNeoXForCausalLM
+from transformers import GPTNeoXForCausalLM, GemmaForCausalLM
 import warnings
 # Suppress HF Deprecation Warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -100,6 +100,8 @@ def fetch_last_layer(llm_model):
         if isinstance(llm_model, GPTNeoXForCausalLM):
             # If the model is a regular model
             model_layers = llm_model.gpt_neox.layers
+        elif isinstance(llm_model, GemmaForCausalLM):
+            model_layers = llm_model.model.layers
         else:
             if hasattr(llm_model, 'model'):
                 model_layers = llm_model.model.layers
