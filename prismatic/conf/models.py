@@ -178,12 +178,14 @@ class Stage0_gemma_2b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-gemma+2b"
     llm_backbone_id: str = "gemma-2b"
     align_per_device_batch_size: int = 8
+    finetune_per_device_batch_size: int = 4
 
 @dataclass
 class Stage0_gemma_2b_it(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-gemma+2b-it"
     llm_backbone_id: str = "gemma-2b-it"
     align_per_device_batch_size: int = 8
+    finetune_per_device_batch_size: int = 4
 
 @dataclass
 class Stage0_qwen_1_5_0p5b(LLaVa_v15_Reproduction_7B):
