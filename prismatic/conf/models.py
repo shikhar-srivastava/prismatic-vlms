@@ -134,60 +134,28 @@ class Stage0_pythia_160m(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+160m"
     llm_backbone_id: str = "pythia-160m"
 
-    # align_global_batch_size: int = 256
-    # align_per_device_batch_size: int = 16
-
-    # finetune_global_batch_size: int = 256 
-    # finetune_per_device_batch_size: int = 8
-    # finetune_per_device_batch_size: int = 8
 
 @dataclass
 class Stage0_pythia_410m(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+410m"
     llm_backbone_id: str = "pythia-410m"
 
-    # align_global_batch_size: int = 256
-    # align_per_device_batch_size: int = 16
-
-    # finetune_global_batch_size: int = 256 
-    # finetune_per_device_batch_size: int = 16
-    # finetune_per_device_batch_size: int = 8
 
 @dataclass
 class Stage0_pythia_1b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+1b"
     llm_backbone_id: str = "pythia-1b"
 
-    # align_global_batch_size: int = 2048
-    # align_per_device_batch_size: int = 64
-
-    # finetune_global_batch_size: int = 512 
-    # finetune_per_device_batch_size: int = 32
-    # finetune_per_device_batch_size: int = 8
-
 @dataclass
 class Stage0_pythia_1p4b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+1p4b"
     llm_backbone_id: str = "pythia-1p4b"
-
-    # align_global_batch_size: int = 2048
-    # align_per_device_batch_size: int = 64
-
-    # finetune_global_batch_size: int = 512 
-    # finetune_per_device_batch_size: int = 16
-    # finetune_per_device_batch_size: int = 8
 
 @dataclass
 class Stage0_pythia_1p4b_instruct(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+1p4b-instruct"
     llm_backbone_id: str = "pythia-1p4b-instruct"
 
-    # align_global_batch_size: int = 2048
-    # align_per_device_batch_size: int = 64
-
-    # finetune_global_batch_size: int = 512 
-    # finetune_per_device_batch_size: int = 32
-    # finetune_per_device_batch_size: int = 8
 
 @dataclass
 class Stage0_pythia_2p8b(LLaVa_v15_Reproduction_7B):
@@ -205,6 +173,15 @@ class Stage0_pythia_6p9b(LLaVa_v15_Reproduction_7B):
     finetune_global_batch_size: int = 128 
     finetune_per_device_batch_size: int = 8
 
+@dataclass
+class Stage0_gemma_2b(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-gemma+2b"
+    llm_backbone_id: str = "gemma-2b"
+
+@dataclass
+class Stage0_gemma_2b_it(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-gemma+2b-it"
+    llm_backbone_id: str = "gemma-2b-it"
 
 @dataclass
 class Stage0_qwen_1_5_0p5b(LLaVa_v15_Reproduction_7B):
@@ -583,6 +560,9 @@ class ModelRegistry(Enum):
     STAGE0_PYTHIA_6P9B = Stage0_pythia_6p9b
     STAGE0_PHI_2 = Stage0_phi_2
     STAGE0_PHI_1_5 = Stage0_phi_1_5
+    STAGE0_GEMMA2 = Stage0_gemma_2b
+    STAGE0_GEMMA2_IT = Stage0_gemma_2b_it
+
     
     # === LLaVa Variants ===
     STAGE0_AFTER_LLAVA = Stage0_after_llava

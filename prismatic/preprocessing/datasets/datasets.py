@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple, Type
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-from transformers import GPTNeoXTokenizerFast, CodeGenTokenizerFast, LlamaTokenizerFast, PreTrainedTokenizerBase
+from transformers import GPTNeoXTokenizerFast, CodeGenTokenizerFast, LlamaTokenizerFast, PreTrainedTokenizerBase, GemmaTokenizerFast
 
 from prismatic.models.backbones.llm.prompting import PromptBuilder
 from prismatic.models.backbones.vision import ImageTransform
@@ -142,6 +142,9 @@ class FinetuneDataset(Dataset[Dict[str, torch.Tensor]]):
 
             # Llama Tokenizer (Fast) adds extra character if a string ends in whitespace --> strip if non-empty!
             if isinstance(self.tokenizer, LlamaTokenizerFast):
+                msg = msg.rstrip()
+            # Gemma Tokenizer also adds extra character for trailing whitespace
+            if isinstance(self.tokenizer, GemmaTokenizerFast):
                 msg = msg.rstrip()
             elif isinstance(self.tokenizer, GPTNeoXTokenizerFast):
                 pass # Similar to CodeGen, handles whitespaces with internal tokens.
