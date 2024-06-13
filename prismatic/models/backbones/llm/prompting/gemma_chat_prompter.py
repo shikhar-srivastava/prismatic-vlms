@@ -1,30 +1,27 @@
 """
 gemma_chat_prompter.py
 
-
+# No System Prompts for Gemma => 
+# Following prompting instructions @ https://ai.google.dev/gemma/docs/formatting
 """
 
 from typing import Optional
 
 from prismatic.models.backbones.llm.prompting.base_prompter import PromptBuilder
 
-# No System Prompts for Gemma => Read https://ai.google.dev/gemma/docs/formatting
 
-
-def format_system_prompt(system_prompt: str) -> str:
-    return f"<<SYS>\n{system_prompt.strip()}\n<</SYS>>\n\n"
 
 
 class GemmaChatPromptBuilder(PromptBuilder):
     def __init__(self, model_family: str, system_prompt: Optional[str] = None) -> None:
         super().__init__(model_family, system_prompt)
 
-        # Llama-2 Specific
-        self.bos, self.eos = "<s>", "</s>"
+        # Gemma2 specific
+        self.bos, self.eos = "<bos>", "<eos>"
 
         # Get role-specific "wrap" functions
-        self.wrap_human = lambda msg: f"[INST] {msg} [/INST] "
-        self.wrap_gpt = lambda msg: f"{msg if msg != '' else ' '}{self.eos}"
+        self.wrap_human = lambda msg: f"<start_of_turn>user\n{msg}<end_of_turn>\n"
+        self.wrap_gpt = lambda msg: f"<start_of_turn>model\n{msg if msg != '' else ' '}<end_of_turn>{self.eos}"
 
         # === `self.prompt` gets built up over multiple turns ===
         self.prompt, self.turn_count = "", 0
@@ -35,14 +32,11 @@ class GemmaChatPromptBuilder(PromptBuilder):
 
         # Special Handling for "system" prompt (turn_count == 0)
         if self.turn_count == 0:
-            sys_message = self.wrap_human(self.system_prompt + message)
-            wrapped_message = sys_message
+            wrapped_message = self.wrap_human(message)
         elif (self.turn_count % 2) == 0:
-            human_message = self.wrap_human(message)
-            wrapped_message = human_message
+            wrapped_message = self.wrap_human(message)
         else:
-            gpt_message = self.wrap_gpt(message)
-            wrapped_message = gpt_message
+            wrapped_message = self.wrap_gpt(message)
 
         # Update Prompt
         self.prompt += wrapped_message
@@ -59,15 +53,15 @@ class GemmaChatPromptBuilder(PromptBuilder):
 
         # Special Handling for "system" prompt (turn_count == 0)
         if self.turn_count == 0:
-            sys_message = self.wrap_human(self.system_prompt + message)
+            sys_message = self.wrap_human(message)
             prompt_copy += sys_message
 
         else:
             human_message = self.wrap_human(message)
             prompt_copy += human_message
 
-        return prompt_copy.removeprefix(self.bos).rstrip()
+        return prompt_copy.rstrip()
 
     def get_prompt(self) -> str:
-        # Remove prefix <bos> because it gets auto-inserted by tokenizer!
-        return self.prompt.removeprefix(self.bos).rstrip()
+        # We need the auto-inseerted <bos> for better fine-tuning convergence. Ref: https://unsloth.ai/blog/gemma-bugs
+        return self.prompt.rstrip()
