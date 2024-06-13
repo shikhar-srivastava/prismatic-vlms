@@ -144,7 +144,7 @@ class FinetuneDataset(Dataset[Dict[str, torch.Tensor]]):
             if isinstance(self.tokenizer, LlamaTokenizerFast):
                 msg = msg.rstrip()
             # Gemma Tokenizer also adds extra character for trailing whitespace
-            if isinstance(self.tokenizer, GemmaTokenizerFast):
+            elif isinstance(self.tokenizer, GemmaTokenizerFast):
                 msg = msg.rstrip()
             elif isinstance(self.tokenizer, GPTNeoXTokenizerFast):
                 pass # Similar to CodeGen, handles whitespaces with internal tokens.
