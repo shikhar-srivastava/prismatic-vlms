@@ -17,6 +17,7 @@ from prismatic.models.backbones.llm.prompting import (
     PromptBuilder,
     PurePromptBuilder,
 )
+from prismatic.models.backbones.mitigation import apply_mitigation
 
 # Registry =>> Support Llama-2 Models (from HF Transformers)
 # fmt: off
@@ -49,6 +50,7 @@ class GemmaLLMBackbone(HFCausalLLMBackbone):
         hf_token: Optional[str] = None,
         inference_mode: bool = False,
         use_flash_attention_2: bool = True,
+        cfg = None, 
     ) -> None:
         super().__init__(
             llm_backbone_id,
@@ -56,11 +58,13 @@ class GemmaLLMBackbone(HFCausalLLMBackbone):
             hf_token=hf_token,
             inference_mode=inference_mode,
             use_flash_attention_2=use_flash_attention_2,
+            cfg=cfg,
             **GEMMA_MODELS[llm_backbone_id],
         )
 
         # Gemma already has a pad_token. No need to handle this case.
         self.llm.config.pad_token_id = self.tokenizer.pad_token_id
+        self.llm = apply_mitigation(self.llm, cfg=cfg)
 
     @property
     def prompt_builder_fn(self) -> Type[PromptBuilder]:
