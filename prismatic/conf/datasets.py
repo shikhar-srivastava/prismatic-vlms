@@ -289,19 +289,19 @@ class V_Rehearse_O_Train_p1_Config(DatasetConfig):
     )
     dataset_root_dir: Path = Path("data")
 
-@dataclass
-class V_Rehearse_O_Train_1_Config(DatasetConfig):
-    dataset_id: str = "v_rehearse_o_train_1"
+# @dataclass
+# class V_Rehearse_O_Train_1_Config(DatasetConfig):
+#     dataset_id: str = "v_rehearse_o_train_1"
 
-    align_stage_components: Tuple[Path, Path] = (
-        Path("download/llava-laion-cc-sbu-558k/chat.json"),
-        Path("download/llava-laion-cc-sbu-558k/"),
-    )
-    finetune_stage_components: Tuple[Path, Path] = (
-        Path("continual/rehearsal/rehearse_vqa-v2_82787k_train_ocrvqa_80000k_1.json"), # Path to json with annotations
-        Path("download/llava-v1.5-instruct/"), # Base path to image directories
-    )
-    dataset_root_dir: Path = Path("data")
+#     align_stage_components: Tuple[Path, Path] = (
+#         Path("download/llava-laion-cc-sbu-558k/chat.json"),
+#         Path("download/llava-laion-cc-sbu-558k/"),
+#     )
+#     finetune_stage_components: Tuple[Path, Path] = (
+#         Path("continual/rehearsal/rehearse_vqa-v2_82787k_train_ocrvqa_80000k_1.json"), # Path to json with annotations
+#         Path("download/llava-v1.5-instruct/"), # Base path to image directories
+#     )
+#     dataset_root_dir: Path = Path("data")
 
 @dataclass
 class V_Rehearse_O_Train_10_Config(DatasetConfig):
@@ -584,7 +584,7 @@ class DatasetRegistry(Enum):
     VO_REHEARSE_R_TRAIN_10 = VO_Rehearse_R_Train_10_Config
     
     V_REHEARSE_O_TRAIN_P1 = V_Rehearse_O_Train_p1_Config
-    V_REHEARSE_O_TRAIN_1 = V_Rehearse_O_Train_1_Config
+    #V_REHEARSE_O_TRAIN_1 = V_Rehearse_O_Train_1_Config
     V_REHEARSE_O_TRAIN_10 = V_Rehearse_O_Train_10_Config
 
     # === Rehearsal Datasets for FULL LLaVA CL ===
@@ -599,6 +599,16 @@ class DatasetRegistry(Enum):
     I_REHEARSE_V_TRAIN_10 = I_Rehearse_V_Train_10_Config
     IV_REHEARSE_O_TRAIN_10 = IV_Rehearse_O_Train_10_Config
     IVO_REHEARSE_R_TRAIN_10 = IVO_Rehearse_R_Train_10_Config
+
+    # IORV 
+    I_REHEARSE_O_TRAIN_1 = I_Rehearse_O_Train_1_Config
+    IO_REHEARSE_R_TRAIN_1 = IO_Rehearse_R_Train_1_Config
+    IOR_REHEARSE_V_TRAIN_1 = IOR_Rehearse_V_Train_1_Config
+
+    # VOIR
+    V_REHEARSE_O_TRAIN_1 = V_Rehearse_O_Train_1_Config
+    VO_REHEARSE_I_TRAIN_1 = VO_Rehearse_I_Train_1_Config
+    VOI_REHEARSE_R_TRAIN_1 = VOI_Rehearse_R_Train_1_Config
 
 
 
