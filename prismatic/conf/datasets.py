@@ -456,6 +456,96 @@ class IVO_Rehearse_R_Train_10_Config(DatasetConfig):
     dataset_root_dir: Path = Path("data")
 
 
+# Current Sequence of Datasets: IORV [I(Instruct)O(OCR)R(Referential-Expression)V(VQA)]
+# 1 (1%)
+ 
+@dataclass
+class I_Rehearse_O_Train_1_Config(DatasetConfig):
+    dataset_id: str = "i_rehearse_o_train_1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/iorv_1/rehearse_instruct_train_ocr_1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class IO_Rehearse_R_Train_1_Config(DatasetConfig):
+    dataset_id: str = "io_rehearse_r_train_1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/iorv_1/rehearse_instruct_ocr_train_ref_1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class IOR_Rehearse_V_Train_1_Config(DatasetConfig):
+    dataset_id: str = "ior_rehearse_v_train_1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/iorv_1/rehearse_instruct_ocr_ref_train_vqa_1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+
+# # Current Sequence of Datasets: VOIR [V(VQA)O(OCR)I(Instruct)R(Referential-Expression)]
+# # 1 (1%)
+    
+@dataclass
+class V_Rehearse_O_Train_1_Config(DatasetConfig):
+    dataset_id: str = "v_rehearse_o_train_1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/voir_1/rehearse_vqa_train_ocr_1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class VO_Rehearse_I_Train_1_Config(DatasetConfig):
+    dataset_id: str = "vo_rehearse_i_train_1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/voir_1/rehearse_vqa_ocr_train_instruct_1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class VOI_Rehearse_R_Train_1_Config(DatasetConfig):
+    dataset_id: str = "voi_rehearse_r_train_1"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/voir_1/rehearse_vqa_ocr_instruct_train_ref_1.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
 
 # ========================================
 @dataclass
