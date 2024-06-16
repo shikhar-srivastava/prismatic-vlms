@@ -87,7 +87,8 @@ class PretrainConfig:
     # Mitigation method. Default is None
     mitigation: str = None
     soft_alpha: float = None
-    olf: bool = False
+    olf: bool = False  # Last Transformer Block freezing
+    oolf: bool = False # Last Output Layer freezing
     lora_rank: int = 16
     lora_alpha: int = 8
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #

@@ -124,6 +124,21 @@ def apply_olf(llm_model):
         param.requires_grad = False
     return llm_model
 
+def apply_oolf(llm_model):
+    overwatch.info(f"Freezing Output Layer", ctx_level = 2)
+    # Fet the output layer
+    if isinstance(llm_model, PeftModelForCausalLM):
+        llm_model = llm_model.base_model.model
+    elif isinstance(llm_model, GPTNeoXForCausalLM):
+        output_layer = llm_model.embed_out
+    else:
+        raise ValueError("Model type not supported.")
+
+    for param in output_layer.parameters():
+        param.requires_grad = False
+    return llm_model
+    
+
 def apply_ia3(llm_model):
     print('Applying IA3')
     target_modules, feedforward_modules = get_ia3_target_feedforward_modules(llm_model)
@@ -141,14 +156,17 @@ def apply_mitigation(llm_model, cfg, hot_fix=0):
     if isinstance(cfg, dict):
         mitigation_type = cfg.get("mitigation", None)
         olf = cfg.get("olf", False)
+        oolf = cfg.get("oolf", False)
         # run_id = cfg.get("run_id", None)
     elif hasattr(cfg, 'mitigation'):
         mitigation_type = getattr(cfg, 'mitigation', None)
         olf = getattr(cfg, 'olf', False)
+        oolf = getattr(cfg, 'oolf', False)
         # run_id = getattr(cfg, 'run_id', None)
     else:
         mitigation_type = None
         olf = False
+        oolf = False
     
     if mitigation_type is None:
         return llm_model
@@ -192,5 +210,7 @@ def apply_mitigation(llm_model, cfg, hot_fix=0):
         raise ValueError(f"Mitigation type {mitigation_type} not supported")
     if olf == True:
         llm_model = apply_olf(llm_model)
+    elif oolf == True:
+        llm_model = apply_oolf(llm_model)
 
     return llm_model 
