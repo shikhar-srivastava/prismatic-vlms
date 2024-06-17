@@ -119,7 +119,7 @@ class PretrainConfig:
             self.train_strategy = self.model.align_train_strategy
 
         elif self.stage.endswith("finetune"):
-            self.epochs = self.model.finetune_epochs if self.epoch_count is 1 else self.epoch_count
+            self.epochs = self.model.finetune_epochs if self.epoch_count == 1 else self.epoch_count
             self.max_steps = self.model.finetune_max_steps
             self.global_batch_size = self.model.finetune_global_batch_size #if self.mitigation is None else self.model.align_global_batch_size
             self.per_device_batch_size = self.model.finetune_per_device_batch_size
