@@ -125,15 +125,15 @@ def apply_olf(llm_model):
     return llm_model
 
 def apply_oolf(llm_model):
+    overwatch.info(f"OOLF ===>", ctx_level = 1)
     overwatch.info(f"Freezing Output Layer", ctx_level = 2)
     # Fet the output layer
     if isinstance(llm_model, PeftModelForCausalLM):
         llm_model = llm_model.base_model.model
-    elif isinstance(llm_model, GPTNeoXForCausalLM):
+    if isinstance(llm_model, GPTNeoXForCausalLM):
         output_layer = llm_model.embed_out
     else:
         raise ValueError("Model type not supported.")
-
     for param in output_layer.parameters():
         param.requires_grad = False
     return llm_model
@@ -168,46 +168,43 @@ def apply_mitigation(llm_model, cfg, hot_fix=0):
         olf = False
         oolf = False
     
-    if mitigation_type is None:
-        return llm_model
-    else:
+    if mitigation_type is not None:
         overwatch.info(f"Applying mitigation: {mitigation_type}!")
-        
-    if 'lora' in mitigation_type:
-        if isinstance(cfg, dict):
-            lora_rank = cfg.get("lora_rank")
-            lora_alpha = cfg.get("lora_alpha")
-            lora_target_modules = cfg.get("lora_target_modules")
-            reduce_lora_rank_by_factor_of_fullrank = cfg.get("reduce_lora_rank_by_factor_of_fullrank", 1)
-            use_rslora = cfg.get("use_rslora", False)
-        else:
-            lora_rank = getattr(cfg, 'lora_rank')
-            lora_alpha = getattr(cfg, 'lora_alpha')
-            lora_target_modules = getattr(cfg, 'lora_target_modules')
-            reduce_lora_rank_by_factor_of_fullrank = getattr(cfg, 'reduce_lora_rank_by_factor_of_fullrank', 1)
-            use_rslora = getattr(cfg, 'use_rslora', False)
+        if 'lora' in mitigation_type:
+            if isinstance(cfg, dict):
+                lora_rank = cfg.get("lora_rank")
+                lora_alpha = cfg.get("lora_alpha")
+                lora_target_modules = cfg.get("lora_target_modules")
+                reduce_lora_rank_by_factor_of_fullrank = cfg.get("reduce_lora_rank_by_factor_of_fullrank", 1)
+                use_rslora = cfg.get("use_rslora", False)
+            else:
+                lora_rank = getattr(cfg, 'lora_rank')
+                lora_alpha = getattr(cfg, 'lora_alpha')
+                lora_target_modules = getattr(cfg, 'lora_target_modules')
+                reduce_lora_rank_by_factor_of_fullrank = getattr(cfg, 'reduce_lora_rank_by_factor_of_fullrank', 1)
+                use_rslora = getattr(cfg, 'use_rslora', False)
 
-        if hot_fix >0:
-            lora_target_modules = 'all-linear'
-            lora_rank = lora_rank * 8
-        if reduce_lora_rank_by_factor_of_fullrank != 1:
-            lora_rank = llm_model.config.hidden_size // reduce_lora_rank_by_factor_of_fullrank
-            # Lora_alpha should be 32
-            # lora_rank should be 16
-        overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
-        llm_model = apply_lora(llm_model, lora_r=lora_rank, \
-                            lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
-                            use_rslora=use_rslora)
-    elif mitigation_type == 'prefix':
-        llm_model = apply_prefix(llm_model)
-    elif mitigation_type == 'ptune':
-        llm_model = apply_ptune(llm_model)
-    elif mitigation_type == 'prompt':
-        llm_model = apply_prompt(llm_model)
-    elif mitigation_type == 'ia3':
-        llm_model = apply_ia3(llm_model)
-    else:
-        raise ValueError(f"Mitigation type {mitigation_type} not supported")
+            if hot_fix >0:
+                lora_target_modules = 'all-linear'
+                lora_rank = lora_rank * 8
+            if reduce_lora_rank_by_factor_of_fullrank != 1:
+                lora_rank = llm_model.config.hidden_size // reduce_lora_rank_by_factor_of_fullrank
+                # Lora_alpha should be 32
+                # lora_rank should be 16
+            overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
+            llm_model = apply_lora(llm_model, lora_r=lora_rank, \
+                                lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
+                                use_rslora=use_rslora)
+        elif mitigation_type == 'prefix':
+            llm_model = apply_prefix(llm_model)
+        elif mitigation_type == 'ptune':
+            llm_model = apply_ptune(llm_model)
+        elif mitigation_type == 'prompt':
+            llm_model = apply_prompt(llm_model)
+        elif mitigation_type == 'ia3':
+            llm_model = apply_ia3(llm_model)
+        else:
+            raise ValueError(f"Mitigation type {mitigation_type} not supported")
     if olf == True:
         llm_model = apply_olf(llm_model)
     elif oolf == True:

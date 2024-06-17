@@ -100,6 +100,7 @@ class PretrainConfig:
     use_rslora: bool = True
     half_batch_size: bool = False
     
+    epoch_count: int = 1
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
@@ -118,7 +119,7 @@ class PretrainConfig:
             self.train_strategy = self.model.align_train_strategy
 
         elif self.stage.endswith("finetune"):
-            self.epochs = self.model.finetune_epochs
+            self.epochs = self.model.finetune_epochs if self.epoch_count is 1 else self.epoch_count
             self.max_steps = self.model.finetune_max_steps
             self.global_batch_size = self.model.finetune_global_batch_size #if self.mitigation is None else self.model.align_global_batch_size
             self.per_device_batch_size = self.model.finetune_per_device_batch_size
@@ -166,6 +167,8 @@ def pretrain(cfg: PretrainConfig) -> None:
         cfg.run_id = f"{dataset_id}+{model_id}+stage-{cfg.stage}+x{cfg.seed}" if cfg.run_id is None else cfg.run_id
 
     overwatch.info(f'Mitigation method: {cfg.mitigation}', ctx_level=1)
+    if cfg.epoch_count !=1 :
+        overwatch.info(f"Raising No of Epochs to : {cfg.epoch_count}",ctx_level=1)
     if cfg.mitigation is not None:
         overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
         overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
