@@ -456,6 +456,50 @@ class IVO_Rehearse_R_Train_10_Config(DatasetConfig):
     dataset_root_dir: Path = Path("data")
 
 
+# Rehearsal Sampling Rate: 10% ('10')
+@dataclass
+class I_Rehearse_V_Train_20_Config(DatasetConfig):
+    dataset_id: str = "i_rehearse_v_train_20"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/ivor_20/rehearse_instruct_train_vqa_20.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class IV_Rehearse_O_Train_20_Config(DatasetConfig):
+    dataset_id: str = "iv_rehearse_o_train_20"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/ivor_20/rehearse_instruct_vqa_train_ocr_20.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+@dataclass
+class IVO_Rehearse_R_Train_20_Config(DatasetConfig):
+    dataset_id: str = "ivo_rehearse_r_train_20"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/rehearsal/ivor_20/rehearse_instruct_vqa_ocr_train_ref_20.json"), # Path to json with annotations
+        Path("download/llava-v1.5-instruct/"), # Base path to image directories
+    )
+    dataset_root_dir: Path = Path("data")
+
+
 # Current Sequence of Datasets: IORV [I(Instruct)O(OCR)R(Referential-Expression)V(VQA)]
 # 1 (1%)
  
@@ -599,6 +643,12 @@ class DatasetRegistry(Enum):
     I_REHEARSE_V_TRAIN_10 = I_Rehearse_V_Train_10_Config
     IV_REHEARSE_O_TRAIN_10 = IV_Rehearse_O_Train_10_Config
     IVO_REHEARSE_R_TRAIN_10 = IVO_Rehearse_R_Train_10_Config
+
+
+    I_REHEARSE_V_TRAIN_20 = I_Rehearse_V_Train_20_Config
+    IV_REHEARSE_O_TRAIN_20 = IV_Rehearse_O_Train_20_Config
+    IVO_REHEARSE_R_TRAIN_20 = IVO_Rehearse_R_Train_20_Config
+
 
     # IORV 
     I_REHEARSE_O_TRAIN_1 = I_Rehearse_O_Train_1_Config
