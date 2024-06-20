@@ -55,7 +55,7 @@ class TrainingStrategy(ABC):
         **_: str,
     ) -> None:
         self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
-
+        self.merging_per_epoch = cfg['merging_per_epoch'] if isinstance(cfg, dict) else getattr(cfg, 'merging_per_epoch', 0)
         self.vlm, self.device_id = vlm, device_id
 
         # Get relevant VLM instance parameters before they get (potentially) wrapped
@@ -152,6 +152,7 @@ class TrainingStrategy(ABC):
 
         # Max Steps vs. Epochs Computation
         steps_per_epoch = len(dataloader) // self.grad_accumulation_steps
+        merges_after_steps = steps_per_epoch//self.merging_per_epoch if self.merging_per_epoch > 1 else steps_per_epoch if self.merging_per_epoch == 1 else 0
         if self.max_steps is not None and steps_per_epoch < self.max_steps:
             # Just set `epochs` to some large number --> we'll short-circuit based on steps anyway
             self.epochs = 100

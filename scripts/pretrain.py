@@ -101,6 +101,7 @@ class PretrainConfig:
     half_batch_size: bool = False
     
     epoch_count: int = 1
+    merging_per_epoch: int = 0 # 0 means no merging. 1 means merging after every epoch
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
