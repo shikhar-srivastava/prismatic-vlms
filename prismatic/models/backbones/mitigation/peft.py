@@ -128,6 +128,7 @@ def apply_oolf(llm_model):
     overwatch.info(f"OOLF ===>", ctx_level = 1)
     overwatch.info(f"Freezing Output Layer", ctx_level = 2)
     # Fet the output layer
+    base_model = llm_model
     if isinstance(llm_model, PeftModelForCausalLM):
         llm_model = llm_model.base_model.model
     if isinstance(llm_model, GPTNeoXForCausalLM):
@@ -136,7 +137,7 @@ def apply_oolf(llm_model):
         raise ValueError("Model type not supported.")
     for param in output_layer.parameters():
         param.requires_grad = False
-    return llm_model
+    return base_model
     
 
 def apply_ia3(llm_model):

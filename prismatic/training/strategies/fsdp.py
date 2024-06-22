@@ -190,7 +190,6 @@ class FSDPStrategy(TrainingStrategy):
                 cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True) #
             )
         else:
-
             self.vlm = FSDP(
                 self.vlm,
                 auto_wrap_policy=vlm_fsdp_wrapping_policy,

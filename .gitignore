@@ -228,3 +228,9 @@ linguistic_forgetting_vs_vl_performance_scatter_latest.png
 linguistic_forgetting_scatter_plots.png
 linguistic_forgetting_bar_charts_all_models.png
 hmean.png
+task_avg_nl_forgetting_cl.png
+task_avg_vl_performance_cl.png
+nl_forgetting_after_task_5.png
+avg_vl_performance.png
+avg_nl_forgetting.png
+vl_performance_after_task_5.png
