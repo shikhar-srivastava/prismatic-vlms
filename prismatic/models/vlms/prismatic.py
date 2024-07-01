@@ -25,6 +25,7 @@ from prismatic.models.backbones.vision import VisionBackbone
 from prismatic.models.vlms.base_vlm import VLM
 from prismatic.overwatch import initialize_overwatch
 from prismatic.util.nn_utils import FusedMLPProjector, LinearProjector, MLPProjector
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from prismatic.models.backbones.mitigation import apply_mitigation
 
@@ -34,7 +35,6 @@ overwatch = initialize_overwatch(__name__)
 
 # HuggingFace Default / LLaMa-2 IGNORE_INDEX (for labels)
 IGNORE_INDEX = -100
-
 
 class PrismaticVLM(VLM):
     def __init__(
@@ -113,7 +113,6 @@ class PrismaticVLM(VLM):
         if "projector" in model_state_dict and "llm_backbone" in model_state_dict:
             overwatch.info("Loading `projector` and `llm_backbone` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
-            # try:
             new_model_state_dict = {}
             for k, v in model_state_dict['llm_backbone'].items():
                 if k.startswith('llm.'):
@@ -122,12 +121,6 @@ class PrismaticVLM(VLM):
                     new_model_state_dict[k] = v
             new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
             vlm.llm_backbone.llm.load_state_dict(new_model_state_dict)
-            # except Exception as e:
-            #     overwatch.error(f"Error loading llm_backbone from checkpoint", ctx_level=1)
-            #     overwatch.info(f"State Dict Keys: {model_state_dict.keys()}", ctx_level=1)
-            #     print(e)
-            #     exit(0)
-            #     #print(f"State Dict: {model_state_dict}")
         elif "projector" in model_state_dict:
             overwatch.error("Loading only `projector` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
@@ -314,8 +307,7 @@ class PrismaticVLM(VLM):
 
     # Note =>> We're not explicitly subclassing `PreTrainedModel` because we don't need the bloat; however, `forward()`
     #          *must* match the signature of a `{Model}ForCausalLM` so that we can inherit from `GenerationMixin`
-
-    # ruff: noqa: C901
+    # === GenerationMixin Methods ===
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -332,11 +324,27 @@ class PrismaticVLM(VLM):
         return_labels: Optional[bool] = False,
     ) -> CausalLMOutputWithPast:
         """Run a forward pass through the VLM, returning a CausalLMOutputWithPast instance (contains loss)."""
+        
+        # # Move input tensors to the correct device
+        # device = next(self.parameters()).device
+        # input_ids = input_ids.to(device)
+        # if attention_mask is not None:
+        #     attention_mask = attention_mask.to(device)
+        # if pixel_values is not None:
+        #     if isinstance(pixel_values, dict):
+        #         pixel_values = {k: v.to(device) for k, v in pixel_values.items()}
+        #     else:
+        #         pixel_values = pixel_values.to(device)
+        # if labels is not None:
+        #     labels = labels.to(device)
+        # if multimodal_indices is not None:
+        #     multimodal_indices = multimodal_indices.to(device)
 
         # Handle Inference (leverage cache, short-circuit on just LLM forward)
         if input_ids.shape[1] == 1 and past_key_values is not None:
             # We're leveraging the cache, so just redirect to `self.llm_backbone` with `input_ids` and `past_key_values`
-            output = self.llm_backbone(
+            llm_backbone = self.llm_backbone.module if isinstance(self.llm_backbone, DDP) else self.llm_backbone
+            output = llm_backbone(
                 input_ids=input_ids,
                 attention_mask=None,
                 position_ids=None,
@@ -361,7 +369,8 @@ class PrismaticVLM(VLM):
 
         # Handle Multimodal Indices is Empty (len == 0) --> simple unimodal forward
         elif len(multimodal_indices) == 0:
-            output = self.llm_backbone(
+            llm_backbone = self.llm_backbone.module if isinstance(self.llm_backbone, DDP) else self.llm_backbone
+            output = llm_backbone(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 position_ids=None,
@@ -385,7 +394,8 @@ class PrismaticVLM(VLM):
                 patch_features = self.vision_backbone(pixel_values[multimodal_indices])
 
         # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
-        projected_patch_embeddings = self.projector(patch_features)
+        projector = self.projector.module if isinstance(self.projector, DDP) else self.projector
+        projected_patch_embeddings = projector(patch_features)
         projected_patch_attention_mask = None
         if attention_mask is not None:
             projected_patch_attention_mask = torch.full(
@@ -396,7 +406,8 @@ class PrismaticVLM(VLM):
             )
 
         # Get Input Embeddings from LLM Backbone :: [bsz, input_seq_len, llm_embed_dim]
-        input_embeddings = self.llm_backbone.embed_input_ids(input_ids)
+        llm_backbone = self.llm_backbone.module if isinstance(self.llm_backbone, DDP) else self.llm_backbone
+        input_embeddings = llm_backbone.embed_input_ids(input_ids)
 
         # Build Multimodal Embeddings (and build resulting attention mask)
         multimodal_embeddings = torch.cat(
@@ -480,7 +491,7 @@ class PrismaticVLM(VLM):
             fused_labels = torch.vstack([multimodal_labels, unimodal_labels])
 
         # Run LLM Forward --> returns CausalLMOutputWithPast!
-        output = self.llm_backbone(
+        output = llm_backbone(
             input_ids=None,
             attention_mask=fused_attention_mask,
             position_ids=None,
@@ -496,7 +507,6 @@ class PrismaticVLM(VLM):
             return output, fused_labels
         return output
 
-    # === GenerationMixin Methods ===
     #   => Note: The following methods override the functionality of `transformers.GenerationMixin`; these expect the
     #            contract in each of the function signatures, and also expect our `forward` function to roughly take
     #            the same arguments as the underlying LLM (see `LlamaModelForCausalLM` as an example)
@@ -656,4 +666,7 @@ class PrismaticVLM(VLM):
                 for name, param in comp.named_parameters():
                     if param.requires_grad:
                         print(f"  {name} is trainable")
+
+
+
 

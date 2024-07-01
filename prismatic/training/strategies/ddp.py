@@ -18,7 +18,6 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from prismatic.overwatch import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
 
-from peft import PeftModel, PeftModelForCausalLM
 from transformers import AutoConfig
 from collections import OrderedDict
 
@@ -38,15 +37,16 @@ class DDPStrategy(TrainingStrategy):
         only_trainable: bool = True,
     ) -> None:
         """Save a checkpoint to the `run_dir` only containing the state_dicts for trainable parameters by default."""
-        assert isinstance(self.vlm, DDP), "save_checkpoint assumes VLM is already wrapped in DDP!"
+        assert isinstance(self.vlm.llm_backbone, DDP) and isinstance(self.vlm.projector, DDP), "save_checkpoint assumes llm_backbone and projector are already wrapped in DDP!"
 
+        self.remove_ddp_wrapper()
         # # Splinter State Dictionary by Top-Level Submodules (or subset, if `only_trainable`)
         full_vlm_state_dict = self.vlm.state_dict()
         # model_state_dicts = {
         #     mkey: OrderedDict() for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
         # }
         model_state_dicts = {
-            mkey: getattr(self.vlm.module, mkey).state_dict()
+            mkey: getattr(self.vlm, mkey).state_dict()
             for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
         }
         # Iterate through `full_vlm_state_dict` and split `mkey.{full_dotted_path}` -> `mkey: {full_dotted_path}`
@@ -68,22 +68,22 @@ class DDPStrategy(TrainingStrategy):
         # Save Checkpoint & Copy Latest to `latest-checkpoint.pt`
         torch.save({"model": model_state_dicts, "optimizer": optimizer_state_dict}, checkpoint_path)
         shutil.copy(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
-        supported_classes = (PeftModel,PeftModelForCausalLM)
-        peft_dir = run_dir / "checkpoint_llm_only"
-        peft_dir.mkdir(parents=True, exist_ok=True)
-        llm_backbone = unwrap_model(self.vlm).llm_backbone
-        tokenizer = llm_backbone.tokenizer
-        llm_backbone = llm_backbone.llm
-        # print(llm_backbone)
-        if isinstance(llm_backbone, supported_classes):
-            overwatch.info(f"Saving LLM Backbone to {peft_dir}")
-            llm_backbone.save_pretrained(
-                peft_dir, state_dict=model_state_dicts['llm_backbone'],
-                safe_serialization=False
-            )
-            tokenizer.save_pretrained(peft_dir)
-            config = llm_backbone.config  # Access the config directly from the model
-            config.save_pretrained(peft_dir)
+        # supported_classes = (PeftModel,PeftModelForCausalLM)
+        # peft_dir = run_dir / "checkpoint_llm_only"
+        # peft_dir.mkdir(parents=True, exist_ok=True)
+        # llm_backbone = unwrap_model(self.vlm).llm_backbone
+        # tokenizer = llm_backbone.tokenizer
+        # llm_backbone = llm_backbone.llm
+        # # print(llm_backbone)
+        # if isinstance(llm_backbone, supported_classes):
+        #     overwatch.info(f"Saving LLM Backbone to {peft_dir}")
+        #     llm_backbone.save_pretrained(
+        #         peft_dir, state_dict=model_state_dicts['llm_backbone'],
+        #         safe_serialization=False
+        #     )
+        #     tokenizer.save_pretrained(peft_dir)
+        #     config = llm_backbone.config  # Access the config directly from the model
+        #     config.save_pretrained(peft_dir)
 
     def run_setup(self, run_dir: Path, n_train_examples: int) -> None:
         # Gradient Checkpointing Setup
@@ -110,7 +110,11 @@ class DDPStrategy(TrainingStrategy):
         #            is the same size/dtype as the model parameters; this will *double* GPU memory!
         # - stackoverflow.com/questions/68949954/model-takes-twice-the-memory-footprint-with-distributed-data-parallel
         overwatch.info("Wrapping VLM with Distributed Data Parallel", ctx_level=1)
-        self.vlm = DDP(self.vlm, device_ids=[self.device_id], gradient_as_bucket_view=True)
+        #self.vlm = DDP(self.vlm, device_ids=[self.device_id], gradient_as_bucket_view=True, find_unused_parameters=True)
+        # Wrap trainable components with Distributed Data Parallel
+        self.vlm.llm_backbone = DDP(self.vlm.llm_backbone, device_ids=[self.device_id], gradient_as_bucket_view=True)
+        self.vlm.projector = DDP(self.vlm.projector, device_ids=[self.device_id], gradient_as_bucket_view=True)
+
 
         # Create Optimizer and LR Scheduler =>> note that most of the LR Schedulers we use require `max_steps/epochs`
         #   => Optimizer should only operate on parameters that are *unfrozen* / trainable!
@@ -150,6 +154,16 @@ class DDPStrategy(TrainingStrategy):
             f"         |-> Max Steps = {num_training_steps}\n"
         )
 
+    def remove_ddp_wrapper(self) -> None:
+        """Remove DDP Wrapping and Reinitialize VLM on CPU."""
+        self.vlm.llm_backbone = self.vlm.llm_backbone.module
+        self.vlm.projector = self.vlm.projector.module
+
+    def rewrap_ddp(self) -> None:
+        """Wrap VLM with DDP on GPU."""
+        self.vlm.llm_backbone = DDP(self.vlm.llm_backbone, device_ids=[self.device_id], gradient_as_bucket_view=True)
+        self.vlm.projector = DDP(self.vlm.projector, device_ids=[self.device_id], gradient_as_bucket_view=True)
+        
     def clip_grad_norm(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.vlm.parameters(), max_norm=self.max_grad_norm)
 

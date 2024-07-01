@@ -25,6 +25,8 @@ from prismatic.util import check_bloat16_supported
 from prismatic.util.batching_utils import SplitModalitySampler
 from prismatic.util.data_utils import PaddedCollatorForLanguageModeling
 
+from prismatic.models.backbones.mitigation import apply_mitigation
+
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
 
@@ -55,7 +57,9 @@ class TrainingStrategy(ABC):
         **_: str,
     ) -> None:
         self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
+        self.mitigation = cfg['mitigation'] if isinstance(cfg, dict) else getattr(cfg, 'mitigation', None)
         self.merging_per_epoch = cfg['merging_per_epoch'] if isinstance(cfg, dict) else getattr(cfg, 'merging_per_epoch', 0)
+        self.cfg = cfg
         self.vlm, self.device_id = vlm, device_id
 
         # Get relevant VLM instance parameters before they get (potentially) wrapped
@@ -106,6 +110,23 @@ class TrainingStrategy(ABC):
     @abstractmethod
     def clip_grad_norm(self) -> None: ...
 
+    def lora_merging(self):
+        # Merge the LoRA adapter into the network using the merge_and_unload method.
+        # Assess the class of the self.vlm
+        assert self.vlm.__class__.__name__ != 'FullyShardedDataParallel', "LoRA Merging is not currently implemented with FSDP."
+        if self.vlm.__class__.__name__ == 'DistributedDataParallel':
+            self.vlm.module.llm_backbone.llm = self.vlm.module.llm_backbone.llm.merge_and_unload()
+            self.vlm.module.llm_backbone.llm = apply_mitigation(self.vlm.module.llm_backbone.llm, cfg=self.cfg)
+            self.vlm.module.llm_backbone.llm.train()
+        elif self.vlm.llm_backbone.__class__.__name__ == 'DistributedDataParallel':
+            self.vlm.llm_backbone.module.llm = self.vlm.llm_backbone.module.llm.merge_and_unload()
+            self.vlm.llm_backbone.module.llm = apply_mitigation(self.vlm.llm_backbone.module.llm, cfg=self.cfg)
+            self.vlm.llm_backbone.module.llm.train()
+        else:
+            self.vlm.llm_backbone.llm = self.vlm.llm_backbone.llm.merge_and_unload()
+            self.vlm.llm_backbone.llm = apply_mitigation(self.vlm.llm_backbone.llm, cfg=self.cfg)
+            self.vlm.llm_backbone.llm.train()
+        
     def run_training(
         self,
         dataset: Dataset,
@@ -114,6 +135,7 @@ class TrainingStrategy(ABC):
         stage: str = "finetune",
         batch_construction_strategy: str = "split-modality",
         seed: int = 7,
+        cfg = None,
     ) -> None:
         """Run the training loop for the given `dataset` and `collator`; log losses, results to `metrics`"""
         if "finetune" in stage and batch_construction_strategy == "split-modality":
@@ -149,10 +171,20 @@ class TrainingStrategy(ABC):
             num_workers=2,
             worker_init_fn=self.worker_init_fn,
         )
-
         # Max Steps vs. Epochs Computation
         steps_per_epoch = len(dataloader) // self.grad_accumulation_steps
+
         merges_after_steps = steps_per_epoch//self.merging_per_epoch if self.merging_per_epoch > 1 else steps_per_epoch if self.merging_per_epoch == 1 else 0
+        if ((self.mitigation not in ['lora','sgm','ia3']) or self.vlm.__class__.__name__ == 'FullyShardedDataParallel') and merges_after_steps > 0:
+            merges_after_steps = 0
+            overwatch.error(f"LoRA Merging is not supported with {self.mitigation} mitigation or FSDP. Disabling LoRA Merging.")
+        if merges_after_steps > 0:
+            overwatch.info(f"LoRA Merging with {self.merging_per_epoch} merges/epochs. Merging after {merges_after_steps} steps.")
+            merging_flag = 0
+        else:
+            overwatch.info(f"No LoRA Merging.")
+            merging_flag = 0
+
         if self.max_steps is not None and steps_per_epoch < self.max_steps:
             # Just set `epochs` to some large number --> we'll short-circuit based on steps anyway
             self.epochs = 100
@@ -179,6 +211,11 @@ class TrainingStrategy(ABC):
                 # Note that we'll unpack batch (and let AMP/FSDP do its thing) in the VLM.forward() call
                 #   => Basically, if we're using mixed precision (or not), autocast()/FSDP will move to device!
                 for train_idx, batch in enumerate(dataloader):
+                    if self.__class__.__name__ == 'DDPStrategy':
+                        # DDP does not automatically move the data to the device.
+                        batch = {k: v.to(self.device_id) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+                    if (merges_after_steps > 0) and (((train_idx + 1) % (merges_after_steps*self.grad_accumulation_steps)) == 0):
+                        merging_flag = 1
                     # [Contract] self.vlm.forward() must automatically compute `loss` and return!
                     with torch.autocast(
                         "cuda",
@@ -202,7 +239,6 @@ class TrainingStrategy(ABC):
                                 multimodal_indices=batch["multimodal_indices"],
                                 return_labels=True if self.soft_alpha is not None else False,
                             )
-
 
                     if self.soft_alpha is not None:
                         shift_logits = output.logits[:, :-1, :].contiguous()
@@ -266,7 +302,6 @@ class TrainingStrategy(ABC):
 
                     # Commit Loss (Prior to Gradient Accumulation Normalization)
                     metrics.commit(loss=loss)
-
                     # Normalize Loss to account for Gradient Accumulation --> Backward!
                     # [IMPORTANT] Technically speaking, doing gradient accumulation in this way is "incorrect"; this is
                     #             because in general, each batch has a *different number of masked out tokens* (because
@@ -285,15 +320,12 @@ class TrainingStrategy(ABC):
                     # Step =>> Only if Done w/ Gradient Accumulation
                     if (train_idx + 1) % self.grad_accumulation_steps == 0:
                         metrics.commit(update_step_time=True)
-
                         # Clip Gradients --> this is custom, per-strategy because of DDP vs. FSDP locality-assumptions
                         self.clip_grad_norm()
-
                         # Optimizer & LR Scheduler Step
                         self.optimizer.step()
                         self.lr_scheduler.step()
                         self.optimizer.zero_grad()
-
                         # Push Metrics
                         metrics.commit(global_step=metrics.global_step + 1, lr=self.lr_scheduler.get_last_lr()[0])
                         status = metrics.push()
@@ -308,6 +340,15 @@ class TrainingStrategy(ABC):
                         # Update Progress Bar
                         progress.update()
                         progress.set_description(status)
+
+                        if merging_flag == 1:
+                            overwatch.info(f"Performing LoRA Merging at step {train_idx}")
+                            #self.remove_ddp_wrapper()
+                            self.lora_merging()
+                            overwatch.info(f"LoRA Merging Complete")
+                            #self.rewrap_ddp()
+                            self.vlm.train()
+                            merging_flag = 0
 
             # Save checkpoint at end each epoch (if `self.max_steps` is None)
             if self.max_steps is None:

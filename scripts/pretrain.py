@@ -102,6 +102,7 @@ class PretrainConfig:
     
     epoch_count: int = 1
     merging_per_epoch: int = 0 # 0 means no merging. 1 means merging after every epoch
+    ddp: bool = False
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
@@ -137,7 +138,7 @@ class PretrainConfig:
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
 
             self.learning_rate = self.model.finetune_learning_rate
-            self.weight_decay = self.model.finetune_weight_decay if self.mitigation!='qlora' else 0.0
+    
             self.max_grad_norm = self.model.finetune_max_grad_norm
             self.lr_scheduler_type = self.model.finetune_lr_scheduler_type
             self.warmup_ratio = self.model.finetune_warmup_ratio
@@ -145,7 +146,12 @@ class PretrainConfig:
             # if 'align-only' in self.model.model_id:
             #     self.train_strategy = self.model.align_train_strategy
             # else:
-            self.train_strategy = self.model.finetune_train_strategy if self.mitigation!='qlora' else "ddp-native"
+            if self.mitigation == 'qlora' or self.merging_per_epoch > 0 or self.ddp is True:
+                self.train_strategy = "ddp-native"
+                self.weight_decay = 0.0
+            else:
+                self.train_strategy = self.model.finetune_train_strategy
+                self.weight_decay = self.model.finetune_weight_decay
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")
 
@@ -269,7 +275,7 @@ def pretrain(cfg: PretrainConfig) -> None:
         cfg.stage,
         wandb_project=cfg.wandb_project,
         wandb_entity=cfg.wandb_entity,
-        grad_accumulation_steps=train_strategy.grad_accumulation_steps,
+        grad_accumulation_steps=int(train_strategy.grad_accumulation_steps),
     )  
 
     # # Check VLM Trainability
