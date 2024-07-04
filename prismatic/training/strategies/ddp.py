@@ -21,6 +21,7 @@ from prismatic.training.strategies.base_strategy import TrainingStrategy
 from transformers import AutoConfig
 from collections import OrderedDict
 
+import schedulefree
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -54,7 +55,8 @@ class DDPStrategy(TrainingStrategy):
             for mkey in model_state_dicts:
                 if key.startswith(mprefix := f"{mkey}."):
                     model_state_dicts[mkey][key.removeprefix(mprefix)] = param
-                    
+        if self.lr_scheduler_type == 'schedule-free':
+            self.optimizer.eval()
         optimizer_state_dict = self.optimizer.state_dict()
 
         # Set Checkpoint Path =>> Embed *minimal* training statistics!
@@ -133,7 +135,10 @@ class DDPStrategy(TrainingStrategy):
             self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps, num_training_steps)
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = 0.0
-
+        elif self.lr_scheduler_type == "schedule-free": # Facebook's https://github.com/facebookresearch/schedule_free
+            assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
+            self.optimizer = schedulefree.AdamWScheduleFree(trainable_params, lr=self.learning_rate)
+            self.lr_scheduler = None # No scheduler 
         else:
             raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
 

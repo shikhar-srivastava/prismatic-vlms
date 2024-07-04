@@ -118,14 +118,20 @@ class TrainingStrategy(ABC):
             self.vlm.module.llm_backbone.llm = self.vlm.module.llm_backbone.llm.merge_and_unload()
             self.vlm.module.llm_backbone.llm = apply_mitigation(self.vlm.module.llm_backbone.llm, cfg=self.cfg)
             self.vlm.module.llm_backbone.llm.train()
+            if self.lr_scheduler_type == 'schedule-free':
+                    self.optimizer.train() 
         elif self.vlm.llm_backbone.__class__.__name__ == 'DistributedDataParallel':
             self.vlm.llm_backbone.module.llm = self.vlm.llm_backbone.module.llm.merge_and_unload()
             self.vlm.llm_backbone.module.llm = apply_mitigation(self.vlm.llm_backbone.module.llm, cfg=self.cfg)
             self.vlm.llm_backbone.module.llm.train()
+            if self.lr_scheduler_type == 'schedule-free':
+                    self.optimizer.train() 
         else:
             self.vlm.llm_backbone.llm = self.vlm.llm_backbone.llm.merge_and_unload()
             self.vlm.llm_backbone.llm = apply_mitigation(self.vlm.llm_backbone.llm, cfg=self.cfg)
             self.vlm.llm_backbone.llm.train()
+            if self.lr_scheduler_type == 'schedule-free':
+                    self.optimizer.train() 
         
     def run_training(
         self,
@@ -203,6 +209,8 @@ class TrainingStrategy(ABC):
         ) as progress:
             for epoch in range(self.epochs):
                 self.vlm.train()
+                if self.lr_scheduler_type == 'schedule-free':
+                    self.optimizer.train() 
                 sampler.set_epoch(epoch)
 
                 # Zero-Gradients (just in case)
@@ -323,11 +331,15 @@ class TrainingStrategy(ABC):
                         # Clip Gradients --> this is custom, per-strategy because of DDP vs. FSDP locality-assumptions
                         self.clip_grad_norm()
                         # Optimizer & LR Scheduler Step
-                        self.optimizer.step()
-                        self.lr_scheduler.step()
+                        if self.lr_scheduler_type == 'schedule-free':
+                            self.optimizer.step() 
+                        else:
+                            self.optimizer.step()
+                            self.lr_scheduler.step()
                         self.optimizer.zero_grad()
                         # Push Metrics
-                        metrics.commit(global_step=metrics.global_step + 1, lr=self.lr_scheduler.get_last_lr()[0])
+                        metrics.commit(global_step=metrics.global_step + 1, \
+                                lr=self.lr_scheduler.get_last_lr()[0] if self.lr_scheduler_type != 'schedule-free' else self.optimizer.param_groups[0]['lr'])
                         status = metrics.push()
 
                         # Check for Termination & Save Final Checkpoint (in case `max_steps` is not None)
@@ -348,6 +360,8 @@ class TrainingStrategy(ABC):
                             overwatch.info(f"LoRA Merging Complete")
                             #self.rewrap_ddp()
                             self.vlm.train()
+                            if self.lr_scheduler_type == 'schedule-free':
+                                self.optimizer.train() 
                             merging_flag = 0
 
             # Save checkpoint at end each epoch (if `self.max_steps` is None)

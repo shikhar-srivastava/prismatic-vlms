@@ -34,6 +34,8 @@ from prismatic.overwatch import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
 
 from peft import PeftModel, PeftModelForCausalLM
+
+import schedulefree
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
 
@@ -249,6 +251,27 @@ class FSDPStrategy(TrainingStrategy):
             # Create Optimizer & LR Scheduler
             self.optimizer = AdamW(groups, lr=self.learning_rate)
             self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps, num_training_steps)
+            for param_group in self.optimizer.param_groups:
+                param_group["lr"] = 0.0
+
+        elif self.lr_scheduler_type == "schedule-free": # Facebook's https://github.com/facebookresearch/schedule_free
+            num_warmup_steps, num_training_steps = None, None
+            decay, no_decay = [], []
+            for name, param in self.vlm.named_parameters():
+                if not param.requires_grad:
+                    continue
+
+                # Check on any parameters with fewer than 2 dimensions or with "bias" in the name
+                if param.ndim <= 1 or name.endswith(".bias"):
+                    no_decay.append(param)
+                else:
+                    decay.append(param)
+
+            # Build Parameter Groups
+            groups = [{"params": decay, "weight_decay": self.weight_decay}, {"params": no_decay, "weight_decay": 0.0}]
+
+            self.optimizer = schedulefree.AdamWScheduleFree(groups, lr=self.learning_rate)
+            self.lr_scheduler = None # No scheduler 
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = 0.0
 

@@ -104,6 +104,9 @@ class PretrainConfig:
     merging_per_epoch: int = 0 # 0 means no merging. 1 means merging after every epoch
     ddp: bool = False
 
+    schedule_free : bool = False
+    
+
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         if self.stage == "align":
@@ -140,8 +143,10 @@ class PretrainConfig:
             self.learning_rate = self.model.finetune_learning_rate
     
             self.max_grad_norm = self.model.finetune_max_grad_norm
-            self.lr_scheduler_type = self.model.finetune_lr_scheduler_type
-            self.warmup_ratio = self.model.finetune_warmup_ratio
+
+            # Add schedule free here
+            self.lr_scheduler_type = self.model.finetune_lr_scheduler_type if self.schedule_free is False else 'schedule-free'
+            self.warmup_ratio = self.model.finetune_warmup_ratio #if self.schedule_free is False else 0.0
 
             # if 'align-only' in self.model.model_id:
             #     self.train_strategy = self.model.align_train_strategy
