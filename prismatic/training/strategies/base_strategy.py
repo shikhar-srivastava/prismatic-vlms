@@ -339,7 +339,7 @@ class TrainingStrategy(ABC):
                         self.optimizer.zero_grad()
                         # Push Metrics
                         metrics.commit(global_step=metrics.global_step + 1, \
-                                lr=self.lr_scheduler.get_last_lr()[0] if self.lr_scheduler_type != 'schedule-free' else self.optimizer.param_groups[0]['lr'])
+                                lr=self.lr_scheduler.get_last_lr()[0] if self.lr_scheduler_type != 'schedule-free' else self.optimizer.get_lr())
                         status = metrics.push()
 
                         # Check for Termination & Save Final Checkpoint (in case `max_steps` is not None)

@@ -137,7 +137,15 @@ class DDPStrategy(TrainingStrategy):
                 param_group["lr"] = 0.0
         elif self.lr_scheduler_type == "schedule-free": # Facebook's https://github.com/facebookresearch/schedule_free
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
-            self.optimizer = schedulefree.AdamWScheduleFree(trainable_params, lr=self.learning_rate)
+            if self.max_steps is None:
+                num_training_steps = (n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
+
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+
+            self.optimizer = schedulefree.AdamWScheduleFree(trainable_params, lr=self.learning_rate, warmup_steps=num_warmup_steps)
             self.lr_scheduler = None # No scheduler 
         else:
             raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
