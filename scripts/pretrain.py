@@ -89,22 +89,29 @@ class PretrainConfig:
     soft_alpha: float = None
     olf: bool = False  # Last Transformer Block freezing
     oolf: bool = False # Last Output Layer freezing
+
+    # LoRA
     lora_rank: int = 16
     lora_alpha: int = 8
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
-    
+    reduce_lora_rank_by_factor_of_fullrank: int = 2
+    use_rslora: bool = True
+    half_batch_size: bool = False   
+    ## LoRA Merging related
+    merges_after_steps: int = 0 # 0 means no merging. 1 means merging after every epoch
+    ### Resetting lr/optimizer after merging. If non zero, then LR resets to 0 with quick warmup_ratio back to cosine LR after merging.
+    merging_lr_warmup_steps: int = 100
+    # General Training Parameters
     load_8bit: bool = False
     bigger_batch: bool = False
     hot_fix: int = 0
-    reduce_lora_rank_by_factor_of_fullrank: int = 2
-    use_rslora: bool = True
-    half_batch_size: bool = False
-    
     epoch_count: int = 1
-    merging_per_epoch: int = 0 # 0 means no merging. 1 means merging after every epoch
     ddp: bool = False
 
+    # Schedulers and Optimizers
     schedule_free : bool = False
+
+    track_lora_plasticity : bool = False
     
 
     def __post_init__(self) -> None:
@@ -151,7 +158,7 @@ class PretrainConfig:
             # if 'align-only' in self.model.model_id:
             #     self.train_strategy = self.model.align_train_strategy
             # else:
-            if self.mitigation == 'qlora' or self.merging_per_epoch > 0 or self.ddp is True:
+            if self.mitigation == 'qlora' or self.merges_after_steps > 0 or self.ddp is True:
                 self.train_strategy = "ddp-native"
                 self.weight_decay = 0.0
             else:
@@ -266,9 +273,10 @@ def pretrain(cfg: PretrainConfig) -> None:
         enable_mixed_precision_training=cfg.model.enable_mixed_precision_training,
         reduce_in_full_precision=cfg.model.reduce_in_full_precision,
         worker_init_fn=worker_init_fn,
+        n_train_examples=len(train_dataset),
         cfg=cfg,
     )
-    train_strategy.run_setup(run_dir=run_dir, n_train_examples=len(train_dataset))
+    train_strategy.run_setup(run_dir=run_dir)
 
     # Create Metrics =>> Handles on the fly tracking, logging to specified trackers (e.g., JSONL, Weights & Biases)
     overwatch.info(f"Creating Metrics with Active Trackers => `{cfg.trackers}`")

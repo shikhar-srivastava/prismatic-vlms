@@ -24,7 +24,7 @@ from prismatic.training.metrics import Metrics
 from prismatic.util import check_bloat16_supported
 from prismatic.util.batching_utils import SplitModalitySampler
 from prismatic.util.data_utils import PaddedCollatorForLanguageModeling
-
+from prismatic.util.relora import get_cosine_schedule_with_multiple_warmups, optimizer_reset
 from prismatic.models.backbones.mitigation import apply_mitigation
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -53,12 +53,14 @@ class TrainingStrategy(ABC):
         reduce_in_full_precision: bool = False,
         mixed_precision_dtype: torch.dtype = torch.bfloat16,
         worker_init_fn: Optional[Callable[[int], None]] = None,
+        n_train_examples: int = None,
         cfg = None,
         **_: str,
     ) -> None:
         self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
         self.mitigation = cfg['mitigation'] if isinstance(cfg, dict) else getattr(cfg, 'mitigation', None)
-        self.merging_per_epoch = cfg['merging_per_epoch'] if isinstance(cfg, dict) else getattr(cfg, 'merging_per_epoch', 0)
+        self.merges_after_steps = cfg['merges_after_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merges_after_steps', 0)
+        self.merging_lr_warmup_steps = cfg['merging_lr_warmup_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merging_lr_warmup_steps', 0.0)
         self.cfg = cfg
         self.vlm, self.device_id = vlm, device_id
 
@@ -68,7 +70,7 @@ class TrainingStrategy(ABC):
 
         # Optimization Parameters
         self.epochs, self.max_steps = epochs, max_steps
-        self.global_batch_size, self.per_device_batch_size = global_batch_size, per_device_batch_size
+        self.global_batch_size, self.per_device_batch_size, self.n_train_examples = global_batch_size, per_device_batch_size, n_train_examples
 
         self.learning_rate, self.weight_decay, self.max_grad_norm = learning_rate, weight_decay, max_grad_norm
         self.lr_scheduler_type, self.warmup_ratio = lr_scheduler_type, warmup_ratio
@@ -105,7 +107,7 @@ class TrainingStrategy(ABC):
     ) -> None: ...
 
     @abstractmethod
-    def run_setup(self, run_dir: Path, n_train_examples: int) -> None: ...
+    def run_setup(self, run_dir: Path) -> None: ...
 
     @abstractmethod
     def clip_grad_norm(self) -> None: ...
@@ -114,25 +116,23 @@ class TrainingStrategy(ABC):
         # Merge the LoRA adapter into the network using the merge_and_unload method.
         # Assess the class of the self.vlm
         assert self.vlm.__class__.__name__ != 'FullyShardedDataParallel', "LoRA Merging is not currently implemented with FSDP."
-        if self.vlm.__class__.__name__ == 'DistributedDataParallel':
+        
+        if isinstance(self.vlm, torch.nn.parallel.DistributedDataParallel):
             self.vlm.module.llm_backbone.llm = self.vlm.module.llm_backbone.llm.merge_and_unload()
             self.vlm.module.llm_backbone.llm = apply_mitigation(self.vlm.module.llm_backbone.llm, cfg=self.cfg)
             self.vlm.module.llm_backbone.llm.train()
-            if self.lr_scheduler_type == 'schedule-free':
-                    self.optimizer.train() 
         elif self.vlm.llm_backbone.__class__.__name__ == 'DistributedDataParallel':
             self.vlm.llm_backbone.module.llm = self.vlm.llm_backbone.module.llm.merge_and_unload()
             self.vlm.llm_backbone.module.llm = apply_mitigation(self.vlm.llm_backbone.module.llm, cfg=self.cfg)
             self.vlm.llm_backbone.module.llm.train()
-            if self.lr_scheduler_type == 'schedule-free':
-                    self.optimizer.train() 
         else:
             self.vlm.llm_backbone.llm = self.vlm.llm_backbone.llm.merge_and_unload()
             self.vlm.llm_backbone.llm = apply_mitigation(self.vlm.llm_backbone.llm, cfg=self.cfg)
             self.vlm.llm_backbone.llm.train()
-            if self.lr_scheduler_type == 'schedule-free':
-                    self.optimizer.train() 
         
+        if self.lr_scheduler_type == 'schedule-free':
+            self.optimizer.train()
+
     def run_training(
         self,
         dataset: Dataset,
@@ -179,17 +179,29 @@ class TrainingStrategy(ABC):
         )
         # Max Steps vs. Epochs Computation
         steps_per_epoch = len(dataloader) // self.grad_accumulation_steps
-
-        merges_after_steps = steps_per_epoch//self.merging_per_epoch if self.merging_per_epoch > 1 else steps_per_epoch if self.merging_per_epoch == 1 else 0
-        if ((self.mitigation not in ['lora','sgm','ia3']) or self.vlm.__class__.__name__ == 'FullyShardedDataParallel') and merges_after_steps > 0:
-            merges_after_steps = 0
+        assert ((self.n_train_examples * self.epochs) // self.global_batch_size) + 1 == steps_per_epoch * self.epochs, "Mismatch in steps per epoch calculation!" 
+        if ((self.mitigation not in ['lora','sgm','ia3']) or self.vlm.__class__.__name__ == 'FullyShardedDataParallel') and self.merges_after_steps > 0:
             overwatch.error(f"LoRA Merging is not supported with {self.mitigation} mitigation or FSDP. Disabling LoRA Merging.")
-        if merges_after_steps > 0:
-            overwatch.info(f"LoRA Merging with {self.merging_per_epoch} merges/epochs. Merging after {merges_after_steps} steps.")
-            merging_flag = 0
+            self.merges_after_steps = 0
+        if self.merges_after_steps > 0:
+            assert self.mitigation == 'lora', "LoRA Merging is only supported with LoRA mitigation."
+            num_training_steps = steps_per_epoch * self.epochs + 2 # Added as a small offset so that num_training_steps % restart_every == 0
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+        
+            self.lr_scheduler = get_cosine_schedule_with_multiple_warmups(self.optimizer,
+                            num_training_steps=num_training_steps, 
+                            first_warmup_steps=num_warmup_steps,
+                            restart_warmup_steps=self.merging_lr_warmup_steps,
+                            restart_every=self.merges_after_steps)
+            overwatch.info(f"LoRA Merging Cosine LR with Restarts Scheduler Initialized.\n\
+                            Total Training Steps: {num_training_steps}\n\
+                            Warmup Steps: {num_warmup_steps}\n\
+                            Restart Warmup Steps: {self.merging_lr_warmup_steps}\n\
+                            Restart Every: {self.merges_after_steps}")
         else:
-            overwatch.info(f"No LoRA Merging.")
-            merging_flag = 0
+            if self.mitigation == 'lora':
+                overwatch.info(f"No LoRA Merging.")
 
         if self.max_steps is not None and steps_per_epoch < self.max_steps:
             # Just set `epochs` to some large number --> we'll short-circuit based on steps anyway
@@ -222,8 +234,6 @@ class TrainingStrategy(ABC):
                     if self.__class__.__name__ == 'DDPStrategy':
                         # DDP does not automatically move the data to the device.
                         batch = {k: v.to(self.device_id) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
-                    if (merges_after_steps > 0) and (((train_idx + 1) % (merges_after_steps*self.grad_accumulation_steps)) == 0):
-                        merging_flag = 1
                     # [Contract] self.vlm.forward() must automatically compute `loss` and return!
                     with torch.autocast(
                         "cuda",
@@ -353,16 +363,28 @@ class TrainingStrategy(ABC):
                         progress.update()
                         progress.set_description(status)
 
-                        if merging_flag == 1:
-                            overwatch.info(f"Performing LoRA Merging at step {train_idx}")
-                            #self.remove_ddp_wrapper()
-                            self.lora_merging()
-                            overwatch.info(f"LoRA Merging Complete")
-                            #self.rewrap_ddp()
-                            self.vlm.train()
-                            if self.lr_scheduler_type == 'schedule-free':
-                                self.optimizer.train() 
-                            merging_flag = 0
+                        if (self.merges_after_steps > 0):
+                            if (self.lr_scheduler.get_last_lr()[0] == 0.0) and ((train_idx + 1)// self.grad_accumulation_steps > num_warmup_steps):
+                                # A reset has occured in the LR scheduler
+                                overwatch.info(f"Performing LoRA Merging at step {train_idx} or {(train_idx + 1)// self.grad_accumulation_steps} norm step")
+                                #self.remove_ddp_wrapper()
+                                self.lora_merging()
+                                overwatch.info(f"LoRA Merging Complete")
+                                #self.rewrap_ddp()
+                                self.vlm.train()
+                                if self.lr_scheduler_type == 'schedule-free':
+                                    self.optimizer.train()
+                                else:
+                                    trainable_params = [param for param in self.vlm.parameters() if param.requires_grad]
+                                    lora_params = [p for n, p in self.vlm.named_parameters() if p.requires_grad and "lora_" in n]
+                                    # print(f"LoRA Parameters: {lora_params}")
+                                    optimizer_reset(self.optimizer, 
+                                                reset_params = lora_params,
+                                                optimizer_state_keys = ["exp_avg", "exp_avg_sq"],
+                                                reset_optimizer_on_relora = True,
+                                                optimizer_random_pruning=0.0,
+                                                optimizer_magnitude_pruning=0.0)
+
 
             # Save checkpoint at end each epoch (if `self.max_steps` is None)
             if self.max_steps is None:

@@ -87,7 +87,8 @@ class DDPStrategy(TrainingStrategy):
         #     config = llm_backbone.config  # Access the config directly from the model
         #     config.save_pretrained(peft_dir)
 
-    def run_setup(self, run_dir: Path, n_train_examples: int) -> None:
+    def run_setup(self, run_dir: Path) -> None:
+        
         # Gradient Checkpointing Setup
         if self.enable_gradient_checkpointing:
             # For Gradient Checkpointing --> we make the assumption that the "bulk" of activation memory is taken up
@@ -121,9 +122,23 @@ class DDPStrategy(TrainingStrategy):
         # Create Optimizer and LR Scheduler =>> note that most of the LR Schedulers we use require `max_steps/epochs`
         #   => Optimizer should only operate on parameters that are *unfrozen* / trainable!
         trainable_params = [param for param in self.vlm.parameters() if param.requires_grad]
-        if self.lr_scheduler_type == "linear-warmup+cosine-decay":
+        overwatch.info(f"Number of Trainable Parameters: {len(trainable_params)}")
+        if(self.mitigation in ['lora','sgm','ia3']) and self.merges_after_steps > 0:
+            assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
+            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            # for param_group in self.optimizer.param_groups:
+            #     param_group["lr"] = 0.0
+            self.lr_scheduler = None
             if self.max_steps is None:
-                num_training_steps = (n_train_examples * self.epochs) // self.global_batch_size
+                num_training_steps = (self.n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+            overwatch.info("Optimizer and LR Scheduler will be initialized in run_training.")
+
+        elif self.lr_scheduler_type == "linear-warmup+cosine-decay":
+            if self.max_steps is None:
+                num_training_steps = (self.n_train_examples * self.epochs) // self.global_batch_size
             else:
                 num_training_steps = self.max_steps
 
@@ -132,13 +147,12 @@ class DDPStrategy(TrainingStrategy):
 
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
             self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            # Get optimizer state keys 
             self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps, num_training_steps)
-            for param_group in self.optimizer.param_groups:
-                param_group["lr"] = 0.0
         elif self.lr_scheduler_type == "schedule-free": # Facebook's https://github.com/facebookresearch/schedule_free
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
             if self.max_steps is None:
-                num_training_steps = (n_train_examples * self.epochs) // self.global_batch_size
+                num_training_steps = (self.n_train_examples * self.epochs) // self.global_batch_size
             else:
                 num_training_steps = self.max_steps
 
@@ -163,10 +177,15 @@ class DDPStrategy(TrainingStrategy):
             f"         |-> AdamW Weight Decay = {self.weight_decay}\n"
             f"         |-> LR Scheduler Type = {self.lr_scheduler_type}\n"
             f"         |-> LR Scheduler Warmup Steps (Ratio) = {num_warmup_steps} ({self.warmup_ratio})\n"
-            f"         |-> Dataset Size = {n_train_examples} Examples\n"
+            f"         |-> Dataset Size = {self.n_train_examples} Examples\n"
             f"         |-> Max Steps = {num_training_steps}\n"
         )
-
+    
+    def reset_optimizer(self) -> None:
+        """Reset Optimizer and LR Scheduler to initial state.
+                Assumes that `self.vlm` is already wrapped in DDP!
+        """
+       
     def remove_ddp_wrapper(self) -> None:
         """Remove DDP Wrapping and Reinitialize VLM on CPU."""
         self.vlm.llm_backbone = self.vlm.llm_backbone.module

@@ -153,7 +153,7 @@ class FSDPStrategy(TrainingStrategy):
 
 
 
-    def run_setup(self, run_dir: Path, n_train_examples: int) -> None:
+    def run_setup(self, run_dir: Path) -> None:
         # Iteratively Assemble FSDP Wrapping Policy by fetching the wrapping policies for each backbone/constituent
         vlm_fsdp_wrapping_policy = self.vlm.get_fsdp_wrapping_policy()
 
@@ -224,7 +224,7 @@ class FSDPStrategy(TrainingStrategy):
         # Create Optimizer and LR Scheduler =>> note that most of the LR Schedulers we use require `max_steps/epochs`
         #   => Optimizer should only operate on parameters that are *unfrozen* / trainable!
         if self.lr_scheduler_type == "linear-warmup+cosine-decay":
-            n_train_examples = math.ceil(n_train_examples / self.global_batch_size) * self.global_batch_size
+            n_train_examples = math.ceil(self.n_train_examples / self.global_batch_size) * self.global_batch_size
             if self.max_steps is None:
                 num_training_steps = (n_train_examples * self.epochs) // self.global_batch_size
             else:
@@ -255,7 +255,7 @@ class FSDPStrategy(TrainingStrategy):
                 param_group["lr"] = 0.0
 
         elif self.lr_scheduler_type == "schedule-free": # Facebook's https://github.com/facebookresearch/schedule_free
-            n_train_examples = math.ceil(n_train_examples / self.global_batch_size) * self.global_batch_size
+            n_train_examples = math.ceil(self.n_train_examples / self.global_batch_size) * self.global_batch_size
             if self.max_steps is None:
                 num_training_steps = (n_train_examples * self.epochs) // self.global_batch_size
             else:
