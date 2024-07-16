@@ -28,7 +28,7 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim import AdamW
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup, get_constant_schedule
-
+from prismatic.util.infinite_schedule import get_infinite_schedule_with_warmup_rsqrt_cooldown
 from prismatic.models.vlms import PrismaticVLM
 from prismatic.overwatch import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
@@ -316,6 +316,38 @@ class FSDPStrategy(TrainingStrategy):
             self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps) #get_constant_schedule(self.optimizer) 
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = 0.0
+        elif self.lr_scheduler_type == "infinite+rsqrt-cooldown":
+            n_train_examples = math.ceil(self.n_train_examples / self.global_batch_size) * self.global_batch_size
+            if self.max_steps is None:
+                num_training_steps = (n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
+
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+
+            # Default AdamW w/ specified LR & Linear Warmup / Cosine Decay & Weight Decay
+            #   => Create Parameter Groups --> bias terms, normalization layer parameters shouldn't be decayed!
+            decay, no_decay = [], []
+            for name, param in self.vlm.named_parameters():
+                if not param.requires_grad:
+                    continue
+
+                # Check on any parameters with fewer than 2 dimensions or with "bias" in the name
+                if param.ndim <= 1 or name.endswith(".bias"):
+                    no_decay.append(param)
+                else:
+                    decay.append(param)
+
+            # Build Parameter Groups
+            groups = [{"params": decay, "weight_decay": self.weight_decay}, {"params": no_decay, "weight_decay": 0.0}]
+            # Create Optimizer & LR Scheduler
+            self.optimizer = AdamW(groups, lr=self.learning_rate)
+            self.lr_scheduler = get_infinite_schedule_with_warmup_rsqrt_cooldown(self.optimizer, num_warmup_steps=num_warmup_steps, \
+                decay_steps=num_training_steps - 2 * num_warmup_steps, cooldown_steps=num_warmup_steps)
+            for param_group in self.optimizer.param_groups:
+                param_group["lr"] = 0.0
+
         else:
             raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
 

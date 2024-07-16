@@ -110,6 +110,7 @@ class PretrainConfig:
 
     # Schedulers and Optimizers
     schedule_free : bool = False
+    infinite_schedule : bool = False
     constant_lr_with_warmup: bool = False
     constant_lr: bool = False
 
@@ -158,6 +159,8 @@ class PretrainConfig:
             # Add schedule free and constant_lr_with_warmup here
             if self.schedule_free:
                 self.lr_scheduler_type = 'schedule-free'
+            elif self.infinite_schedule:
+                self.lr_scheduler_type = 'infinite+rsqrt-cooldown'
             elif self.constant_lr_with_warmup:
                 self.lr_scheduler_type = 'linear-warmup+constant'
             elif self.constant_lr:

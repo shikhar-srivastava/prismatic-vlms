@@ -15,6 +15,7 @@ import torch.nn as nn
 from torch.optim import AdamW
 from transformers.optimization import get_cosine_schedule_with_warmup, \
         get_constant_schedule_with_warmup, get_constant_schedule
+from prismatic.util.infinite_schedule import get_infinite_schedule_with_warmup_rsqrt_cooldown
 
 from prismatic.overwatch import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
@@ -178,6 +179,18 @@ class DDPStrategy(TrainingStrategy):
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
             self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
             self.lr_scheduler = get_constant_schedule(self.optimizer)
+        elif self.lr_scheduler_type == "infinite+rsqrt-cooldown":
+            assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
+            if self.max_steps is None:
+                num_training_steps = (self.n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+
+            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            self.lr_scheduler = get_infinite_schedule_with_warmup_rsqrt_cooldown(self.optimizer, num_warmup_steps=num_warmup_steps, \
+                decay_steps=num_training_steps - 2 * num_warmup_steps, cooldown_steps=num_warmup_steps)
         else:
             raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
 
@@ -230,6 +243,18 @@ class DDPStrategy(TrainingStrategy):
             # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
             num_warmup_steps = int(num_training_steps * self.warmup_ratio)
             self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+        elif self.lr_scheduler_type == "infinite+rsqrt-cooldown":
+            assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
+            if self.max_steps is None:
+                num_training_steps = (self.n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+
+            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            
+
         else:
             raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
        
