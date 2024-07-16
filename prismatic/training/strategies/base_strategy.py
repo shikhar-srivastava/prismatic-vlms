@@ -66,6 +66,7 @@ class TrainingStrategy(ABC):
         self.merging_lr_warmup_steps = cfg['merging_lr_warmup_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merging_lr_warmup_steps', 0.0)
         self.track_lora_plasticity = cfg['track_lora_plasticity'] if isinstance(cfg, dict) else getattr(cfg, 'track_lora_plasticity', False)
         self.compare_plasticity_steps = cfg['compare_plasticity_steps'] if isinstance(cfg, dict) else getattr(cfg, 'compare_plasticity_steps', 0)
+        self.first_lora_after_warmup = cfg['first_lora_after_warmup'] if isinstance(cfg, dict) else getattr(cfg, 'first_lora_after_warmup', False)
         # Assert that if track_lora_plasticity is True, mitigation is in ['lora', 'qlora', 'sgm', 'msgm']
         assert not self.track_lora_plasticity or self.mitigation in ['lora', 'qlora', 'sgm', 'msgm'], "Plasticity tracking is only supported with LoRA and SGM mitigations."
 
@@ -126,16 +127,25 @@ class TrainingStrategy(ABC):
         assert self.vlm.__class__.__name__ != 'FullyShardedDataParallel', "LoRA Merging is not currently implemented with FSDP."
         
         if isinstance(self.vlm, torch.nn.parallel.DistributedDataParallel):
-            self.vlm.module.llm_backbone.llm = self.vlm.module.llm_backbone.llm.merge_and_unload()
-            self.vlm.module.llm_backbone.llm = apply_mitigation(self.vlm.module.llm_backbone.llm, cfg=self.cfg)
+            if has_lora_module(self.vlm.module.llm_backbone.llm):
+                self.vlm.module.llm_backbone.llm = self.vlm.module.llm_backbone.llm.merge_and_unload()
+                self.vlm.module.llm_backbone.llm = apply_mitigation(self.vlm.module.llm_backbone.llm, cfg=self.cfg)
+            else:
+                self.vlm.module.llm_backbone.llm = apply_mitigation(self.vlm.module.llm_backbone.llm, cfg=self.cfg)
             self.vlm.module.llm_backbone.llm.train()
         elif self.vlm.llm_backbone.__class__.__name__ == 'DistributedDataParallel':
-            self.vlm.llm_backbone.module.llm = self.vlm.llm_backbone.module.llm.merge_and_unload()
-            self.vlm.llm_backbone.module.llm = apply_mitigation(self.vlm.llm_backbone.module.llm, cfg=self.cfg)
+            if has_lora_module(self.vlm.llm_backbone.module.llm):
+                self.vlm.llm_backbone.module.llm = self.vlm.llm_backbone.module.llm.merge_and_unload()
+                self.vlm.llm_backbone.module.llm = apply_mitigation(self.vlm.llm_backbone.module.llm, cfg=self.cfg)
+            else:
+                self.vlm.llm_backbone.module.llm = apply_mitigation(self.vlm.llm_backbone.module.llm, cfg=self.cfg)
             self.vlm.llm_backbone.module.llm.train()
         else:
-            self.vlm.llm_backbone.llm = self.vlm.llm_backbone.llm.merge_and_unload()
-            self.vlm.llm_backbone.llm = apply_mitigation(self.vlm.llm_backbone.llm, cfg=self.cfg)
+            if has_lora_module(self.vlm.llm_backbone.llm):
+                self.vlm.llm_backbone.llm = self.vlm.llm_backbone.llm.merge_and_unload()
+                self.vlm.llm_backbone.llm = apply_mitigation(self.vlm.llm_backbone.llm, cfg=self.cfg)
+            else:
+                self.vlm.llm_backbone.llm = apply_mitigation(self.vlm.llm_backbone.llm, cfg=self.cfg)
             self.vlm.llm_backbone.llm.train()
         
         if self.lr_scheduler_type == 'schedule-free':
@@ -202,7 +212,8 @@ class TrainingStrategy(ABC):
                             num_training_steps=num_training_steps, 
                             first_warmup_steps=num_warmup_steps,
                             restart_warmup_steps=self.merging_lr_warmup_steps,
-                            restart_every=self.merges_after_steps)
+                            restart_every=self.merges_after_steps,
+                            min_lr_ratio=0.0)
             overwatch.info(f"LoRA Merging Cosine LR with Restarts Scheduler Initialized.\n\
                             Total Training Steps: {num_training_steps}\n\
                             Warmup Steps: {num_warmup_steps}\n\
@@ -358,7 +369,7 @@ class TrainingStrategy(ABC):
                         self.optimizer.zero_grad()
                         # Push Metrics
                         metrics.commit(global_step=metrics.global_step + 1, \
-                                lr=self.lr_scheduler.get_last_lr()[0] if self.lr_scheduler_type != 'schedule-free' else self.optimizer.get_lr())
+                                lr=self.optimizer.param_groups[0]['lr'] if self.lr_scheduler_type != 'schedule-free' else self.optimizer.get_lr())
 
                         # Check for Termination & Save Final Checkpoint (in case `max_steps` is not None)
                         if self.max_steps is not None and metrics.global_step >= self.max_steps:
@@ -417,3 +428,24 @@ class TrainingStrategy(ABC):
             if self.max_steps is None:
                 self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
                 dist.barrier()
+
+
+
+def has_lora_module(model):
+    """
+    Check if the given model contains any LoRA modules.
+
+    Args:
+        model (torch.nn.Module): The model to check for LoRA modules.
+
+    Returns:
+        bool: True if the model contains LoRA modules, False otherwise.
+    """
+    for name, module in model.named_modules():
+        if 'lora' in name.lower():
+            return True
+        # If you know specific types or classes that represent LoRA layers,
+        # you can check for them directly, e.g.,
+        # if isinstance(module, LoraLayer):
+        #     return True
+    return False

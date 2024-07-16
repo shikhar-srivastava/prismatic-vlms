@@ -58,7 +58,7 @@ def _get_cosine_schedule_with_multiple_warmups_lambda(
             after the first warmup and before the first reset.
             Thus, your ReLoRA resets can be synced with the optimizer resets.
     """
-    assert 0 < min_lr_ratio <= 1.0, "min_lr_ratio must be in (0,1]"
+    assert 0 <= min_lr_ratio <= 1.0, "min_lr_ratio must be in [0,1]"
     assert restart_every > 0, "restart_every must be positive"
     assert adjust_step + first_warmup_steps <= num_training_steps, "warmup + adjust_step is more than full training steps"
     assert adjust_step + first_warmup_steps <= restart_every, "the first reset will happen before the warmup is done"
@@ -86,7 +86,7 @@ def _get_cosine_schedule_with_multiple_warmups_lambda(
     progress = float(_current_step - first_warmup_steps) / float(max(1, num_training_steps - first_warmup_steps))
     cosine_decay = 0.5 * (1.0 + math.cos(math.pi * progress))
 
-    return min_lr_ratio + (1.0 - min_lr_ratio) * cosine_decay
+    return max(0.0, min_lr_ratio + (1.0 - min_lr_ratio) * cosine_decay)
 
 
 @torch.no_grad()

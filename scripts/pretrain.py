@@ -114,6 +114,7 @@ class PretrainConfig:
 
     track_lora_plasticity : bool = False
     compare_plasticity_steps: int = 100
+    first_lora_after_warmup: bool = False
     
 
     def __post_init__(self) -> None:
