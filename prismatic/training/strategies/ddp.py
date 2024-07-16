@@ -13,7 +13,7 @@ import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.nn as nn
 from torch.optim import AdamW
-from transformers.optimization import get_cosine_schedule_with_warmup
+from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 
 from prismatic.overwatch import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
@@ -161,6 +161,18 @@ class DDPStrategy(TrainingStrategy):
 
             self.optimizer = schedulefree.AdamWScheduleFree(trainable_params, lr=self.learning_rate, warmup_steps=num_warmup_steps)
             self.lr_scheduler = None # No scheduler 
+        elif self.lr_scheduler_type == "linear-warmup+constant":
+            assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
+            if self.max_steps is None:
+                num_training_steps = (self.n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
+
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+
+            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps)
         else:
             raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
 
@@ -185,6 +197,36 @@ class DDPStrategy(TrainingStrategy):
         """Reset Optimizer and LR Scheduler to initial state.
                 Assumes that `self.vlm` is already wrapped in DDP!
         """
+        trainable_params = [param for param in self.vlm.parameters() if param.requires_grad]
+        overwatch.info(f"Number of Trainable Parameters: {len(trainable_params)}")
+        assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
+        if (self.mitigation in ['lora','sgm','ia3']) and self.merges_after_steps > 0:
+            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+        elif self.lr_scheduler_type == "linear-warmup+cosine-decay":
+            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+        elif self.lr_scheduler_type == "schedule-free": # Facebook's https://github.com/facebookresearch/schedule_free
+            assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
+            if self.max_steps is None:
+                num_training_steps = (self.n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
+
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+
+            self.optimizer = schedulefree.AdamWScheduleFree(trainable_params, lr=self.learning_rate, warmup_steps=num_warmup_steps)
+            self.optimizer.train()
+        elif self.lr_scheduler_type == "linear-warmup+constant":
+            assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
+            if self.max_steps is None:
+                num_training_steps = (self.n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+        else:
+            raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
        
     def remove_ddp_wrapper(self) -> None:
         """Remove DDP Wrapping and Reinitialize VLM on CPU."""

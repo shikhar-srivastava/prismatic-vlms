@@ -135,8 +135,8 @@ class Metrics:
             "loss": deque(maxlen=window_size),
             "step_time": deque(maxlen=window_size),
             "lr": [],
+            "lora_plasticity": None 
         }
-
     def log(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
         for tracker in self.trackers:
             tracker.write(global_step, metrics)
@@ -150,7 +150,7 @@ class Metrics:
         return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f} -- Loss :: {loss:.4f}"
 
     def commit(
-        self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, **kwargs
+        self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, lora_plasticity: Optional[float] = None, **kwargs
     ) -> None:
         """Update all metrics in `self.state` by iterating through special positional arguments & kwargs."""
         if global_step is not None:
@@ -167,6 +167,9 @@ class Metrics:
         if update_step_time:
             self.state["step_time"].append(time.time() - self.step_start_time)
             self.step_start_time = time.time()
+
+        if lora_plasticity is not None:
+            self.state["lora_plasticity"] = lora_plasticity
 
         # Generic Keyword Arguments
         for key, value in kwargs.items():
@@ -187,16 +190,18 @@ class Metrics:
 
         # Fire to Trackers
         prefix = self.stage.capitalize()
-        self.log(
-            self.global_step,
-            metrics={
-                f"{prefix}/Step": self.global_step,
-                f"{prefix}/Loss": loss,
-                f"{prefix}/Loss (Raw)": loss_raw,
-                f"{prefix}/Learning Rate": lr,
-                f"{prefix}/Step Time": step_time,
-            },
-        )
+        metrics = {
+            f"{prefix}/Step": self.global_step,
+            f"{prefix}/Loss": loss,
+            f"{prefix}/Loss (Raw)": loss_raw,
+            f"{prefix}/Learning Rate": lr,
+            f"{prefix}/Step Time": step_time,
+        }
+        if self.state["lora_plasticity"] is not None:
+            metrics[f"{prefix}/LoRA Plasticity"] = self.state["lora_plasticity"]
+            self.state["lora_plasticity"] = None  # Reset after logging
+
+        self.log(self.global_step, metrics)
         return status
 
     def finalize(self) -> str:

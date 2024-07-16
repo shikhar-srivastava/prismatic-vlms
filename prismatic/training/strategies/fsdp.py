@@ -27,7 +27,7 @@ from torch.distributed.fsdp import (
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim import AdamW
-from transformers.optimization import get_cosine_schedule_with_warmup
+from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup, get_constant_schedule
 
 from prismatic.models.vlms import PrismaticVLM
 from prismatic.overwatch import initialize_overwatch
@@ -61,6 +61,7 @@ class FSDPStrategy(TrainingStrategy):
         worker_init_fn: Optional[Callable[[int], None]] = None,
         sharding_strategy: str = "shard-grad-op",
         state_dict_type: StateDictType = StateDictType.FULL_STATE_DICT,
+        n_train_examples: int = None,
         cfg = None,
     ) -> None:
         super().__init__(
@@ -80,6 +81,7 @@ class FSDPStrategy(TrainingStrategy):
             reduce_in_full_precision=reduce_in_full_precision,
             mixed_precision_dtype=mixed_precision_dtype,
             worker_init_fn=worker_init_fn,
+            n_train_examples=n_train_examples,
             cfg=cfg
         )
 
@@ -283,7 +285,37 @@ class FSDPStrategy(TrainingStrategy):
             self.lr_scheduler = None # No scheduler 
             # for param_group in self.optimizer.param_groups:
             #     param_group["lr"] = 0.0
+    
+        elif self.lr_scheduler_type == "linear-warmup+constant":
+            n_train_examples = math.ceil(self.n_train_examples / self.global_batch_size) * self.global_batch_size
+            if self.max_steps is None:
+                num_training_steps = (n_train_examples * self.epochs) // self.global_batch_size
+            else:
+                num_training_steps = self.max_steps
 
+            # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
+            num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+
+            # Default AdamW w/ specified LR & Linear Warmup / Cosine Decay & Weight Decay
+            #   => Create Parameter Groups --> bias terms, normalization layer parameters shouldn't be decayed!
+            decay, no_decay = [], []
+            for name, param in self.vlm.named_parameters():
+                if not param.requires_grad:
+                    continue
+
+                # Check on any parameters with fewer than 2 dimensions or with "bias" in the name
+                if param.ndim <= 1 or name.endswith(".bias"):
+                    no_decay.append(param)
+                else:
+                    decay.append(param)
+
+            # Build Parameter Groups
+            groups = [{"params": decay, "weight_decay": self.weight_decay}, {"params": no_decay, "weight_decay": 0.0}]
+            # Create Optimizer & LR Scheduler
+            self.optimizer = AdamW(groups, lr=self.learning_rate)
+            self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps) #get_constant_schedule(self.optimizer) 
+            for param_group in self.optimizer.param_groups:
+                param_group["lr"] = 0.0
         else:
             raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
 

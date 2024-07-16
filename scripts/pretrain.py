@@ -110,8 +110,10 @@ class PretrainConfig:
 
     # Schedulers and Optimizers
     schedule_free : bool = False
+    constant_lr_with_warmup: bool = False
 
     track_lora_plasticity : bool = False
+    compare_plasticity_steps: int = 100
     
 
     def __post_init__(self) -> None:
@@ -151,8 +153,14 @@ class PretrainConfig:
     
             self.max_grad_norm = self.model.finetune_max_grad_norm
 
-            # Add schedule free here
-            self.lr_scheduler_type = self.model.finetune_lr_scheduler_type if self.schedule_free is False else 'schedule-free'
+            # Add schedule free and constant_lr_with_warmup here
+            if self.schedule_free:
+                self.lr_scheduler_type = 'schedule-free'
+            elif self.constant_lr_with_warmup:
+                self.lr_scheduler_type = 'linear-warmup+constant'
+            else:
+                self.lr_scheduler_type = self.model.finetune_lr_scheduler_type
+
             self.warmup_ratio = self.model.finetune_warmup_ratio #if self.schedule_free is False else 0.0
 
             # if 'align-only' in self.model.model_id:

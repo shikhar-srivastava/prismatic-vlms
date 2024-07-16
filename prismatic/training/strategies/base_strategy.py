@@ -14,6 +14,7 @@ from typing import Callable, Optional
 import torch
 import torch.nn.functional as F
 import torch.distributed as dist
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from tqdm import tqdm
 from transformers.modeling_outputs import CausalLMOutputWithPast
@@ -26,6 +27,8 @@ from prismatic.util.batching_utils import SplitModalitySampler
 from prismatic.util.data_utils import PaddedCollatorForLanguageModeling
 from prismatic.util.relora import get_cosine_schedule_with_multiple_warmups, optimizer_reset
 from prismatic.models.backbones.mitigation import apply_mitigation
+
+from prismatic.util.lora_utils import capture_initial_weights, measure_lora_weight_change
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -61,6 +64,11 @@ class TrainingStrategy(ABC):
         self.mitigation = cfg['mitigation'] if isinstance(cfg, dict) else getattr(cfg, 'mitigation', None)
         self.merges_after_steps = cfg['merges_after_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merges_after_steps', 0)
         self.merging_lr_warmup_steps = cfg['merging_lr_warmup_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merging_lr_warmup_steps', 0.0)
+        self.track_lora_plasticity = cfg['track_lora_plasticity'] if isinstance(cfg, dict) else getattr(cfg, 'track_lora_plasticity', False)
+        self.compare_plasticity_steps = cfg['compare_plasticity_steps'] if isinstance(cfg, dict) else getattr(cfg, 'compare_plasticity_steps', 0)
+        # Assert that if track_lora_plasticity is True, mitigation is in ['lora', 'qlora', 'sgm', 'msgm']
+        assert not self.track_lora_plasticity or self.mitigation in ['lora', 'qlora', 'sgm', 'msgm'], "Plasticity tracking is only supported with LoRA and SGM mitigations."
+
         self.cfg = cfg
         self.vlm, self.device_id = vlm, device_id
 
@@ -177,6 +185,7 @@ class TrainingStrategy(ABC):
             num_workers=2,
             worker_init_fn=self.worker_init_fn,
         )
+        initial_weights = None
         # Max Steps vs. Epochs Computation
         steps_per_epoch = len(dataloader) // self.grad_accumulation_steps
         assert ((self.n_train_examples * self.epochs) // self.global_batch_size) + 1 == steps_per_epoch * self.epochs, "Mismatch in steps per epoch calculation!" 
@@ -350,18 +359,31 @@ class TrainingStrategy(ABC):
                         # Push Metrics
                         metrics.commit(global_step=metrics.global_step + 1, \
                                 lr=self.lr_scheduler.get_last_lr()[0] if self.lr_scheduler_type != 'schedule-free' else self.optimizer.get_lr())
-                        status = metrics.push()
 
                         # Check for Termination & Save Final Checkpoint (in case `max_steps` is not None)
                         if self.max_steps is not None and metrics.global_step >= self.max_steps:
                             self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
                             dist.barrier()
-
                             return
 
-                        # Update Progress Bar
-                        progress.update()
-                        progress.set_description(status)
+                        if self.track_lora_plasticity and ((train_idx + 1) % self.compare_plasticity_steps == 0):
+                            lora_layers = ['lora_']  # Adjust this list based on the actual naming convention of the LoRA layers
+                            if isinstance(self.vlm, torch.nn.parallel.DistributedDataParallel):
+                                model = self.vlm.module.llm_backbone.llm
+                            elif self.vlm.llm_backbone.__class__.__name__ == 'DistributedDataParallel':
+                                model = self.vlm.llm_backbone.module.llm
+                            elif self.vlm.__class__.__name__ == 'FullyShardedDataParallel':
+                                model = self.vlm.llm_backbone.llm
+                            else:
+                                raise ValueError("No excepted vlm class name in LoRA plasticity tracking")
+                            
+                            if initial_weights is None:
+                                initial_weights = capture_initial_weights(model, lora_layers)
+                            else:
+                                average_weight_change = measure_lora_weight_change(model, initial_weights, lora_layers)
+                                initial_weights = capture_initial_weights(model, lora_layers)
+                                metrics.commit(global_step=metrics.global_step + 1, \
+                                lora_plasticity = average_weight_change)
 
                         if (self.merges_after_steps > 0):
                             if (self.lr_scheduler.get_last_lr()[0] == 0.0) and ((train_idx + 1)// self.grad_accumulation_steps > num_warmup_steps):
@@ -378,13 +400,18 @@ class TrainingStrategy(ABC):
                                     trainable_params = [param for param in self.vlm.parameters() if param.requires_grad]
                                     lora_params = [p for n, p in self.vlm.named_parameters() if p.requires_grad and "lora_" in n]
                                     # print(f"LoRA Parameters: {lora_params}")
-                                    optimizer_reset(self.optimizer, 
-                                                reset_params = lora_params,
-                                                optimizer_state_keys = ["exp_avg", "exp_avg_sq"],
-                                                reset_optimizer_on_relora = True,
-                                                optimizer_random_pruning=0.0,
-                                                optimizer_magnitude_pruning=0.0)
-
+                                    # optimizer_reset(self.optimizer, 
+                                    #             reset_params = lora_params,
+                                    #             optimizer_state_keys = ["exp_avg", "exp_avg_sq"],
+                                    #             reset_optimizer_on_relora = True,
+                                    #             optimizer_random_pruning=0.0,
+                                    #             optimizer_magnitude_pruning=0.0)
+                                    optimizer_reset(self.optimizer)
+                        
+                        status = metrics.push()
+                        # Update Progress Bar
+                        progress.update()
+                        progress.set_description(status)
 
             # Save checkpoint at end each epoch (if `self.max_steps` is None)
             if self.max_steps is None:
