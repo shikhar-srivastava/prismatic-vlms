@@ -111,6 +111,7 @@ class PretrainConfig:
     # Schedulers and Optimizers
     schedule_free : bool = False
     constant_lr_with_warmup: bool = False
+    constant_lr: bool = False
 
     track_lora_plasticity : bool = False
     compare_plasticity_steps: int = 100
@@ -159,6 +160,8 @@ class PretrainConfig:
                 self.lr_scheduler_type = 'schedule-free'
             elif self.constant_lr_with_warmup:
                 self.lr_scheduler_type = 'linear-warmup+constant'
+            elif self.constant_lr:
+                self.lr_scheduler_type = 'constant'
             else:
                 self.lr_scheduler_type = self.model.finetune_lr_scheduler_type
 
