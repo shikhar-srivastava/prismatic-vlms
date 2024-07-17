@@ -23,7 +23,7 @@ def _get_infinite_schedule_with_warmup_rsqrt_cooldown(current_step: int, *, num_
     elif current_step > (num_warmup_steps + decay_steps) and current_step < (num_warmup_steps + decay_steps + cooldown_steps):
         # Cooldown steps: linearly decay LR to 0 for the last `cooldown_steps`. Max LR = LR after decay steps.
         return (math.sqrt(float(num_warmup_steps)/float(num_warmup_steps + decay_steps))) * (1.0 - (current_step - (num_warmup_steps + decay_steps)) / cooldown_steps)
-    
+    return 0.0 # After cooldown, if any final steps, they should see 0.0
 
 
 def get_infinite_schedule_with_warmup_rsqrt_cooldown(
