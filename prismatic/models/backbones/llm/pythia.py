@@ -62,7 +62,6 @@ class PythiaLLMBackbone(HFCausalLLMBackbone):
         self.tokenizer.add_special_tokens({"pad_token": "<|pad|>"})
         self.llm.config.pad_token_id = self.tokenizer.pad_token_id
         self.llm.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=64)
-        self.first_lora_after_warmup = self.cfg['first_lora_after_warmup'] if isinstance(self.cfg, dict) else getattr(self.cfg, 'first_lora_after_warmup', False)
         if self.inference_mode or not self.first_lora_after_warmup:
             self.llm = apply_mitigation(self.llm, cfg=cfg)
             
