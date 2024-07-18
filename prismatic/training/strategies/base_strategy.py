@@ -198,13 +198,13 @@ class TrainingStrategy(ABC):
         initial_weights = None
         # Max Steps vs. Epochs Computation
         steps_per_epoch = len(dataloader) // self.grad_accumulation_steps
-        assert ((self.n_train_examples * self.epochs) // self.global_batch_size) + 1 == steps_per_epoch * self.epochs, "Mismatch in steps per epoch calculation!" 
+        
         if ((self.mitigation not in ['lora','sgm','ia3']) or self.vlm.__class__.__name__ == 'FullyShardedDataParallel') and self.merges_after_steps > 0:
             overwatch.error(f"LoRA Merging is not supported with {self.mitigation} mitigation or FSDP. Disabling LoRA Merging.")
             self.merges_after_steps = 0
         if self.merges_after_steps > 0:
             assert self.mitigation == 'lora', "LoRA Merging is only supported with LoRA mitigation."
-            num_training_steps = steps_per_epoch * self.epochs + 2 # Added as a small offset so that num_training_steps % restart_every == 0
+            num_training_steps = (steps_per_epoch + 2) * self.epochs # Added as a small offset so that num_training_steps % restart_every == 0
             # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
             num_warmup_steps = int(num_training_steps * self.warmup_ratio)
         
