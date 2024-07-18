@@ -120,9 +120,11 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         if isinstance(self.cfg, dict):
             self.mitigation = self.cfg['mitigation'] if 'mitigation' in self.cfg else None
             self.stage = self.cfg['stage'] if 'stage' in self.cfg else None
+            self.first_lora_after_warmup = self.cfg['first_lora_after_warmup'] if 'first_lora_after_warmup' in self.cfg else None
         else:
             self.mitigation = getattr(self.cfg, 'mitigation', None)
             self.stage = getattr(self.cfg, 'stage', None)
+            self.first_lora_after_warmup = getattr(self.cfg, 'first_lora_after_warmup', None)
         # self.bnb_config = BitsAndBytesConfig(
         #     load_in_4bit=True,
         #     bnb_4bit_quant_type="nf4",
