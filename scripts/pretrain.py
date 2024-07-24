@@ -115,6 +115,8 @@ class PretrainConfig:
     constant_lr: bool = False
 
     track_lora_plasticity : bool = False
+    compare_to_first_lora: bool = False
+
     compare_plasticity_steps: int = 100
     first_lora_after_warmup: bool = False
     
