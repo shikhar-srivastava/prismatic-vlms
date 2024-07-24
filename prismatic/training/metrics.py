@@ -97,6 +97,14 @@ class WeightsBiasesTracker:
 # === Core Metrics Container :: Initializes Trackers => Compiles/Pushes Metrics ===
 
 
+from typing import Tuple, Dict, Any, Optional, Union
+from pathlib import Path
+from collections import deque
+import time
+import torch
+import numpy as np
+import overwatch
+
 class Metrics:
     def __init__(
         self,
@@ -122,7 +130,7 @@ class Metrics:
                     run_id, run_dir, hparams, project=wandb_project, entity=wandb_entity, group=self.stage
                 )
             else:
-                raise ValueError(f"Tracker with type `{tracker_type} is not supported!")
+                raise ValueError(f"Tracker with type `{tracker_type}` is not supported!")
 
             # Add Hyperparameters --> add to `self.trackers`
             tracker.write_hyperparameters()
@@ -135,8 +143,10 @@ class Metrics:
             "loss": deque(maxlen=window_size),
             "step_time": deque(maxlen=window_size),
             "lr": [],
-            "lora_plasticity": None 
+            "lora_plasticity": None,
+            "lora_plasticity_first": None
         }
+
     def log(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
         for tracker in self.trackers:
             tracker.write(global_step, metrics)
@@ -150,7 +160,7 @@ class Metrics:
         return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f} -- Loss :: {loss:.4f}"
 
     def commit(
-        self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, lora_plasticity: Optional[float] = None, **kwargs
+        self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, lora_plasticity: Optional[float] = None, lora_plasticity_first: Optional[float] = None, **kwargs
     ) -> None:
         """Update all metrics in `self.state` by iterating through special positional arguments & kwargs."""
         if global_step is not None:
@@ -170,6 +180,9 @@ class Metrics:
 
         if lora_plasticity is not None:
             self.state["lora_plasticity"] = lora_plasticity
+
+        if lora_plasticity_first is not None:
+            self.state["lora_plasticity_first"] = lora_plasticity_first
 
         # Generic Keyword Arguments
         for key, value in kwargs.items():
@@ -201,9 +214,13 @@ class Metrics:
             metrics[f"{prefix}/LoRA Plasticity"] = self.state["lora_plasticity"]
             self.state["lora_plasticity"] = None  # Reset after logging
 
+        if self.state["lora_plasticity_first"] is not None:
+            metrics[f"{prefix}/LoRA Plasticity First"] = self.state["lora_plasticity_first"]
+            self.state["lora_plasticity_first"] = None  # Reset after logging
+
         self.log(self.global_step, metrics)
         return status
 
-    def finalize(self) -> str:
+    def finalize(self) -> None:
         for tracker in self.trackers:
             tracker.finalize()

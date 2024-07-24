@@ -65,7 +65,6 @@ class TrainingStrategy(ABC):
         self.merges_after_steps = cfg['merges_after_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merges_after_steps', 0)
         self.merging_lr_warmup_steps = cfg['merging_lr_warmup_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merging_lr_warmup_steps', 0.0)
         self.track_lora_plasticity = cfg['track_lora_plasticity'] if isinstance(cfg, dict) else getattr(cfg, 'track_lora_plasticity', False)
-        self.compare_to_first_lora = cfg['compare_to_first_lora'] if isinstance(cfg, dict) else getattr(cfg, 'compare_to_first_lora', False)
         self.compare_plasticity_steps = cfg['compare_plasticity_steps'] if isinstance(cfg, dict) else getattr(cfg, 'compare_plasticity_steps', 0)
         self.first_lora_after_warmup = cfg['first_lora_after_warmup'] if isinstance(cfg, dict) else getattr(cfg, 'first_lora_after_warmup', False)
         # Assert that if track_lora_plasticity is True, mitigation is in ['lora', 'qlora', 'sgm', 'msgm']
@@ -197,6 +196,7 @@ class TrainingStrategy(ABC):
             worker_init_fn=self.worker_init_fn,
         )
         initial_weights = None
+        last_weights = None
         # Max Steps vs. Epochs Computation
         steps_per_epoch = len(dataloader) // self.grad_accumulation_steps
         
@@ -391,12 +391,17 @@ class TrainingStrategy(ABC):
                             
                             if initial_weights is None:
                                 initial_weights = capture_initial_weights(model, lora_layers)
+                            if last_weights is None:
+                                last_weights = capture_initial_weights(model, lora_layers)
                             else:
-                                average_weight_change = measure_lora_weight_change(model, initial_weights, lora_layers)
-                                if not self.compare_to_first_lora:
-                                    initial_weights = capture_initial_weights(model, lora_layers)
+                                weight_change_wrt_initial = measure_lora_weight_change(model, initial_weights, lora_layers)
+                                weight_change_wrt_last = measure_lora_weight_change(model, last_weights, lora_layers)
+                                last_weights = capture_initial_weights(model, lora_layers)
                                 metrics.commit(global_step=metrics.global_step + 1, \
-                                lora_plasticity = average_weight_change)
+                                lora_plasticity = weight_change_wrt_last)
+                                metrics.commit(global_step=metrics.global_step + 1, \
+                                    lora_plasticity_first = weight_change_wrt_initial)
+
 
                         if (self.merges_after_steps > 0):
                             if (self.lr_scheduler.get_last_lr()[0] == 0.0) and ((train_idx + 1)// self.grad_accumulation_steps > num_warmup_steps):
