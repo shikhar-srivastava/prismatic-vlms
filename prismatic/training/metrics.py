@@ -96,15 +96,6 @@ class WeightsBiasesTracker:
 
 # === Core Metrics Container :: Initializes Trackers => Compiles/Pushes Metrics ===
 
-
-from typing import Tuple, Dict, Any, Optional, Union
-from pathlib import Path
-from collections import deque
-import time
-import torch
-import numpy as np
-import overwatch
-
 class Metrics:
     def __init__(
         self,
