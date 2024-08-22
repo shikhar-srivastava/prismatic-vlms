@@ -253,3 +253,9 @@ vl_performance_updated.png
 updated_llava_scaling_forgetting_new_metric.png
 performance_comparison.png
 results_std.json
+compare_2p8b_non_vl.png
+compare_2p8b_vl.png
+diff_output.txt
+diff_side_by_side.txt
+diff_unified_output.txt
+non_vl_datasets_performance.png
