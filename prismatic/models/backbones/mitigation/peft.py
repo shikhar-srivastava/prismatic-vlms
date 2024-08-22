@@ -1,5 +1,6 @@
 from peft import (
     LoraConfig,
+    AdaLoraConfig,
     PrefixTuningConfig, #Prefix-Tuning
     PromptEncoderConfig, #P-Tuning
     PromptTuningConfig, # Prompt Tuning
@@ -47,6 +48,18 @@ def apply_lora(llm_model, lora_r, lora_target_modules, lora_alpha, lora_dropout,
     llm_model = prepare_model_for_kbit_training(llm_model)
     loraconfig = LoraConfig(
         r=lora_r, lora_alpha=lora_alpha, target_modules=lora_target_modules,
+        lora_dropout=lora_dropout, bias="none", task_type="CAUSAL_LM", use_rslora=use_rslora
+    )
+    llm_model = get_peft_model(llm_model, loraconfig)
+    return llm_model
+
+def apply_adalora(llm_model, lora_r, lora_target_modules, lora_alpha, lora_dropout, use_rslora=False):
+    overwatch.info(f"Applying Adalora.",ctx_level=2)
+    llm_model = prepare_model_for_kbit_training(llm_model)
+    loraconfig = AdaLoraConfig(
+        target_r = lora_r,
+        init_r = lora_r,
+        lora_alpha=lora_alpha, target_modules=lora_target_modules,
         lora_dropout=lora_dropout, bias="none", task_type="CAUSAL_LM", use_rslora=use_rslora
     )
     llm_model = get_peft_model(llm_model, loraconfig)
@@ -171,7 +184,7 @@ def apply_mitigation(llm_model, cfg, hot_fix=0):
     
     if mitigation_type is not None:
         overwatch.info(f"Applying mitigation: {mitigation_type}!")
-        if 'lora' in mitigation_type:
+        if 'lora' in mitigation_type or 'adalora' in mitigation_type:
             if isinstance(cfg, dict):
                 lora_rank = cfg.get("lora_rank")
                 lora_alpha = cfg.get("lora_alpha")
@@ -192,10 +205,16 @@ def apply_mitigation(llm_model, cfg, hot_fix=0):
                 lora_rank = llm_model.config.hidden_size // reduce_lora_rank_by_factor_of_fullrank
                 # Lora_alpha should be 32
                 # lora_rank should be 16
-            overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
-            llm_model = apply_lora(llm_model, lora_r=lora_rank, \
-                                lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
-                                use_rslora=use_rslora)
+            if 'adalora' in 'mitigation_type':
+                overwatch.info(f"Applying AdaLoRA with avg. rank and initial ranks of {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
+                llm_model = apply_adalora(llm_model, lora_r=lora_rank, \
+                                    lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
+                                    use_rslora=use_rslora)
+            else:
+                overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
+                llm_model = apply_lora(llm_model, lora_r=lora_rank, \
+                                    lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
+                                    use_rslora=use_rslora)
         elif mitigation_type == 'prefix':
             llm_model = apply_prefix(llm_model)
         elif mitigation_type == 'ptune':

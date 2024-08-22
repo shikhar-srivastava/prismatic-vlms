@@ -68,7 +68,7 @@ class TrainingStrategy(ABC):
         self.compare_plasticity_steps = cfg['compare_plasticity_steps'] if isinstance(cfg, dict) else getattr(cfg, 'compare_plasticity_steps', 0)
         self.first_lora_after_warmup = cfg['first_lora_after_warmup'] if isinstance(cfg, dict) else getattr(cfg, 'first_lora_after_warmup', False)
         # Assert that if track_lora_plasticity is True, mitigation is in ['lora', 'qlora', 'sgm', 'msgm']
-        assert not self.track_lora_plasticity or self.mitigation in ['lora', 'qlora', 'sgm', 'msgm'], "Plasticity tracking is only supported with LoRA and SGM mitigations."
+        assert not self.track_lora_plasticity or self.mitigation in ['lora', 'adalora', 'qlora', 'sgm', 'msgm'], "Plasticity tracking is only supported with LoRA and SGM mitigations."
 
         self.cfg = cfg
         self.vlm, self.device_id = vlm, device_id

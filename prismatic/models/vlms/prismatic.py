@@ -253,8 +253,8 @@ class PrismaticVLM(VLM):
                 else:
                     mitigation = getattr(cfg, 'mitigation', None)
                     hot_fix = getattr(cfg, 'hot_fix', 0)
-                if mitigation == 'lora' or mitigation == 'ia3':
-                    overwatch.info(f"Applying another shell of: {mitigation}!", ctx_level=1)
+                if mitigation == 'lora' or mitigation == 'ia3' or mitigation == 'adalora':
+                    overwatch.info(f"Removing the shell of: {mitigation}!", ctx_level=1)
                     self.llm_backbone.llm = self.llm_backbone.llm.merge_and_unload()
                     if hot_fix > 0:
                         self.llm_backbone.llm = apply_mitigation(self.llm_backbone.llm, cfg=cfg, hot_fix=hot_fix)
