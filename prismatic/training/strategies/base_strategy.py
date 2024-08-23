@@ -28,7 +28,7 @@ from prismatic.util.data_utils import PaddedCollatorForLanguageModeling
 from prismatic.util.relora import get_cosine_schedule_with_multiple_warmups, optimizer_reset
 from prismatic.models.backbones.mitigation import apply_mitigation
 
-from prismatic.util.lora_utils import capture_initial_weights, measure_lora_weight_change
+from prismatic.util.lora_utils import capture_initial_weights, measure_lora_weight_change, measure_lora_weight_change_per_layer
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -396,12 +396,19 @@ class TrainingStrategy(ABC):
                             else:
                                 weight_change_wrt_initial = measure_lora_weight_change(model, initial_weights, lora_layers)
                                 weight_change_wrt_last = measure_lora_weight_change(model, last_weights, lora_layers)
-                                last_weights = capture_initial_weights(model, lora_layers)
+                                weight_change_wrt_last_per_layer = measure_lora_weight_change_per_layer(model, last_weights, lora_layers)
+                                weight_change_wrt_initial_per_layer = measure_lora_weight_change_per_layer(model, initial_weights, lora_layers)
+
+                                last_weights = capture_initial_weights(model, lora_layers)                                
                                 metrics.commit(global_step=metrics.global_step + 1, \
                                 lora_plasticity = weight_change_wrt_last)
                                 metrics.commit(global_step=metrics.global_step + 1, \
                                     lora_plasticity_first = weight_change_wrt_initial)
-
+                                metrics.commit(global_step=metrics.global_step + 1, \
+                                    lora_weight_changes = weight_change_wrt_last_per_layer)
+                                metrics.commit(global_step=metrics.global_step + 1, \
+                                    lora_weight_changes_first = weight_change_wrt_initial_per_layer)
+                                    
 
                         if (self.merges_after_steps > 0):
                             if (self.lr_scheduler.get_last_lr()[0] == 0.0) and ((train_idx + 1)// self.grad_accumulation_steps > num_warmup_steps):

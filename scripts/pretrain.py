@@ -205,10 +205,11 @@ def pretrain(cfg: PretrainConfig) -> None:
     if cfg.epoch_count !=1 :
         overwatch.info(f"Raising No of Epochs to : {cfg.epoch_count}",ctx_level=1)
     if cfg.mitigation is not None:
-        overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
-        overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
         if cfg.reduce_lora_rank_by_factor_of_fullrank != 1:
             overwatch.info(f"[bold green] Reducing lora rank by factor of full rank: {cfg.reduce_lora_rank_by_factor_of_fullrank} [/]")
+        else:
+            overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
+        overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
     if cfg.soft_alpha is not None:
         overwatch.info(f'Soft Alpha: {cfg.soft_alpha}', ctx_level=1)
 

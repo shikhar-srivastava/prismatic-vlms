@@ -93,7 +93,6 @@ class WeightsBiasesTracker:
         # A job gets 210 seconds to get its affairs in order
         time.sleep(210)
 
-
 # === Core Metrics Container :: Initializes Trackers => Compiles/Pushes Metrics ===
 
 class Metrics:
@@ -135,7 +134,9 @@ class Metrics:
             "step_time": deque(maxlen=window_size),
             "lr": [],
             "lora_plasticity": None,
-            "lora_plasticity_first": None
+            "lora_plasticity_first": None,
+            "lora_weight_changes": {},  # To track average weight changes
+            "lora_weight_changes_first": {},  # To track first average weight changes
         }
 
     def log(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
@@ -151,7 +152,10 @@ class Metrics:
         return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f} -- Loss :: {loss:.4f}"
 
     def commit(
-        self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, lora_plasticity: Optional[float] = None, lora_plasticity_first: Optional[float] = None, **kwargs
+        self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, 
+        lora_plasticity: Optional[float] = None, lora_plasticity_first: Optional[float] = None, 
+        lora_weight_changes: Optional[Dict[str, float]] = None, lora_weight_changes_first: Optional[Dict[str, float]] = None, 
+        **kwargs
     ) -> None:
         """Update all metrics in `self.state` by iterating through special positional arguments & kwargs."""
         if global_step is not None:
@@ -174,6 +178,12 @@ class Metrics:
 
         if lora_plasticity_first is not None:
             self.state["lora_plasticity_first"] = lora_plasticity_first
+
+        if lora_weight_changes is not None:
+            self.state["lora_weight_changes"] = lora_weight_changes
+
+        if lora_weight_changes_first is not None:
+            self.state["lora_weight_changes_first"] = lora_weight_changes_first
 
         # Generic Keyword Arguments
         for key, value in kwargs.items():
@@ -208,6 +218,17 @@ class Metrics:
         if self.state["lora_plasticity_first"] is not None:
             metrics[f"{prefix}/LoRA Plasticity First"] = self.state["lora_plasticity_first"]
             self.state["lora_plasticity_first"] = None  # Reset after logging
+
+        # Log each layer's average weight change (initial and first types)
+        if self.state["lora_weight_changes"]:
+            for layer, avg_change in self.state["lora_weight_changes"].items():
+                metrics[f"{prefix}/LoRA Weight Change Layer {layer}"] = avg_change
+            self.state["lora_weight_changes"] = {}  # Reset after logging
+
+        if self.state["lora_weight_changes_first"]:
+            for layer, avg_change in self.state["lora_weight_changes_first"].items():
+                metrics[f"{prefix}/LoRA Weight Change First Layer {layer}"] = avg_change
+            self.state["lora_weight_changes_first"] = {}  # Reset after logging
 
         self.log(self.global_step, metrics)
         return status
