@@ -1,19 +1,11 @@
-"""
-metrics.py
-
-Utility classes defining a Metrics container and multiple Trackers to enable model/stage-specific logging to various
-endpoints (e.g., JSONL local logs, Weights & Biases).
-"""
 import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, Optional, Protocol, Tuple, Union
-
 import jsonlines
 import numpy as np
 import torch
 import wandb
-
 from prismatic.overwatch import initialize_overwatch
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -59,11 +51,7 @@ class WeightsBiasesTracker:
         group: str = "align",
     ) -> None:
         self.run_id, self.run_dir, self.hparams = run_id, run_dir, hparams
-
-        # Get W&B-Specific Initialization Parameters
         self.project, self.entity, self.group, self.wandb_dir = project, entity, group, self.run_dir
-
-        # Call W&B.init()
         self.initialize()
 
     @overwatch.rank_zero_only
@@ -89,12 +77,10 @@ class WeightsBiasesTracker:
     def finalize() -> None:
         if overwatch.is_rank_zero():
             wandb.finish()
-
-        # A job gets 210 seconds to get its affairs in order
         time.sleep(210)
 
-# === Core Metrics Container :: Initializes Trackers => Compiles/Pushes Metrics ===
 
+# === Core Metrics Container ===
 class Metrics:
     def __init__(
         self,
@@ -122,7 +108,6 @@ class Metrics:
             else:
                 raise ValueError(f"Tracker with type `{tracker_type}` is not supported!")
 
-            # Add Hyperparameters --> add to `self.trackers`
             tracker.write_hyperparameters()
             self.trackers.append(tracker)
 
@@ -135,8 +120,11 @@ class Metrics:
             "lr": [],
             "lora_plasticity": None,
             "lora_plasticity_first": None,
-            "lora_weight_changes": {},  # To track average weight changes
-            "lora_weight_changes_first": {},  # To track first average weight changes
+            "lora_weight_changes": {},
+            "lora_weight_changes_first": {},
+            "ft_total_weight_change": None,
+            "ft_layer_weight_changes": {},
+            "ft_parameter_weight_changes": {},
         }
 
     def log(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
@@ -147,22 +135,22 @@ class Metrics:
         lr = self.state["lr"][-1] if len(self.state["lr"]) > 0 else 0
         if loss is None:
             return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f}"
-
-        # Otherwise, embed `loss` in status report!
         return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f} -- Loss :: {loss:.4f}"
 
     def commit(
         self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, 
         lora_plasticity: Optional[float] = None, lora_plasticity_first: Optional[float] = None, 
         lora_weight_changes: Optional[Dict[str, float]] = None, lora_weight_changes_first: Optional[Dict[str, float]] = None, 
+        ft_total_weight_change: Optional[float] = None,
+        ft_layer_weight_changes: Optional[Dict[str, Dict[str, float]]] = None,
+        ft_parameter_weight_changes: Optional[Dict[str, float]] = None,
         **kwargs
     ) -> None:
-        """Update all metrics in `self.state` by iterating through special positional arguments & kwargs."""
         if global_step is not None:
             self.global_step = global_step
 
-        # For all other variables --> only track on rank zero!
-        if not overwatch.is_rank_zero:
+        # Only track on rank zero
+        if not overwatch.is_rank_zero():
             return
 
         # Special Positional Arguments
@@ -173,17 +161,22 @@ class Metrics:
             self.state["step_time"].append(time.time() - self.step_start_time)
             self.step_start_time = time.time()
 
+        # Update weight change tracking for finetuning
         if lora_plasticity is not None:
             self.state["lora_plasticity"] = lora_plasticity
-
         if lora_plasticity_first is not None:
             self.state["lora_plasticity_first"] = lora_plasticity_first
-
         if lora_weight_changes is not None:
             self.state["lora_weight_changes"] = lora_weight_changes
-
         if lora_weight_changes_first is not None:
             self.state["lora_weight_changes_first"] = lora_weight_changes_first
+
+        if ft_total_weight_change is not None:
+            self.state["ft_total_weight_change"] = ft_total_weight_change
+        if ft_layer_weight_changes is not None:
+            self.state["ft_layer_weight_changes"] = ft_layer_weight_changes
+        if ft_parameter_weight_changes is not None:
+            self.state["ft_parameter_weight_changes"] = ft_parameter_weight_changes
 
         # Generic Keyword Arguments
         for key, value in kwargs.items():
@@ -196,13 +189,11 @@ class Metrics:
 
     @overwatch.rank_zero_only
     def push(self) -> str:
-        # Note :: Raw Loss is an Average over Gradient Accumulation Steps --> No Smoothing!
         loss_raw = torch.stack(list(self.state["loss_raw"])).mean().item()
         loss = torch.stack(list(self.state["loss"])).mean().item()
         step_time, lr = np.mean(list(self.state["step_time"])), self.state["lr"][-1]
         status = self.get_status(loss)
 
-        # Fire to Trackers
         prefix = self.stage.capitalize()
         metrics = {
             f"{prefix}/Step": self.global_step,
@@ -211,24 +202,34 @@ class Metrics:
             f"{prefix}/Learning Rate": lr,
             f"{prefix}/Step Time": step_time,
         }
+
+        # Log LoRA plasticity and weight changes
         if self.state["lora_plasticity"] is not None:
             metrics[f"{prefix}/LoRA Plasticity"] = self.state["lora_plasticity"]
-            self.state["lora_plasticity"] = None  # Reset after logging
-
+            self.state["lora_plasticity"] = None
         if self.state["lora_plasticity_first"] is not None:
             metrics[f"{prefix}/LoRA Plasticity First"] = self.state["lora_plasticity_first"]
-            self.state["lora_plasticity_first"] = None  # Reset after logging
-
-        # Log each layer's average weight change (initial and first types)
+            self.state["lora_plasticity_first"] = None
         if self.state["lora_weight_changes"]:
             for layer, avg_change in self.state["lora_weight_changes"].items():
                 metrics[f"{prefix}/LoRA Weight Change Layer {layer}"] = avg_change
-            self.state["lora_weight_changes"] = {}  # Reset after logging
-
+            self.state["lora_weight_changes"] = {}
         if self.state["lora_weight_changes_first"]:
             for layer, avg_change in self.state["lora_weight_changes_first"].items():
                 metrics[f"{prefix}/LoRA Weight Change First Layer {layer}"] = avg_change
-            self.state["lora_weight_changes_first"] = {}  # Reset after logging
+            self.state["lora_weight_changes_first"] = {}
+
+        # Log detailed finetuning weight changes
+        if self.state["ft_total_weight_change"] is not None:
+            metrics[f"{prefix}/FT Total Weight Change"] = self.state["ft_total_weight_change"]
+        if self.state["ft_layer_weight_changes"]:
+            for layer, changes in self.state["ft_layer_weight_changes"].items():
+                metrics[f"{prefix}/FT Weight Change Layer {layer}"] = changes['layer']
+                metrics[f"{prefix}/FT Weight Change Attention Layer {layer}"] = changes['attention']
+                metrics[f"{prefix}/FT Weight Change MLP Layer {layer}"] = changes['mlp']
+        if self.state["ft_parameter_weight_changes"]:
+            for param_name, param_change in self.state["ft_parameter_weight_changes"].items():
+                metrics[f"{prefix}/FT Weight Change Param {param_name}"] = param_change
 
         self.log(self.global_step, metrics)
         return status

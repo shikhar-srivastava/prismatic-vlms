@@ -115,6 +115,7 @@ class PretrainConfig:
     constant_lr: bool = False
 
     track_lora_plasticity : bool = False
+    track_ft_plasticity : bool = False
 
     compare_plasticity_steps: int = 100
     first_lora_after_warmup: bool = False
@@ -180,6 +181,9 @@ class PretrainConfig:
             else:
                 self.train_strategy = self.model.finetune_train_strategy
                 self.weight_decay = self.model.finetune_weight_decay
+            if self.track_ft_plasticity is True:
+                self.train_strategy = "ddp-native"
+                self.weight_decay = 0.0
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")
 
