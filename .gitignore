@@ -160,8 +160,7 @@ exec/*
 =0.28.0
 test_req.txt
 checkpoint_llava_instruct.tar.gz
-backup_runs/*
-backup_evaluations/*
+old/*
 radar_chart.svg
 vlm.png
 results_B.json
@@ -259,3 +258,4 @@ diff_output.txt
 diff_side_by_side.txt
 diff_unified_output.txt
 non_vl_datasets_performance.png
+old/author_runs/reproduction-llama2-nocotraining/config.json
