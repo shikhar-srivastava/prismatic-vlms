@@ -87,6 +87,8 @@ class PretrainConfig:
     # Mitigation method. Default is None
     mitigation: str = None
     soft_alpha: float = None
+    soft_alpha_masked_interpolation: float = None
+    interpolation_dtype : str = 'bfloat16'
     olf: bool = False  # Last Transformer Block freezing
     oolf: bool = False # Last Output Layer freezing
 
@@ -148,6 +150,7 @@ class PretrainConfig:
             if self.soft_alpha is not None:
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
+
             elif self.mitigation =='qlora':
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
@@ -216,6 +219,8 @@ def pretrain(cfg: PretrainConfig) -> None:
         overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
     if cfg.soft_alpha is not None:
         overwatch.info(f'Soft Alpha: {cfg.soft_alpha}', ctx_level=1)
+    elif cfg.soft_alpha_masked_interpolation is not None:
+        overwatch.info(f'Soft Alpha Masked Interpolation: {cfg.soft_alpha_masked_interpolation}', ctx_level=1)
 
     # Start =>> Build Directories and Set Randomness
     hf_token = cfg.hf_token.read_text().strip() if isinstance(cfg.hf_token, Path) else os.environ[cfg.hf_token]
