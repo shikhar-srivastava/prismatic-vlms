@@ -274,7 +274,7 @@ class TrainingStrategy(ABC):
                                 pixel_values=batch["pixel_values"],
                                 labels=batch["labels"],
                                 multimodal_indices=batch["multimodal_indices"],
-                                return_labels=True if self.soft_alpha is not None else False,
+                                return_labels=True,
                             )
                         else:
                             output: CausalLMOutputWithPast = self.vlm(
