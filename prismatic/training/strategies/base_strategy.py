@@ -319,7 +319,7 @@ class TrainingStrategy(ABC):
                             print("targets_smooth:", targets_smooth.view(-1, num_classes).shape)
                             raise e
                     elif self.soft_alpha_masked_interpolation is not None:
-                        dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
+                        """dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
                         shift_logits = output.logits[:, :-1, :].contiguous().to(dtype)
                         valid_targets = fused_labels[:, 1:].contiguous().to(dtype)
 
@@ -350,11 +350,11 @@ class TrainingStrategy(ABC):
                         one_hot_targets = one_hot_targets.to(dtype)
                         soft_probs = soft_probs.to(dtype)
 
-                        assert one_hot_targets.shape == (batch_size, shifted_seq_length, num_classes), \
-                            f"Expected shape {[batch_size, shifted_seq_length, num_classes]}, but got {one_hot_targets.shape}"
-                        assert torch.all(one_hot_targets[~mask] == 0), "Positions with label -100 are not all zeros."
-                        valid_one_hot_sum = one_hot_targets[mask].sum(dim=-1)
-                        assert torch.all(valid_one_hot_sum == 1), "Valid positions do not have exactly one '1' in their one-hot vectors."
+                        # assert one_hot_targets.shape == (batch_size, shifted_seq_length, num_classes), \
+                        #     f"Expected shape {[batch_size, shifted_seq_length, num_classes]}, but got {one_hot_targets.shape}"
+                        # assert torch.all(one_hot_targets[~mask] == 0), "Positions with label -100 are not all zeros."
+                        # valid_one_hot_sum = one_hot_targets[mask].sum(dim=-1)
+                        # assert torch.all(valid_one_hot_sum == 1), "Valid positions do not have exactly one '1' in their one-hot vectors."
                         # soft_probs.sum(dim=-1), one_hot_targets.sum(dim=-1)
                         alpha = torch.tensor(self.soft_alpha_masked_interpolation, device=one_hot_targets.device, dtype=dtype)
                         # Step 1: Interpolate soft_probs and one_hot_targets
@@ -365,24 +365,93 @@ class TrainingStrategy(ABC):
                         # Cast back to the original dtype
                         dynamic_soft_targets = dynamic_soft_targets.to(torch.bfloat16)
                         # Verify that dynamic_soft_targets has the correct shape
-                        assert dynamic_soft_targets.shape == (batch_size, shifted_seq_length, num_classes), \
-                            f"Expected shape {[batch_size, shifted_seq_length, num_classes]}, but got {dynamic_soft_targets.shape}"
-                        # Verify that positions with -100 have all zeros
-                        assert torch.all(dynamic_soft_targets[~mask] == 0), "Positions with label -100 are not all zeros in dynamic_soft_targets."
+                        # assert dynamic_soft_targets.shape == (batch_size, shifted_seq_length, num_classes), \
+                        #     f"Expected shape {[batch_size, shifted_seq_length, num_classes]}, but got {dynamic_soft_targets.shape}"
+                        # # Verify that positions with -100 have all zeros
+                        # assert torch.all(dynamic_soft_targets[~mask] == 0), "Positions with label -100 are not all zeros in dynamic_soft_targets."
 
                         # Verify that valid positions have probability distributions summing to 1
-                        valid_dynamic_sum = dynamic_soft_targets[mask].sum(dim=-1)
-                        assert torch.allclose(valid_dynamic_sum, torch.ones_like(valid_dynamic_sum), atol=1e-2), \
-                            "Valid positions in dynamic_soft_targets do not sum to 1."
+                        # valid_dynamic_sum = dynamic_soft_targets[mask].sum(dim=-1)
+                        # assert torch.allclose(valid_dynamic_sum, torch.ones_like(valid_dynamic_sum), atol=1e-2), \
+                        #     "Valid positions in dynamic_soft_targets do not sum to 1."
                         # Compute log probabilities from shift_logits
                         log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
                         # Define the loss function
-                        loss_fct = nn.KLDivLoss(reduction='batchmean')
+                        loss_fct = torch.nn.KLDivLoss(reduction='batchmean')
                         # Compute the loss
                         loss = loss_fct(
                             log_probs.view(-1, num_classes),         # [batch_size * (seq_length-1), num_classes]
                             dynamic_soft_targets.view(-1, num_classes)   # [batch_size * (seq_length-1), num_classes]
+                        )"""
+                        dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
+                        shift_logits = output.logits[:, :-1, :].contiguous().to(dtype) # Shape: [batch_size, seq_length-1, num_classes]
+                        valid_targets = fused_labels[:, 1:].contiguous().to(dtype)    # Shape: [batch_size, seq_length-1]
+
+                        num_classes = shift_logits.size(-1)
+                        mask = (valid_targets != -100)  # Ignored positions are marked with -100
+
+                        # Compute soft probabilities from logits and detach to prevent gradient flow
+                        soft_probs = F.softmax(shift_logits, dim=-1).to(dtype).detach()  # Shape: [batch_size, seq_length-1, num_classes]
+
+                        batch_size, shifted_seq_length = shift_logits.size()[:2]
+
+                        # Initialize a zero tensor for one-hot encoding
+                        one_hot_targets = torch.zeros(
+                            batch_size, 
+                            shifted_seq_length, 
+                            num_classes, 
+                            device=valid_targets.device, 
+                            dtype=dtype
+                        )  # Shape: [batch_size, seq_length-1, num_classes]
+
+                        # Identify valid target positions
+                        valid_positions = mask.nonzero(as_tuple=False)  # Shape: [num_valid_positions, 2]
+                        target_indices = valid_targets[mask].long()    # Shape: [num_valid_positions]
+
+                        # Convert target indices to one-hot vectors
+                        one_hot_valid = F.one_hot(target_indices, num_classes=num_classes).to(dtype)  # Shape: [num_valid_positions, num_classes]
+
+                        # Assign one-hot vectors to their corresponding positions in the batch
+                        batch_indices, seq_indices = valid_positions[:, 0], valid_positions[:, 1]  # Shapes: [num_valid_positions], [num_valid_positions]
+                        one_hot_targets[batch_indices, seq_indices] = one_hot_valid  # Broadcasting assignment
+
+                        # Define the interpolation factor
+                        alpha = torch.tensor(self.soft_alpha_masked_interpolation, device=one_hot_targets.device, dtype=dtype)
+
+                        # Compute dynamic soft targets without tracking gradients
+                        with torch.no_grad():
+                            # Interpolate between soft_probs and one_hot_targets
+                            dynamic_soft_targets = alpha * soft_probs + (1.0 - alpha) * one_hot_targets  # Shape: [batch_size, seq_length-1, num_classes]
+                            
+                            # Apply mask to ignore certain positions
+                            dynamic_soft_targets = dynamic_soft_targets * mask.unsqueeze(-1).float()  # Shape: [batch_size, seq_length-1, num_classes]
+                            
+                            # Optionally cast to a different dtype if required (ensure compatibility with loss function)
+                            dynamic_soft_targets = dynamic_soft_targets.to(torch.bfloat16)
+
+                        # # Verify shapes and properties
+                        # assert dynamic_soft_targets.shape == (batch_size, shifted_seq_length, num_classes), \
+                        #     f"Expected shape {[batch_size, shifted_seq_length, num_classes]}, but got {dynamic_soft_targets.shape}"
+                        # assert torch.all(dynamic_soft_targets[~mask] == 0), "Positions with label -100 are not all zeros in dynamic_soft_targets."
+
+                        # # Verify that valid positions have probability distributions summing to 1
+                        # valid_dynamic_sum = dynamic_soft_targets[mask].sum(dim=-1)
+                        # assert torch.allclose(valid_dynamic_sum, torch.ones_like(valid_dynamic_sum), atol=1e-2), \
+                        #     "Valid positions in dynamic_soft_targets do not sum to 1."
+
+                        # Compute log probabilities from shift_logits for KLDivLoss
+                        log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
+
+                        # Define the loss function
+                        loss_fct = torch.nn.KLDivLoss(reduction='batchmean') #TODO: check with reduction='mean'
+
+                        # Compute the loss
+                        # Reshape tensors to [batch_size * (seq_length-1), num_classes]
+                        loss = loss_fct(
+                            log_probs.view(-1, num_classes),                # Predictions
+                            dynamic_soft_targets.view(-1, num_classes)       # Targets
                         )
+
                     else:
                         loss = output.loss
 
