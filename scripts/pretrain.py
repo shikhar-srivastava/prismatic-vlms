@@ -90,6 +90,7 @@ class PretrainConfig:
     soft_alpha_masked_interpolation: float = None
     interpolation_dtype : str = 'bfloat16'
     interpolation_loss: str = 'cross' # or 'kl'
+    masked_with_logits: bool = False
     olf: bool = False  # Last Transformer Block freezing
     oolf: bool = False # Last Output Layer freezing
 
