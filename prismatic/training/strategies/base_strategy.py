@@ -64,6 +64,7 @@ class TrainingStrategy(ABC):
         self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
         self.soft_alpha_masked_interpolation = cfg['soft_alpha_masked_interpolation'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha_masked_interpolation', False)
         self.interpolation_dtype = cfg['interpolation_dtype'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_dtype', torch.float32)
+        self.interpolation_loss = cfg['interpolation_loss'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_loss', 'cross')
         self.mitigation = cfg['mitigation'] if isinstance(cfg, dict) else getattr(cfg, 'mitigation', None)
         self.merges_after_steps = cfg['merges_after_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merges_after_steps', 0)
         self.merging_lr_warmup_steps = cfg['merging_lr_warmup_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merging_lr_warmup_steps', 0.0)
@@ -443,8 +444,12 @@ class TrainingStrategy(ABC):
                         log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
 
                         # Define the loss function
-                        loss_fct = torch.nn.KLDivLoss(reduction='batchmean') #TODO: check with reduction='mean'
-
+                        if self.interpolation_loss == 'cross':
+                            loss_fct = torch.nn.CrossEntropyLoss()
+                        elif self.interpolation_loss == 'kl':
+                            loss_fct = torch.nn.KLDivLoss(reduction='batchmean') #TODO: check with reduction='mean'
+                        else:
+                            raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
                         # Compute the loss
                         # Reshape tensors to [batch_size * (seq_length-1), num_classes]
                         loss = loss_fct(
