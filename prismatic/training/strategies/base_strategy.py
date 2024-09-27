@@ -330,7 +330,7 @@ class TrainingStrategy(ABC):
                         mask = (valid_targets != -100)  # Ignored positions are marked with -100
 
                         # Compute soft probabilities from logits and detach to prevent gradient flow
-                        soft_probs = F.softmax(shift_logits, dim=-1).to(dtype).detach()  # Shape: [batch_size, seq_length-1, num_classes]
+                        soft_probs = F.softmax(output.logits[:,1:,:].to(dtype), dim=-1).to(dtype).detach()  # Shape: [batch_size, seq_length-1, num_classes]
 
                         batch_size, shifted_seq_length = shift_logits.size()[:2]
 
@@ -389,7 +389,10 @@ class TrainingStrategy(ABC):
 
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
-                            loss_fct = torch.nn.CrossEntropyLoss()
+                            if self.masked_with_logits:
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=0.01)
+                            else:
+                                loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
                             loss_fct = torch.nn.KLDivLoss(reduction='batchmean') #TODO: check with reduction='mean'
                         else:
