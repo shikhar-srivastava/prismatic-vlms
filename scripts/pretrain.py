@@ -89,7 +89,7 @@ class PretrainConfig:
     soft_alpha: float = None
     soft_alpha_masked_interpolation: float = None
     
-    add_k: float = None
+    add_K: float = None
     set_to_one: bool = False
 
     interpolation_dtype : str = 'float32'
@@ -156,7 +156,7 @@ class PretrainConfig:
             if self.soft_alpha is not None:
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
-            elif self.soft_alpha_masked_interpolation is not None:
+            elif (self.soft_alpha_masked_interpolation is not None) or (self.add_K is not None) or (self.set_to_one):
                 self.per_device_batch_size = int(self.per_device_batch_size/4)
             elif self.mitigation =='qlora':
                 # self.global_batch_size = int(self.global_batch_size/2)
