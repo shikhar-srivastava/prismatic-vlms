@@ -149,11 +149,11 @@ class PretrainConfig:
             if self.bigger_batch is True:
                 #self.global_batch_size = self.model.align_global_batch_size * 2 # 128
                 self.per_device_batch_size = self.model.finetune_per_device_batch_size * 2 # 16 (with 2 gradient accumulations) = 32
-            if self.soft_alpha is not None or self.soft_alpha_masked_interpolation is not None:
+            if self.soft_alpha is not None:
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
-            if self.masked_with_logits:
-                self.per_device_batch_size = int(self.per_device_batch_size/2)
+            elif self.soft_alpha_masked_interpolation is not None:
+                self.per_device_batch_size = int(self.per_device_batch_size/4)
             elif self.mitigation =='qlora':
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
