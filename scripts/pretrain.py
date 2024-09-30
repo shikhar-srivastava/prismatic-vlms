@@ -88,6 +88,10 @@ class PretrainConfig:
     mitigation: str = None
     soft_alpha: float = None
     soft_alpha_masked_interpolation: float = None
+    
+    add_k: float = None
+    set_to_one: bool = False
+
     interpolation_dtype : str = 'float32'
     interpolation_loss: str = 'cross' # or 'kl'
     masked_with_logits: bool = False
