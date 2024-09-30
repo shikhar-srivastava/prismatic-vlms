@@ -404,6 +404,191 @@ class TrainingStrategy(ABC):
                             dynamic_soft_targets.view(-1, num_classes)       # Targets
                         )
 
+                    elif self.add_K is not None: 
+                        dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
+                        shift_logits = output.logits[:, :-1, :].contiguous().to(dtype) # Shape: [batch_size, seq_length-1, num_classes]
+                        valid_targets = fused_labels[:, 1:].contiguous().to(dtype)    # Shape: [batch_size, seq_length-1]
+
+                        num_classes = shift_logits.size(-1)
+                        mask = (valid_targets != -100)  # Ignored positions are marked with -100
+                        target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
+
+                        # Compute soft probabilities and detach from computational graph
+                        soft_probs = F.softmax(target_aligned_logits, dim=-1).detach()  # [batch_size, seq_length - 1, num_classes]
+
+                        # Initialize target distributions
+                        targets_add_K = torch.zeros_like(soft_probs)  # [batch_size, seq_length - 1, num_classes]
+
+                        if mask.any():
+                            # Extract valid positions
+                            valid_indices = valid_targets[mask].long()  # [N]
+                            batch_indices, seq_indices = mask.nonzero(as_tuple=True)  # [N], [N]
+
+                            # Gather soft probabilities at valid positions
+                            soft_probs_masked = soft_probs[mask]  # [N, num_classes]
+
+                            # Create a mask for the correct tokens
+                            correct_token_mask = torch.zeros_like(soft_probs_masked, dtype=torch.bool)
+                            correct_token_mask.scatter_(1, valid_indices.unsqueeze(1), True)  # [N, num_classes]
+
+                            # Extract p_correct
+                            p_correct = soft_probs_masked[correct_token_mask]  # [N]
+
+                            # Compute delta based on whether K is a percentage
+                            if percentage:
+                                delta = p_correct * self.add_K  # [N]
+                            else:
+                                delta = torch.full_like(p_correct, self.add_K)  # [N]
+
+                            # Compute new p_correct, ensuring it does not exceed 1.0
+                            p_correct_new = p_correct + delta  # [N]
+                            p_correct_new = torch.clamp(p_correct_new, max=1.0)  # [N]
+
+                            # Compute actual delta used (in case p_correct_new was clamped)
+                            actual_delta = p_correct_new - p_correct  # [N]
+
+                            # Compute probabilities of other tokens
+                            p_others = soft_probs_masked.clone()  # [N, num_classes]
+                            p_others[correct_token_mask] = 0.0  # Zero out correct token probabilities
+
+                            # Compute sum of other probabilities
+                            sum_p_others = p_others.sum(dim=-1) + 1e-12  # [N]
+
+                            # Adjust other tokens proportionally based on actual_delta
+                            adjustment = (p_others / sum_p_others.unsqueeze(-1)) * actual_delta.unsqueeze(-1)  # [N, num_classes]
+                            p_others = p_others - adjustment  # [N, num_classes]
+
+                            # Ensure probabilities are non-negative
+                            p_others = torch.clamp(p_others, min=0.0)  # [N, num_classes]
+
+                            # Assign adjusted other tokens back
+                            soft_probs_masked[~correct_token_mask] = p_others[~correct_token_mask]  # [N, num_classes]
+
+                            # Set correct token's probability to p_correct_new
+                            soft_probs_masked[correct_token_mask] = p_correct_new  # [N, num_classes]
+
+                            # Assign to targets_add_K
+                            targets_add_K[mask] = soft_probs_masked  # [batch_size, seq_length - 1, num_classes]
+
+                        # Zero out positions where mask is False
+                        if self.masked_with_logits:
+                            # Assign original soft_probs to masked positions
+                            targets_add_K = targets_add_K * mask.unsqueeze(-1).float() + soft_probs * (~mask).unsqueeze(-1).float()
+                        else:
+                            targets_add_K[~mask] = 0.0
+
+                        # Assert that probabilities sum to 1.0
+                        probs_sum = targets_add_K.sum(dim=-1)  # [batch_size, seq_length - 1]
+                        assert torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6), "Probabilities do not sum to 1.0"
+                    
+                        log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
+
+                        # Define the loss function
+                        if self.interpolation_loss == 'cross':
+                            if self.masked_with_logits:
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=0.01)
+                            else:
+                                loss_fct = torch.nn.CrossEntropyLoss()
+                        elif self.interpolation_loss == 'kl':
+                            loss_fct = torch.nn.KLDivLoss(reduction='batchmean') #TODO: check with reduction='mean'
+                        else:
+                            raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
+
+                        # Compute the loss
+                        # Reshape tensors to [batch_size * (seq_length-1), num_classes]
+                        loss = loss_fct(
+                            log_probs.view(-1, num_classes),                # Predictions
+                            targets_add_K.view(-1, num_classes)       # Targets
+                        )
+                        
+                    elif self.set_to_one:
+                        dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
+                        shift_logits = output.logits[:, :-1, :].contiguous().to(dtype) # Shape: [batch_size, seq_length-1, num_classes]
+                        valid_targets = fused_labels[:, 1:].contiguous().to(dtype)    # Shape: [batch_size, seq_length-1]
+
+                        num_classes = shift_logits.size(-1)
+                        mask = (valid_targets != -100)  # Ignored positions are marked with -100
+                        target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
+
+                        # Compute soft probabilities and detach from computational graph
+                        soft_probs = F.softmax(target_aligned_logits, dim=-1).detach()  # [batch_size, seq_length - 1, num_classes]
+
+                        # Initialize target distributions
+                        targets_set_to_one = torch.zeros_like(soft_probs)  # [batch_size, seq_length - 1, num_classes]
+
+                        if mask.any():
+                            # Extract valid positions
+                            valid_indices = valid_targets[mask].long()  # [N]
+                            batch_indices, seq_indices = mask.nonzero(as_tuple=True)  # [N], [N]
+
+                            # Gather soft probabilities at valid positions
+                            soft_probs_masked = soft_probs[mask]  # [N, num_classes]
+
+                            # Create a mask for the correct tokens
+                            correct_token_mask = torch.zeros_like(soft_probs_masked, dtype=torch.bool)
+                            correct_token_mask.scatter_(1, valid_indices.unsqueeze(1), True)  # [N, num_classes]
+
+                            # Extract p_correct
+                            p_correct = soft_probs_masked[correct_token_mask]  # [N]
+
+                            # Compute delta (amount to set correct token to 1.0)
+                            delta = 1.0 - p_correct  # [N]
+
+                            # Compute probabilities of other tokens
+                            p_others = soft_probs_masked.clone()  # [N, num_classes]
+                            p_others[correct_token_mask] = 0.0  # Zero out correct token probabilities
+
+                            # Compute sum of other probabilities
+                            sum_p_others = p_others.sum(dim=-1) + 1e-12  # [N]
+
+                            # Adjust other tokens proportionally
+                            adjustment = (p_others / sum_p_others.unsqueeze(-1)) * delta.unsqueeze(-1)  # [N, num_classes]
+                            p_others = p_others - adjustment  # [N, num_classes]
+
+                            # Ensure probabilities are non-negative
+                            p_others = torch.clamp(p_others, min=0.0)  # [N, num_classes]
+
+                            # Set correct token's probability to 1.0
+                            p_correct_new = torch.ones_like(p_correct)  # [N]
+                            soft_probs_masked[correct_token_mask] = p_correct_new  # [N, num_classes]
+
+                            # Assign adjusted other tokens back
+                            soft_probs_masked[~correct_token_mask] = p_others[~correct_token_mask]  # [N, num_classes]
+
+                            # Assign to target_set_to_one
+                            targets_set_to_one[mask] = soft_probs_masked  # [batch_size, seq_length - 1, num_classes]
+
+                        # Zero out positions where mask is False
+                        if self.masked_with_logits:
+                            # Assign original soft_probs to masked positions
+                            targets_set_to_one = targets_set_to_one * mask.unsqueeze(-1).float() + soft_probs * (~mask).unsqueeze(-1).float()
+                        else:
+                            targets_set_to_one[~mask] = 0.0
+
+                        # Assert that probabilities sum to 1.0
+                        probs_sum = targets_set_to_one.sum(dim=-1)  # [batch_size, seq_length - 1]
+                        assert torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6), "Probabilities do not sum to 1.0"
+
+                        log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
+
+                        # Define the loss function
+                        if self.interpolation_loss == 'cross':
+                            if self.masked_with_logits:
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=0.01)
+                            else:
+                                loss_fct = torch.nn.CrossEntropyLoss()
+                        elif self.interpolation_loss == 'kl':
+                            loss_fct = torch.nn.KLDivLoss(reduction='batchmean') #TODO: check with reduction='mean'
+                        else:
+                            raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
+
+                        # Compute the loss
+                        # Reshape tensors to [batch_size * (seq_length-1), num_classes]
+                        loss = loss_fct(
+                            log_probs.view(-1, num_classes),                # Predictions
+                            targets_add_K.view(-1, num_classes)       # Targets
+                        )
+
                     else:
                         loss = output.loss
 
