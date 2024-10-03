@@ -88,13 +88,17 @@ class PretrainConfig:
     mitigation: str = None
     soft_alpha: float = None
     soft_alpha_masked_interpolation: float = None
+
     
     add_K: float = None
+    add_K_percentage: bool = False
     set_to_one: bool = False
+    max_logit: bool = False
 
     interpolation_dtype : str = 'float32'
     interpolation_loss: str = 'cross' # or 'kl'
     masked_with_logits: bool = False
+    masked_with_logits_label_smoothing: float = 0.01
     olf: bool = False  # Last Transformer Block freezing
     oolf: bool = False # Last Output Layer freezing
 
@@ -156,7 +160,7 @@ class PretrainConfig:
             if self.soft_alpha is not None:
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
-            elif (self.soft_alpha_masked_interpolation is not None) or (self.add_K is not None) or (self.set_to_one):
+            elif (self.soft_alpha_masked_interpolation is not None) or (self.add_K is not None) or (self.set_to_one) or (self.max_logit):
                 self.per_device_batch_size = int(self.per_device_batch_size/4)
             elif self.mitigation =='qlora':
                 # self.global_batch_size = int(self.global_batch_size/2)

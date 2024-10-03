@@ -64,10 +64,13 @@ class TrainingStrategy(ABC):
         self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
         self.soft_alpha_masked_interpolation = cfg['soft_alpha_masked_interpolation'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha_masked_interpolation', False)
         self.add_K = cfg['add_K'] if isinstance(cfg, dict) else getattr(cfg, 'add_K', None)
+        self.add_K_percentage = cfg['add_K_percentage'] if isinstance(cfg, dict) else getattr(cfg, 'add_K_percentage', False)
         self.set_to_one = cfg['set_to_one'] if isinstance(cfg, dict) else getattr(cfg, 'set_to_one', False)
+        self.max_logit = cfg['max_logit'] if isinstance(cfg, dict) else getattr(cfg, 'max_logit', False)
         self.interpolation_dtype = cfg['interpolation_dtype'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_dtype', torch.float32)
         self.interpolation_loss = cfg['interpolation_loss'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_loss', 'cross')
         self.masked_with_logits = cfg['masked_with_logits'] if isinstance(cfg, dict) else getattr(cfg, 'masked_with_logits', False)
+        self.masked_with_logits_label_smoothing = cfg['masked_with_logits_label_smoothing'] if isinstance(cfg, dict) else getattr(cfg, 'masked_with_logits_label_smoothing', 0.01)
         self.mitigation = cfg['mitigation'] if isinstance(cfg, dict) else getattr(cfg, 'mitigation', None)
         self.merges_after_steps = cfg['merges_after_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merges_after_steps', 0)
         self.merging_lr_warmup_steps = cfg['merging_lr_warmup_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merging_lr_warmup_steps', 0.0)
@@ -271,7 +274,7 @@ class TrainingStrategy(ABC):
                         dtype=self.mixed_precision_dtype,
                         enabled=self.enable_mixed_precision_training,
                     ):  
-                        if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None):
+                        if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None or self.add_K is not None or self.set_to_one or self.max_logit):
                             output, fused_labels = self.vlm(
                                 input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
@@ -392,7 +395,7 @@ class TrainingStrategy(ABC):
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
                             if self.masked_with_logits:
-                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=0.01)
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
                             else:
                                 loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
@@ -437,7 +440,7 @@ class TrainingStrategy(ABC):
                             p_correct = soft_probs_masked[correct_token_mask]  # [N]
 
                             # Compute delta based on whether K is a percentage
-                            if percentage:
+                            if self.add_K_percentage:
                                 delta = p_correct * self.add_K  # [N]
                             else:
                                 delta = torch.full_like(p_correct, self.add_K)  # [N]
@@ -488,7 +491,7 @@ class TrainingStrategy(ABC):
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
                             if self.masked_with_logits:
-                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=0.01)
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
                             else:
                                 loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
@@ -576,7 +579,7 @@ class TrainingStrategy(ABC):
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
                             if self.masked_with_logits:
-                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=0.01)
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
                             else:
                                 loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
@@ -588,7 +591,114 @@ class TrainingStrategy(ABC):
                         # Reshape tensors to [batch_size * (seq_length-1), num_classes]
                         loss = loss_fct(
                             log_probs.view(-1, num_classes),                # Predictions
-                            targets_add_K.view(-1, num_classes)       # Targets
+                            targets_set_to_one.view(-1, num_classes)       # Targets
+                        )
+                    
+                    elif self.max_logit:
+                        dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
+                        shift_logits = output.logits[:, :-1, :].contiguous().to(dtype) # Shape: [batch_size, seq_length-1, num_classes]
+                        valid_targets = fused_labels[:, 1:].contiguous().to(dtype)    # Shape: [batch_size, seq_length-1]
+
+                        num_classes = shift_logits.size(-1)
+                        mask = (valid_targets != -100)  # Ignored positions are marked with -100
+                        target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
+
+                        # Compute soft probabilities and detach from computational graph
+                        soft_probs = F.softmax(target_aligned_logits, dim=-1).detach()  # [batch_size, seq_length - 1, num_classes]
+                        # Initialize target distributions
+                        targets_max_logit = torch.zeros_like(soft_probs)  # [batch_size, seq_length - 1, num_classes]
+
+                        if mask.any():
+                            # Extract valid positions
+                            valid_indices = valid_targets[mask].long()  # [N]
+                            batch_indices, seq_indices = mask.nonzero(as_tuple=True)  # [N], [N]
+
+                            # Gather soft probabilities at valid positions
+                            soft_probs_masked = soft_probs[mask]  # [N, num_classes]
+
+                            # Find p_max for each valid position
+                            p_max, _ = soft_probs_masked.max(dim=-1)  # [N]
+
+                            # Create a mask for the correct tokens
+                            correct_token_mask = torch.zeros_like(soft_probs_masked, dtype=torch.bool)
+                            correct_token_mask.scatter_(1, valid_indices.unsqueeze(1), True)  # [N, num_classes]
+
+                            # Extract p_correct
+                            p_correct = soft_probs_masked[correct_token_mask]  # [N]
+
+                            # Compute delta
+                            delta = p_max - p_correct  # [N]
+
+                            # Handle cases where p_correct is already the max (delta = 0)
+                            # No adjustment needed in these cases
+
+                            # Compute probabilities of other tokens
+                            p_others = soft_probs_masked.clone()  # [N, num_classes]
+                            p_others[correct_token_mask] = 0.0  # Zero out correct token probabilities
+
+                            # Compute sum of other probabilities
+                            sum_p_others = p_others.sum(dim=-1)  # [N]
+
+                            # Avoid division by zero by adding epsilon where sum_p_others is zero
+                            epsilon = 1e-12
+                            sum_p_others = sum_p_others + epsilon  # [N]
+
+                            # Compute adjustment: subtract delta proportionally from other tokens
+                            adjustment = (p_others / sum_p_others.unsqueeze(-1)) * delta.unsqueeze(-1)  # [N, num_classes]
+                            p_others = p_others - adjustment  # [N, num_classes]
+
+                            # Ensure probabilities are non-negative
+                            p_others = torch.clamp(p_others, min=0.0)  # [N, num_classes]
+
+                            # Set correct token's probability to p_max
+                            p_correct_new = p_max  # [N]
+                            soft_probs_masked[correct_token_mask] = p_correct_new  # [N, num_classes]
+
+                            # Assign adjusted other tokens back
+                            soft_probs_masked[~correct_token_mask] = p_others[~correct_token_mask]  # [N, num_classes]
+
+                            # Assign to targets_max_logit
+                            targets_max_logit[mask] = soft_probs_masked  # [batch_size, seq_length - 1, num_classes]
+
+                            # Debugging: Check if any probabilities are negative (they should not be)
+                            if (targets_max_logit < 0).any():
+                                negative_probs = targets_max_logit < 0
+                                print("Negative probabilities detected in max_logit function.")
+                                print(targets_max_logit[negative_probs])
+                                raise ValueError("Negative probabilities found after adjustment in max_logit.")
+
+                            # Debugging: Check sum of probabilities
+                            probs_sum = targets_max_logit.sum(dim=-1)  # [batch_size, seq_length - 1]
+                            if not torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6):
+                                max_diff = torch.abs(probs_sum[mask] - 1.0).max()
+                                print(f"Max difference from 1.0: {max_diff.item()}")
+                                raise AssertionError("Probabilities do not sum to 1.0 after max_logit adjustments.")
+
+                        # Zero out positions where mask is False
+                        targets_max_logit[~mask] = 0.0
+
+                        # Assert that probabilities sum to 1.0
+                        probs_sum = targets_max_logit.sum(dim=-1)  # [batch_size, seq_length - 1]
+                        assert torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6), "Probabilities do not sum to 1.0"
+
+                        log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
+
+                        # Define the loss function
+                        if self.interpolation_loss == 'cross':
+                            if self.masked_with_logits:
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
+                            else:
+                                loss_fct = torch.nn.CrossEntropyLoss()
+                        elif self.interpolation_loss == 'kl':
+                            loss_fct = torch.nn.KLDivLoss(reduction='batchmean') #TODO: check with reduction='mean'
+                        else:
+                            raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
+
+                        # Compute the loss
+                        # Reshape tensors to [batch_size * (seq_length-1), num_classes]
+                        loss = loss_fct(
+                            log_probs.view(-1, num_classes),                # Predictions
+                            targets_max_logit.view(-1, num_classes)       # Targets
                         )
 
                     else:
