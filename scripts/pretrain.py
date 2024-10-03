@@ -88,7 +88,7 @@ class PretrainConfig:
     mitigation: str = None
     soft_alpha: float = None
     soft_alpha_masked_interpolation: float = None
-
+    soft_output_logits: bool = True
     
     add_K: float = None
     add_K_percentage: bool = False

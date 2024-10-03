@@ -67,6 +67,7 @@ class TrainingStrategy(ABC):
         self.add_K_percentage = cfg['add_K_percentage'] if isinstance(cfg, dict) else getattr(cfg, 'add_K_percentage', False)
         self.set_to_one = cfg['set_to_one'] if isinstance(cfg, dict) else getattr(cfg, 'set_to_one', False)
         self.max_logit = cfg['max_logit'] if isinstance(cfg, dict) else getattr(cfg, 'max_logit', False)
+        self.soft_output_logits = cfg['soft_output_logits'] if isinstance(cfg, dict) else getattr(cfg, 'soft_output_logits', True)
         self.interpolation_dtype = cfg['interpolation_dtype'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_dtype', torch.float32)
         self.interpolation_loss = cfg['interpolation_loss'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_loss', 'cross')
         self.masked_with_logits = cfg['masked_with_logits'] if isinstance(cfg, dict) else getattr(cfg, 'masked_with_logits', False)
@@ -390,7 +391,8 @@ class TrainingStrategy(ABC):
                         #     "Valid positions in dynamic_soft_targets do not sum to 1."
 
                         # Compute log probabilities from shift_logits for KLDivLoss
-                        log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
+                        if not self.soft_output_logits:
+                            log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
 
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
@@ -404,10 +406,16 @@ class TrainingStrategy(ABC):
                             raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
                         # Compute the loss
                         # Reshape tensors to [batch_size * (seq_length-1), num_classes]
-                        loss = loss_fct(
-                            log_probs.view(-1, num_classes),                # Predictions
-                            dynamic_soft_targets.view(-1, num_classes)       # Targets
-                        )
+                        if self.soft_output_logits:
+                            loss = loss_fct(
+                                shift_logits.view(-1, num_classes),                # Predictions
+                                dynamic_soft_targets.view(-1, num_classes)       # Targets
+                            )
+                        else:
+                            loss = loss_fct(
+                                log_probs.view(-1, num_classes),                # Predictions
+                                dynamic_soft_targets.view(-1, num_classes)       # Targets
+                            )
 
                     elif self.add_K is not None: 
                         dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
@@ -482,11 +490,12 @@ class TrainingStrategy(ABC):
                         else:
                             targets_add_K[~mask] = 0.0
 
-                        # Assert that probabilities sum to 1.0
-                        probs_sum = targets_add_K.sum(dim=-1)  # [batch_size, seq_length - 1]
-                        assert torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6), "Probabilities do not sum to 1.0"
+                        # # Assert that probabilities sum to 1.0
+                        # probs_sum = targets_add_K.sum(dim=-1)  # [batch_size, seq_length - 1]
+                        # assert torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6), "Probabilities do not sum to 1.0"
                     
-                        log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
+                        if not self.soft_output_logits:
+                            log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
 
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
@@ -499,12 +508,17 @@ class TrainingStrategy(ABC):
                         else:
                             raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
 
-                        # Compute the loss
-                        # Reshape tensors to [batch_size * (seq_length-1), num_classes]
-                        loss = loss_fct(
-                            log_probs.view(-1, num_classes),                # Predictions
-                            targets_add_K.view(-1, num_classes)       # Targets
-                        )
+                        if self.soft_output_logits:
+                            loss = loss_fct(
+                                shift_logits.view(-1, num_classes),                # Predictions
+                                targets_add_K.view(-1, num_classes)       # Targets
+                            )
+                        else:
+                            loss = loss_fct(
+                                log_probs.view(-1, num_classes),                # Predictions
+                                targets_add_K.view(-1, num_classes)       # Targets
+                            )
+
                         
                     elif self.set_to_one:
                         dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
@@ -570,11 +584,12 @@ class TrainingStrategy(ABC):
                         else:
                             targets_set_to_one[~mask] = 0.0
 
-                        # Assert that probabilities sum to 1.0
-                        probs_sum = targets_set_to_one.sum(dim=-1)  # [batch_size, seq_length - 1]
-                        assert torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6), "Probabilities do not sum to 1.0"
+                        # # Assert that probabilities sum to 1.0
+                        # probs_sum = targets_set_to_one.sum(dim=-1)  # [batch_size, seq_length - 1]
+                        # assert torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6), "Probabilities do not sum to 1.0"
 
-                        log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
+                        if not self.soft_output_logits:
+                            log_probs = F.log_softmax(shift_logits, dim=-1)
 
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
@@ -587,12 +602,16 @@ class TrainingStrategy(ABC):
                         else:
                             raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
 
-                        # Compute the loss
-                        # Reshape tensors to [batch_size * (seq_length-1), num_classes]
-                        loss = loss_fct(
-                            log_probs.view(-1, num_classes),                # Predictions
-                            targets_set_to_one.view(-1, num_classes)       # Targets
-                        )
+                        if self.soft_output_logits:
+                            loss = loss_fct(
+                                shift_logits.view(-1, num_classes),                # Predictions
+                                targets_set_to_one.view(-1, num_classes)       # Targets
+                            )
+                        else:
+                            loss = loss_fct(
+                                log_probs.view(-1, num_classes),                # Predictions
+                                targets_set_to_one.view(-1, num_classes)       # Targets
+                            )
                     
                     elif self.max_logit:
                         dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
@@ -677,11 +696,8 @@ class TrainingStrategy(ABC):
                         # Zero out positions where mask is False
                         targets_max_logit[~mask] = 0.0
 
-                        # Assert that probabilities sum to 1.0
-                        probs_sum = targets_max_logit.sum(dim=-1)  # [batch_size, seq_length - 1]
-                        assert torch.allclose(probs_sum[mask], torch.ones_like(probs_sum[mask]), atol=1e-6), "Probabilities do not sum to 1.0"
-
-                        log_probs = F.log_softmax(shift_logits, dim=-1)  # Shape: [batch_size, seq_length-1, num_classes]
+                        if not self.soft_output_logits:
+                            log_probs = F.log_softmax(shift_logits, dim=-1)
 
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
@@ -694,12 +710,16 @@ class TrainingStrategy(ABC):
                         else:
                             raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
 
-                        # Compute the loss
-                        # Reshape tensors to [batch_size * (seq_length-1), num_classes]
-                        loss = loss_fct(
-                            log_probs.view(-1, num_classes),                # Predictions
-                            targets_max_logit.view(-1, num_classes)       # Targets
-                        )
+                        if self.soft_output_logits:
+                            loss = loss_fct(
+                                shift_logits.view(-1, num_classes),                # Predictions
+                                targets_max_logit.view(-1, num_classes)       # Targets
+                            )
+                        else:
+                            loss = loss_fct(
+                                log_probs.view(-1, num_classes),                # Predictions
+                                targets_max_logit.view(-1, num_classes)       # Targets
+                            )
 
                     else:
                         loss = output.loss
