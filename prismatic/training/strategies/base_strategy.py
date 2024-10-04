@@ -68,7 +68,7 @@ class TrainingStrategy(ABC):
         self.set_to_one = cfg['set_to_one'] if isinstance(cfg, dict) else getattr(cfg, 'set_to_one', False)
         self.max_logit = cfg['max_logit'] if isinstance(cfg, dict) else getattr(cfg, 'max_logit', False)
         self.soft_output_logits = cfg['soft_output_logits'] if isinstance(cfg, dict) else getattr(cfg, 'soft_output_logits', True)
-        self.interpolation_dtype = cfg['interpolation_dtype'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_dtype', torch.float32)
+        self.interpolation_dtype = cfg['interpolation_dtype'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_dtype', 'float32')
         self.interpolation_loss = cfg['interpolation_loss'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_loss', 'cross')
         self.masked_with_logits = cfg['masked_with_logits'] if isinstance(cfg, dict) else getattr(cfg, 'masked_with_logits', False)
         self.masked_with_logits_label_smoothing = cfg['masked_with_logits_label_smoothing'] if isinstance(cfg, dict) else getattr(cfg, 'masked_with_logits_label_smoothing', 0.01)
@@ -694,7 +694,13 @@ class TrainingStrategy(ABC):
                                 raise AssertionError("Probabilities do not sum to 1.0 after max_logit adjustments.")
 
                         # Zero out positions where mask is False
-                        targets_max_logit[~mask] = 0.0
+                        if self.masked_with_logits:
+                            # Assign original soft_probs to masked positions
+                            targets_max_logit = targets_max_logit * mask.unsqueeze(-1).float() + soft_probs * (~mask).unsqueeze(-1).float()
+                        else:
+                            targets_max_logit[~mask] = 0.0
+                        # # Zero out positions where mask is False
+                        # targets_max_logit[~mask] = 0.0
 
                         if not self.soft_output_logits:
                             log_probs = F.log_softmax(shift_logits, dim=-1)
