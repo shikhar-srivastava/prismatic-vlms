@@ -332,6 +332,8 @@ class TrainingStrategy(ABC):
                         shift_logits = output.logits[:, :-1, :].contiguous()
                         valid_targets = fused_labels[:, 1:].contiguous()
 
+                        num_classes = shift_logits.size(-1)
+
                         # Loss calculation with try-except block
                         loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
                         try:
@@ -340,7 +342,7 @@ class TrainingStrategy(ABC):
                             print("Error during loss calculation:", e)
                             print("Shapes at loss calculation:")
                             print("shift_logits:", shift_logits.view(-1, num_classes).shape)
-                            print("targets_smooth:", targets_smooth.view(-1, num_classes).shape)
+                            print("valid_targets:", valid_targets.view(-1, num_classes).shape)
                             raise e
 
                     elif self.soft_alpha_masked_interpolation is not None:
