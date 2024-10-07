@@ -276,7 +276,8 @@ class TrainingStrategy(ABC):
                         dtype=self.mixed_precision_dtype,
                         enabled=self.enable_mixed_precision_training,
                     ):  
-                        if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None or self.add_K is not None or self.set_to_one or self.max_logit):
+                        if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None or \
+                        self.add_K is not None or self.set_to_one or self.max_logit or (self.label_smoothing > 0.0)):
                             output, fused_labels = self.vlm(
                                 input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
