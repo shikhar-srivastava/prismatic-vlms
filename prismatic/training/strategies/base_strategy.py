@@ -337,12 +337,12 @@ class TrainingStrategy(ABC):
                         # Loss calculation with try-except block
                         loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
                         try:
-                            loss = loss_fct(shift_logits.view(-1, num_classes), valid_targets.view(-1, num_classes))
+                            loss = loss_fct(shift_logits.view(-1, num_classes), valid_targets.view(-1))
                         except RuntimeError as e:
                             print("Error during loss calculation:", e)
                             print("Shapes at loss calculation:")
-                            print("shift_logits:", shift_logits.view(-1, num_classes).shape)
-                            print("valid_targets:", valid_targets.view(-1, num_classes).shape)
+                            print("shift_logits:", shift_logits.shape)
+                            print("valid_targets:", valid_targets.shape)
                             raise e
 
                     elif self.soft_alpha_masked_interpolation is not None:
