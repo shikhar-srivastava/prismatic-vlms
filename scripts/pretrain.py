@@ -98,6 +98,7 @@ class PretrainConfig:
     interpolation_dtype : str = 'float32'
     interpolation_loss: str = 'cross' # or 'kl'
     masked_with_logits: bool = False
+    label_smoothing: float = 0.0
     masked_with_logits_label_smoothing: float = 0.01
     olf: bool = False  # Last Transformer Block freezing
     oolf: bool = False # Last Output Layer freezing

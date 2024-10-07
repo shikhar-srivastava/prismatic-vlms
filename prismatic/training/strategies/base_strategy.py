@@ -63,6 +63,7 @@ class TrainingStrategy(ABC):
     ) -> None:
         self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
         self.soft_alpha_masked_interpolation = cfg['soft_alpha_masked_interpolation'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha_masked_interpolation', False)
+        self.label_smoothing = cfg['label_smoothing'] if isinstance(cfg, dict) else getattr(cfg, 'label_smoothing', 0.0)
         self.add_K = cfg['add_K'] if isinstance(cfg, dict) else getattr(cfg, 'add_K', None)
         self.add_K_percentage = cfg['add_K_percentage'] if isinstance(cfg, dict) else getattr(cfg, 'add_K_percentage', False)
         self.set_to_one = cfg['set_to_one'] if isinstance(cfg, dict) else getattr(cfg, 'set_to_one', False)
@@ -398,6 +399,8 @@ class TrainingStrategy(ABC):
                         if self.interpolation_loss == 'cross':
                             if self.masked_with_logits:
                                 loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
+                            elif self.label_smoothing > 0.0:
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
                             else:
                                 loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
@@ -501,6 +504,8 @@ class TrainingStrategy(ABC):
                         if self.interpolation_loss == 'cross':
                             if self.masked_with_logits:
                                 loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
+                            elif self.label_smoothing > 0.0:
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
                             else:
                                 loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
@@ -595,6 +600,8 @@ class TrainingStrategy(ABC):
                         if self.interpolation_loss == 'cross':
                             if self.masked_with_logits:
                                 loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
+                            elif self.label_smoothing > 0.0:
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
                             else:
                                 loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
@@ -709,6 +716,8 @@ class TrainingStrategy(ABC):
                         if self.interpolation_loss == 'cross':
                             if self.masked_with_logits:
                                 loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
+                            elif self.label_smoothing > 0.0:
+                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
                             else:
                                 loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
