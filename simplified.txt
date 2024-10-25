@@ -1,0 +1,9 @@
+Train loss: GQA
+Val loss: GQA
+Validate on: GQA, Lambada
+
+Expected time: ~ 15 minutes
+
+Visualize: Output token distribution before/after training, Target Token distribution.
+    > Aim: Correlate token distribution with validation performance/loss.
+

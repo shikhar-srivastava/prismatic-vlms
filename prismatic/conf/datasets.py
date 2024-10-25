@@ -45,6 +45,23 @@ class LLaVa_V15_Config(DatasetConfig):
     dataset_root_dir: Path = Path("data")
 
 
+# 
+@dataclass
+class LLaVA_GQA_Only_Config(DatasetConfig):
+    dataset_id: str = "gqa-only"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/splits/gqa_72140k.json"),
+        Path("download/llava-v1.5-instruct/"),
+    )
+    dataset_root_dir: Path = Path("data")
+
+
+
 # [Multimodal-Only] LLava-v15 WITHOUT the Language-Only ShareGPT Data (No Co-Training)
 @dataclass
 class LLaVa_Multimodal_Only_Config(DatasetConfig):
@@ -59,6 +76,7 @@ class LLaVa_Multimodal_Only_Config(DatasetConfig):
         Path("download/llava-v1.5-instruct/"),
     )
     dataset_root_dir: Path = Path("/mnt/fsx/skaramcheti/datasets/prismatic-vlms")
+
 
 
 # LLaVa-v15 + LVIS-Instruct-4V
@@ -612,11 +630,15 @@ class Test(DatasetConfig):
 @unique
 class DatasetRegistry(Enum):
 
+    # ======== Datasets Only ========
+    LLAVA_GQA_ONLY = LLaVA_GQA_Only_Config
+    
     # LLAVA FULL CL 
     INSTRUCT = INSTRUCT_Config
     VQA = VQA_Config
     REF = Ref_Config
     OCR = OCR_Config
+
     # LLAVA PARTIAL CL    
     LLAVA_VQA_ALL  = LLAVA_V1_VQA_ALL_Config
     LLAVA_INSTRUCT_VQA_ALL = LLAVA_V1_INSTRUCT_VQA_ALL_Config
