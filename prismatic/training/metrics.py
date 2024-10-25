@@ -77,7 +77,7 @@ class WeightsBiasesTracker:
     def finalize() -> None:
         if overwatch.is_rank_zero():
             wandb.finish()
-        time.sleep(210)
+        time.sleep(30)
 
 
 # === Core Metrics Container ===
