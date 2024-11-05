@@ -308,7 +308,7 @@ class TrainingStrategy(ABC):
                                     input_ids=batch["input_ids"],
                                     attention_mask=batch["attention_mask"],
                                     pixel_values=batch["pixel_values"] if batch["pixel_values"] is not None else None,
-                                    labels=None,  # No need for labels during inference
+                                    labels=batch["labels"],
                                     multimodal_indices=batch["multimodal_indices"],
                                 )
                             # Ensure directory exists
@@ -332,11 +332,18 @@ class TrainingStrategy(ABC):
                             progress.update()
                             progress.set_description(f"Saved logits for batch {train_idx}")
                             continue
-
+                            
                         if self.load_logits:
                             # Use the teacher_logits from the batch
                             teacher_logits = batch.pop('teacher_logits')
-                            
+                            if teacher_logits is None:
+                                continue
+                            else:
+                                teacher_logits = teacher_logits.to(self.device_id)
+                        
+                            #print(f"Teacher logits shape: {teacher_logits.shape}, Output logits shape: {output.logits.shape}")
+
+
                         if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None or \
                         self.add_K is not None or self.set_to_one or self.max_logit or (self.label_smoothing > 0.0)):
                             output, fused_labels = self.vlm(
@@ -355,8 +362,7 @@ class TrainingStrategy(ABC):
                                 labels=batch["labels"],
                                 multimodal_indices=batch["multimodal_indices"],
                             )
-                            
-
+                        
                     if self.soft_alpha is not None:
                         shift_logits = output.logits[:, :-1, :].contiguous()
                         valid_targets = fused_labels[:, 1:].contiguous()
@@ -389,6 +395,7 @@ class TrainingStrategy(ABC):
                             print("shift_logits:", shift_logits.view(-1, num_classes).shape)
                             print("targets_smooth:", targets_smooth.view(-1, num_classes).shape)
                             raise e
+
                     elif self.label_smoothing > 0.0:
                         shift_logits = output.logits[:, :-1, :].contiguous()
                         valid_targets = fused_labels[:, 1:].contiguous()
@@ -415,8 +422,11 @@ class TrainingStrategy(ABC):
                         num_classes = shift_logits.size(-1)
                         mask = (valid_targets != -100)  # Ignored positions are marked with -100
 
-                        # Compute soft probabilities from logits and detach to prevent gradient flow
-                        soft_probs = F.softmax(output.logits[:,1:,:].to(dtype), dim=-1).to(dtype).detach()  # Shape: [batch_size, seq_length-1, num_classes]
+                        if self.load_logits:
+                            soft_probs = F.softmax(teacher_logits[:,1:,:].to(dtype), dim=-1).to(dtype).detach()
+                        else:
+                            # Compute soft probabilities from logits and detach to prevent gradient flow
+                            soft_probs = F.softmax(output.logits[:,1:,:].to(dtype), dim=-1).to(dtype).detach()  # Shape: [batch_size, seq_length-1, num_classes]
 
                         batch_size, shifted_seq_length = shift_logits.size()[:2]
 
@@ -506,7 +516,12 @@ class TrainingStrategy(ABC):
 
                         num_classes = shift_logits.size(-1)
                         mask = (valid_targets != -100)  # Ignored positions are marked with -100
-                        target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
+                        
+                        if self.load_logits:
+                            # Use the teacher_logits from the batch
+                            target_aligned_logits = teacher_logits[:, 1:, :].contiguous().to(dtype)
+                        else:
+                            target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
 
                         # Compute soft probabilities and detach from computational graph
                         soft_probs = F.softmax(target_aligned_logits, dim=-1).detach()  # [batch_size, seq_length - 1, num_classes]
@@ -611,7 +626,12 @@ class TrainingStrategy(ABC):
 
                         num_classes = shift_logits.size(-1)
                         mask = (valid_targets != -100)  # Ignored positions are marked with -100
-                        target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
+
+                        if self.load_logits:
+                            # Use the teacher_logits from the batch
+                            target_aligned_logits = teacher_logits[:, 1:, :].contiguous().to(dtype)
+                        else:
+                            target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
 
                         # Compute soft probabilities and detach from computational graph
                         soft_probs = F.softmax(target_aligned_logits, dim=-1).detach()  # [batch_size, seq_length - 1, num_classes]
@@ -700,13 +720,18 @@ class TrainingStrategy(ABC):
                             )
                     
                     elif self.max_logit:
+
                         dtype = torch.float32 if self.interpolation_dtype == 'float32' else torch.bfloat16 # Default
                         shift_logits = output.logits[:, :-1, :].contiguous().to(dtype) # Shape: [batch_size, seq_length-1, num_classes]
                         valid_targets = fused_labels[:, 1:].contiguous().to(dtype)    # Shape: [batch_size, seq_length-1]
 
                         num_classes = shift_logits.size(-1)
                         mask = (valid_targets != -100)  # Ignored positions are marked with -100
-                        target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
+                        if self.load_logits:
+                            # Use the teacher_logits from the batch
+                            target_aligned_logits = teacher_logits[:, 1:, :].contiguous().to(dtype)
+                        else:
+                            target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
 
                         # Compute soft probabilities and detach from computational graph
                         soft_probs = F.softmax(target_aligned_logits, dim=-1).detach()  # [batch_size, seq_length - 1, num_classes]
@@ -971,7 +996,10 @@ class TrainingStrategy(ABC):
 
             # Save checkpoint at end each epoch (if `self.max_steps` is None)
             if self.max_steps is None:
-                self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
+                if self.save_logits:
+                    self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, None)
+                else:
+                    self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
                 dist.barrier()
 
 

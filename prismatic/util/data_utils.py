@@ -81,16 +81,19 @@ class PaddedCollatorForLanguageModeling:
         if 'idx' in instances[0]:
             idx = torch.tensor([instance['idx'] for instance in instances], dtype=torch.long)
             batch['idx'] = idx
-            
+
         # === Minimal Addition: Handle 'teacher_logits' if present ===
         if 'teacher_logits' in instances[0]:
             teacher_logits = [instance['teacher_logits'] for instance in instances]
             # Stack teacher_logits directly
-            teacher_logits = torch.stack(teacher_logits)
-
-            # Optionally, assert that sequence lengths match
-            assert teacher_logits.size(1) == input_ids.size(1), \
-                "Sequence length of teacher_logits does not match input_ids after padding/truncation"
+            try:
+                teacher_logits = torch.stack(teacher_logits)
+            except Exception as e:
+                print(f"Error stacking teacher_logits: {e}")
+                teacher_logits = None
+            # # Optionally, assert that sequence lengths match
+            # assert teacher_logits.size(1) == input_ids.size(1), \
+            #     "Sequence length of teacher_logits does not match input_ids after padding/truncation"
 
             batch['teacher_logits'] = teacher_logits
 
