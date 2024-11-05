@@ -27,6 +27,8 @@ def get_dataset_and_collator(
     prompt_builder_fn: Type[PromptBuilder],
     default_image_resolution: Tuple[int, int, int],
     padding_side: str = "right",
+    load_logits: bool = False,
+    load_logits_dir = None,
 ) -> Tuple[Dataset, PaddedCollatorForLanguageModeling]:
     dataset_cls = DATASET_INITIALIZER[stage]
     dataset_root_dir = dataset_cfg.dataset_root_dir
@@ -50,6 +52,8 @@ def get_dataset_and_collator(
             image_transform,
             tokenizer,
             prompt_builder_fn=prompt_builder_fn,
+            load_logits=load_logits,
+            load_logits_dir=load_logits_dir,
         )
         return dataset, collator
 

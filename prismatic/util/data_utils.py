@@ -28,8 +28,7 @@ class PaddedCollatorForLanguageModeling:
         input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
         pixel_values = [instance["pixel_values"] for instance in instances]
 
-        # For now, we only support Tokenizers with `padding_side = "right"` during Training (but plan to extend!)
-        #   => Handle padding via RNN Utils => `pad_sequence`
+        # Handle padding for input_ids and labels
         input_ids = pad_sequence(input_ids, batch_first=True, padding_value=self.pad_token_id)
         labels = pad_sequence(labels, batch_first=True, padding_value=IGNORE_INDEX)
 
@@ -46,7 +45,7 @@ class PaddedCollatorForLanguageModeling:
             [idx for idx in range(len(pixel_values)) if pixel_values[idx] is not None], dtype=torch.long
         )
 
-        # Stack all `pixel_values` --> depending on type (torch.Tensor, or Dict[str, torch.Tensor]) & presence of None
+        # Stack all `pixel_values`
         if len(multimodal_indices) == 0:
             pixel_values = torch.stack([self.dummy_pixel_values for _ in range(len(input_ids))])
         elif isinstance(pv_example := pixel_values[multimodal_indices[0]], torch.Tensor):
@@ -69,10 +68,30 @@ class PaddedCollatorForLanguageModeling:
         else:
             raise ValueError(f"Unsupported `pixel_values` type = {type(pixel_values)}")
 
-        return dict(
+        # Build the batch dictionary
+        batch = dict(
             pixel_values=pixel_values,
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
             multimodal_indices=multimodal_indices,
         )
+
+        # === Addition: Include 'idx' in the batch ===
+        if 'idx' in instances[0]:
+            idx = torch.tensor([instance['idx'] for instance in instances], dtype=torch.long)
+            batch['idx'] = idx
+            
+        # === Minimal Addition: Handle 'teacher_logits' if present ===
+        if 'teacher_logits' in instances[0]:
+            teacher_logits = [instance['teacher_logits'] for instance in instances]
+            # Stack teacher_logits directly
+            teacher_logits = torch.stack(teacher_logits)
+
+            # Optionally, assert that sequence lengths match
+            assert teacher_logits.size(1) == input_ids.size(1), \
+                "Sequence length of teacher_logits does not match input_ids after padding/truncation"
+
+            batch['teacher_logits'] = teacher_logits
+
+        return batch

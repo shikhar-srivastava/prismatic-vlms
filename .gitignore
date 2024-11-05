@@ -260,3 +260,4 @@ diff_unified_output.txt
 non_vl_datasets_performance.png
 old/author_runs/reproduction-llama2-nocotraining/config.json
 results_nlp_saved.json
+old_evals/*

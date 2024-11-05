@@ -31,6 +31,8 @@ from prismatic.models.backbones.mitigation import apply_mitigation
 from prismatic.util.lora_utils import capture_initial_weights, \
     measure_lora_weight_change, measure_lora_weight_change_per_layer, log_weight_change_detailed
 
+import os
+
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
 
@@ -61,6 +63,12 @@ class TrainingStrategy(ABC):
         cfg = None,
         **_: str,
     ) -> None:
+        self.save_logits = cfg['save_logits'] if isinstance(cfg, dict) else getattr(cfg, 'save_logits', False)
+        self.save_logits_dir = cfg['save_logits_dir'] if isinstance(cfg, dict) else getattr(cfg, 'save_logits_dir', None)
+
+        self.load_logits = cfg['load_logits'] if isinstance(cfg, dict) else getattr(cfg, 'load_logits', False)
+        self.load_logits_dir = cfg['load_logits_dir'] if isinstance(cfg, dict) else getattr(cfg, 'load_logits_dir', None)
+
         self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
         self.soft_alpha_masked_interpolation = cfg['soft_alpha_masked_interpolation'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha_masked_interpolation', False)
         self.label_smoothing = cfg['label_smoothing'] if isinstance(cfg, dict) else getattr(cfg, 'label_smoothing', 0.0)
@@ -207,8 +215,9 @@ class TrainingStrategy(ABC):
             batch_size=self.per_device_batch_size,
             sampler=sampler,
             collate_fn=collator,
-            num_workers=2,
+            num_workers=2, 
             worker_init_fn=self.worker_init_fn,
+            #pin_memory=True,
         )
         initial_weights = None
         last_weights = None
@@ -244,25 +253,38 @@ class TrainingStrategy(ABC):
             self.epochs = 100
 
         # === Train ===
-        status = metrics.get_status()
-        with tqdm(
-            total=(
+        if self.save_logits:
+            total_steps = self.epochs * len(dataloader)
+        else:
+            total_steps = (
                 (self.epochs * (len(dataloader) // self.grad_accumulation_steps))
                 if self.max_steps is None
                 else self.max_steps
-            ),
+            )
+
+        status = metrics.get_status()
+        with tqdm(
+            total=total_steps,
             desc=status,
             leave=False,
             disable=not overwatch.is_rank_zero(),
         ) as progress:
             for epoch in range(self.epochs):
-                self.vlm.train()
-                if self.lr_scheduler_type == 'schedule-free':
-                    self.optimizer.train() 
-                sampler.set_epoch(epoch)
+                if self.save_logits:
+                    # Set model to evaluation mode for inference
+                    self.vlm.eval()
+                    # Disable gradient checkpointing and mixed precision
+                    self.vlm.llm_backbone.llm.gradient_checkpointing_disable()
+                    self.enable_mixed_precision_training = False
+                else:
+                    self.vlm.train()
+                    if self.lr_scheduler_type == 'schedule-free':
+                        self.optimizer.train()
+                    sampler.set_epoch(epoch)
 
-                # Zero-Gradients (just in case)
-                self.optimizer.zero_grad()
+                if not self.save_logits:
+                    # Zero gradients if training
+                    self.optimizer.zero_grad()
 
                 # Note that we'll unpack batch (and let AMP/FSDP do its thing) in the VLM.forward() call
                 #   => Basically, if we're using mixed precision (or not), autocast()/FSDP will move to device!
@@ -276,6 +298,45 @@ class TrainingStrategy(ABC):
                         dtype=self.mixed_precision_dtype,
                         enabled=self.enable_mixed_precision_training,
                     ):  
+                        # Extract sample indices
+                        sample_indices = batch.pop('idx')
+
+                        if self.save_logits:
+                            # Inference mode: Disable gradient computations
+                            with torch.no_grad():
+                                output = self.vlm(
+                                    input_ids=batch["input_ids"],
+                                    attention_mask=batch["attention_mask"],
+                                    pixel_values=batch["pixel_values"] if batch["pixel_values"] is not None else None,
+                                    labels=None,  # No need for labels during inference
+                                    multimodal_indices=batch["multimodal_indices"],
+                                )
+                            # Ensure directory exists
+                            logits_save_dir = self.save_logits_dir
+
+                            # Detach logits and move to CPU
+                            logits = output.logits.detach().cpu()
+
+                            # Save logits for each sample in the batch
+                            for idx_in_batch, sample_idx in enumerate(sample_indices):
+                                sample_logits = logits[idx_in_batch]
+                                filename = f'logits_{sample_idx.item()}.pt'
+                                filepath = os.path.join(logits_save_dir, filename)
+                                torch.save(sample_logits, filepath)
+
+                            # Release variables to free up memory
+                            del output, logits, sample_logits
+                            torch.cuda.empty_cache()
+
+                            # Update progress bar
+                            progress.update()
+                            progress.set_description(f"Saved logits for batch {train_idx}")
+                            continue
+
+                        if self.load_logits:
+                            # Use the teacher_logits from the batch
+                            teacher_logits = batch.pop('teacher_logits')
+                            
                         if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None or \
                         self.add_K is not None or self.set_to_one or self.max_logit or (self.label_smoothing > 0.0)):
                             output, fused_labels = self.vlm(

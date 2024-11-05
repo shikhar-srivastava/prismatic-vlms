@@ -132,10 +132,18 @@ class PretrainConfig:
 
     compare_plasticity_steps: int = 100
     first_lora_after_warmup: bool = False
+
+    # Save logits only
+    save_logits: bool = False
+    save_logits_dir: str = None
+    load_logits: bool = False
+    load_logits_dir: str = None
     
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
+        # assert that load_logits and save_logits are not both true
+        assert not (self.load_logits and self.save_logits), "Both load_logits and save_logits cannot be true"
         if self.stage == "align":
             self.epochs = self.model.align_epochs
             self.max_steps = self.model.align_max_steps
@@ -199,6 +207,18 @@ class PretrainConfig:
             if self.track_ft_plasticity is True:
                 self.train_strategy = "ddp-native"
                 self.weight_decay = 0.0
+            if self.save_logits:
+                # Ensure that save_logits_dir is not None 
+                assert self.save_logits_dir is not None, "save_logits_dir cannot be None"
+                # Create the directory if it does not exist
+                os.makedirs(self.save_logits_dir, exist_ok=True)
+                if self.per_device_batch_size >= 8:
+                    self.per_device_batch_size = int(self.per_device_batch_size/8)
+            elif self.load_logits:
+                # Ensure that load_logits_dir is not None 
+                assert self.load_logits_dir is not None, "load_logits_dir cannot be None"
+                
+                
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")
 
@@ -290,6 +310,8 @@ def pretrain(cfg: PretrainConfig) -> None:
         prompt_builder_fn=llm_backbone.prompt_builder_fn,
         default_image_resolution=vision_backbone.default_image_resolution,
         padding_side=tokenizer.padding_side,
+        load_logits=cfg.load_logits,
+        load_logits_dir=cfg.load_logits_dir,
     )
 
     # Create Train Strategy

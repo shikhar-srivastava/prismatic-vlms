@@ -108,17 +108,42 @@ class FinetuneDataset(Dataset[Dict[str, torch.Tensor]]):
         image_transform: ImageTransform,
         tokenizer: PreTrainedTokenizerBase,
         prompt_builder_fn: Type[PromptBuilder],
+        load_logits: bool = False,
+        load_logits_dir = None,
     ) -> None:
         super().__init__()
         self.instruct_json, self.image_dir = instruct_json, image_dir
         self.image_transform, self.tokenizer = image_transform, tokenizer
         self.prompt_builder_fn = prompt_builder_fn
         self.dataset_type = "finetune"
+        self.load_logits = load_logits
+        self.load_logits_dir = load_logits_dir
+
 
         # Load Instruct JSON
         with open(self.instruct_json, "r") as f:
             self.examples = json.load(f)
 
+        # If using saved logits, load the mapping of idx to file paths
+        if self.load_logits:
+            if self.load_logits_dir is None:
+                raise ValueError("When load_logits is True, load_logits_dir must be provided.")
+            self.teacher_logits_index = self._build_teacher_logits_index()
+
+    def _build_teacher_logits_index(self) -> Dict[int, str]:
+        """
+        Builds a mapping from sample indices to teacher logits file paths.
+
+        :return: Dictionary mapping idx to teacher logits file paths.
+        """
+        teacher_logits_index = {}
+        for idx in range(len(self.examples)):
+            filename = f'logits_{idx}.pt'
+            filepath = os.path.join(self.load_logits_dir, filename)
+            teacher_logits_index[idx] = filepath
+        return teacher_logits_index
+
+        
     # === Unimodal + Multimodal Handling ===
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         """
@@ -182,11 +207,35 @@ class FinetuneDataset(Dataset[Dict[str, torch.Tensor]]):
             # Process Image --> get "pixel_values" (will either be a torch.Tensor OR a Dict[str,torch.Tensor])
             pixel_values = self.image_transform(Image.open(self.image_dir / image_path).convert("RGB"))
 
-            return dict(pixel_values=pixel_values, input_ids=input_ids, labels=labels)
-
+            example = {
+                "pixel_values": pixel_values,
+                "input_ids": input_ids,
+                "labels": labels,
+                "idx": idx,
+            }
         else:
-            # No image --> return `pixel_values` = None; Collator will do the smart batch handling for us!
-            return dict(pixel_values=None, input_ids=input_ids, labels=labels)
+            # For unimodal examples, set pixel_values to None
+            example = {
+                "pixel_values": None,
+                "input_ids": input_ids,
+                "labels": labels,
+                "idx": idx,
+            }
+
+        # If load_logits is True, load the teacher logits and include them in the example
+        if self.load_logits:
+            teacher_logits_path = self.teacher_logits_index[idx]
+            if not os.path.exists(teacher_logits_path):
+                raise FileNotFoundError(f"Teacher logits file not found: {teacher_logits_path}")
+            # Load the teacher logits onto the CPU
+            # This avoids unnecessary GPU memory usage in DataLoader workers
+            teacher_logits = torch.load(teacher_logits_path, map_location="cpu")
+            # Assert that teacher_logits length matches input_ids length
+            assert teacher_logits.size(0) == input_ids.size(0), f"Mismatch in sequence lengths for idx {idx}"
+
+            example["teacher_logits"] = teacher_logits
+
+        return example
 
     def get_modality_lengths(self) -> List[Tuple[bool, int]]:
         """Get a list of modalities (unimodal / text-only vs. multimodal) and length of conversations per example."""
