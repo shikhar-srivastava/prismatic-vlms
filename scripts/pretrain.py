@@ -166,7 +166,19 @@ class PretrainConfig:
             if self.bigger_batch is True:
                 #self.global_batch_size = self.model.align_global_batch_size * 2 # 128
                 self.per_device_batch_size = self.model.finetune_per_device_batch_size * 2 # 16 (with 2 gradient accumulations) = 32
-            if self.soft_alpha is not None:
+            if self.save_logits:
+                # Ensure that save_logits_dir is not None 
+                assert self.save_logits_dir is not None, "save_logits_dir cannot be None"
+                # Create the directory if it does not exist
+                os.makedirs(self.save_logits_dir, exist_ok=True)
+                if self.per_device_batch_size >= 8:
+                    self.per_device_batch_size = int(self.per_device_batch_size/8)
+            elif self.load_logits:
+                # Ensure that load_logits_dir is not None 
+                assert self.load_logits_dir is not None, "load_logits_dir cannot be None"
+                if self.per_device_batch_size >= 8:
+                    self.per_device_batch_size = int(self.per_device_batch_size/8)
+            elif self.soft_alpha is not None:
                 # self.global_batch_size = int(self.global_batch_size/2)
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
             elif (self.soft_alpha_masked_interpolation is not None) or (self.add_K is not None) or (self.set_to_one) or (self.max_logit):
@@ -207,17 +219,6 @@ class PretrainConfig:
             if self.track_ft_plasticity is True:
                 self.train_strategy = "ddp-native"
                 self.weight_decay = 0.0
-            if self.save_logits:
-                # Ensure that save_logits_dir is not None 
-                assert self.save_logits_dir is not None, "save_logits_dir cannot be None"
-                # Create the directory if it does not exist
-                os.makedirs(self.save_logits_dir, exist_ok=True)
-                if self.per_device_batch_size >= 8:
-                    self.per_device_batch_size = int(self.per_device_batch_size/8)
-            elif self.load_logits:
-                # Ensure that load_logits_dir is not None 
-                assert self.load_logits_dir is not None, "load_logits_dir cannot be None"
-                
                 
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")

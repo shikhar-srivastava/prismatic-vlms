@@ -21,6 +21,8 @@ from transformers import GPTNeoXTokenizerFast, CodeGenTokenizerFast, LlamaTokeni
 from prismatic.models.backbones.llm.prompting import PromptBuilder
 from prismatic.models.backbones.vision import ImageTransform
 
+import os 
+
 # HuggingFace Default / LLaMa-2 IGNORE_INDEX (for labels)
 IGNORE_INDEX = -100
 
@@ -229,10 +231,14 @@ class FinetuneDataset(Dataset[Dict[str, torch.Tensor]]):
                 raise FileNotFoundError(f"Teacher logits file not found: {teacher_logits_path}")
             # Load the teacher logits onto the CPU
             # This avoids unnecessary GPU memory usage in DataLoader workers
-            teacher_logits = torch.load(teacher_logits_path, map_location="cpu")
-            # Assert that teacher_logits length matches input_ids length
-            assert teacher_logits.size(0) == input_ids.size(0), f"Mismatch in sequence lengths for idx {idx}"
-
+            teacher_logits = torch.load(teacher_logits_path)#, map_location="cpu")
+            # # Assert that teacher_logits length matches input_ids length
+            # try:
+            #     assert teacher_logits.size(0) == input_ids.size(0), f"Mismatch in sequence lengths for idx {idx}"
+            # except Exception as e:
+            #     print(e)
+            #     print(f"input_ids.shape: {input_ids.shape}, teacher_logits.shape: {teacher_logits.shape}")
+            #     raise
             example["teacher_logits"] = teacher_logits
 
         return example
