@@ -127,6 +127,8 @@ class PretrainConfig:
     epoch_count: int = 1
     ddp: bool = False
 
+    measure_rank_entropy: bool = False
+
     # Schedulers and Optimizers
     schedule_free : bool = False
     infinite_schedule : bool = False

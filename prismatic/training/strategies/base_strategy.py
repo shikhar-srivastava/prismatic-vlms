@@ -66,6 +66,11 @@ class TrainingStrategy(ABC):
         
         ############
         ### Specific configuration related
+
+        # Measure Rank Entropy
+
+        self.measure_rank_entropy = cfg['measure_rank_entropy'] if isinstance(cfg, dict) else getattr(cfg, 'measure_rank_entropy', False)
+
         # Distillation with Teacher LLM
         self.llm_teacher_checkpoint = cfg['llm_teacher_checkpoint'] if isinstance(cfg, dict) else getattr(cfg, 'llm_teacher_checkpoint', None)
 
@@ -365,7 +370,7 @@ class TrainingStrategy(ABC):
 
 
                         if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None or \
-                        self.add_K is not None or self.set_to_one or self.max_logit or (self.label_smoothing > 0.0)):
+                        self.add_K is not None or self.set_to_one or self.max_logit or (self.label_smoothing > 0.0) or self.measure_rank_entropy):
                             output, fused_labels = self.vlm(
                                 input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
@@ -934,6 +939,10 @@ class TrainingStrategy(ABC):
                             self.optimizer.step()
                             self.lr_scheduler.step()
                         self.optimizer.zero_grad()
+                        if self.measure_rank_entropy:
+                            with torch.no_grad():
+                                rank_entropy = calculate_rank_entropy(output, fused_labels)
+                                metrics.commit(global_step=metrics.global_step + 1, rank_entropy=rank_entropy)
                         # Push Metrics
                         metrics.commit(global_step=metrics.global_step + 1, \
                                 lr=self.optimizer.param_groups[0]['lr'] if self.lr_scheduler_type != 'schedule-free' else self.optimizer.get_lr())
@@ -1060,3 +1069,86 @@ def has_lora_module(model):
         # if isinstance(module, LoraLayer):
         #     return True
     return False
+
+def calculate_rank_entropy(output, fused_labels):
+    """
+    Calculates the entropy of the distribution of the ranks of correct tokens within the logits.
+
+    Args:
+        output (torch.Tensor): The output from the model, containing logits of shape (batch_size, seq_len, vocab_size).
+        fused_labels (torch.Tensor): The ground truth labels aligned with the logits of shape (batch_size, seq_len).
+
+    Returns:
+        float: The entropy of the rank distribution.
+    """
+    # Ensure logits and labels are on the same device
+    device = output.logits.device
+    logits = output.logits
+    labels = fused_labels
+
+    # Align logits and labels by shifting
+    # Typically, for language modeling, logits are predictions for the next token
+    shift_logits = logits[:, :-1, :].contiguous()  # Shape: (batch_size, seq_len - 1, vocab_size)
+    valid_targets = labels[:, 1:].contiguous()     # Shape: (batch_size, seq_len - 1)
+
+    # Create mask for valid targets (labels != -100)
+    mask = (valid_targets != -100)  # Shape: (batch_size, seq_len - 1)
+
+    # Replace -100 in labels to avoid indexing errors (temporary placeholder)
+    valid_targets_clamped = valid_targets.clone()
+    valid_targets_clamped[~mask] = 0  # Any value, since these positions will be masked out later
+
+    # Reshape for easier processing
+    batch_size, seq_len_minus_one, vocab_size = shift_logits.size()
+
+    # Flatten the batch and sequence dimensions
+    flat_logits = shift_logits.view(-1, vocab_size)           # Shape: (batch_size * (seq_len -1), vocab_size)
+    flat_targets = valid_targets_clamped.view(-1)            # Shape: (batch_size * (seq_len -1))
+    flat_mask = mask.view(-1)                                # Shape: (batch_size * (seq_len -1))
+
+    # Filter out invalid positions
+    valid_logits = flat_logits[flat_mask]                    # Shape: (num_valid, vocab_size)
+    valid_targets_final = flat_targets[flat_mask]            # Shape: (num_valid)
+
+    if valid_logits.numel() == 0:
+        # If there are no valid logits, return entropy as zero
+        return 0.0
+
+    # Compute the ranks of the correct tokens
+    # Argsort in descending order to get ranks (highest logit has rank 1)
+    # To optimize, use torch.topk to get ranks without full sorting
+    # However, since we need the exact rank, argsort is necessary
+    sorted_indices = torch.argsort(valid_logits, dim=-1, descending=True)  # Shape: (num_valid, vocab_size)
+
+    # Expand the target indices to compare with sorted indices
+    # This creates a mask where the sorted indices match the target
+    target_mask = sorted_indices == valid_targets_final.unsqueeze(1)      # Shape: (num_valid, vocab_size)
+
+    # The rank is the index where the target_mask is True, plus 1 (1-based ranking)
+    # Since there's exactly one True per row, we can use nonzero and gather
+    ranks = torch.nonzero(target_mask, as_tuple=False)[:, 1] + 1        # Shape: (num_valid)
+
+    # Compute the histogram of ranks
+    # Determine the maximum rank to define the number of bins
+    max_rank = torch.min(ranks, torch.tensor(1000, device=device))  # Cap the max rank to avoid excessively large bins
+
+    # To compute the histogram, we need to move ranks to CPU and convert to long
+    # Alternatively, compute on GPU using torch.histc
+    # However, torch.histc may not handle discrete integer ranks optimally
+    # Therefore, use bincount with appropriate adjustments
+
+    # Adjust ranks to start from 0 for bincount
+    ranks_adjusted = ranks - 1  # Now ranks start at 0
+
+    # Compute bincount with a minimum length to include all ranks
+    rank_counts = torch.bincount(ranks_adjusted, minlength=max_rank.item())
+
+    # Convert counts to probabilities
+    rank_probs = rank_counts.float() / rank_counts.sum()
+
+    # Calculate entropy
+    # Add a small epsilon to avoid log(0)
+    epsilon = 1e-12
+    entropy = -torch.sum(rank_probs * torch.log(rank_probs + epsilon)).item()
+
+    return entropy

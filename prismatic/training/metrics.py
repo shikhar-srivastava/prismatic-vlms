@@ -125,6 +125,7 @@ class Metrics:
             "ft_total_weight_change": None,
             "ft_layer_weight_changes": {},
             "ft_parameter_weight_changes": {},
+            "rank_entropy": deque(maxlen=window_size),
         }
 
     def log(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
@@ -202,6 +203,13 @@ class Metrics:
             f"{prefix}/Learning Rate": lr,
             f"{prefix}/Step Time": step_time,
         }
+
+        # **Add the following block to include rank_entropy**
+        if len(self.state["rank_entropy"]) > 0:
+            avg_rank_entropy = np.mean(self.state["rank_entropy"])
+            metrics[f"{prefix}/Rank Entropy"] = avg_rank_entropy
+            # Optionally, clear the deque after logging
+            self.state["rank_entropy"].clear()
 
         # Log LoRA plasticity and weight changes
         if self.state["lora_plasticity"] is not None:
