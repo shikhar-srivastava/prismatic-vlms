@@ -745,32 +745,10 @@ class TrainingStrategy(ABC):
                             raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
 
                         if self.soft_output_logits:
-                            if self.masked_with_logits:
-                                # Compute separate losses for masked and unmasked areas
-                                shift_logits_flat = shift_logits.view(-1, num_classes)
-                                targets_flat = targets_set_to_one.view(-1, num_classes)
-                                mask_flat = mask.view(-1)
-
-                                # Unmasked positions
-                                shift_logits_unmasked = shift_logits_flat[mask_flat]
-                                targets_unmasked = targets_flat[mask_flat]
-
-                                # Masked positions
-                                shift_logits_masked = shift_logits_flat[~mask_flat][-len(shift_logits_unmasked):]
-                                targets_masked = targets_flat[~mask_flat][-len(shift_logits_unmasked):]
-
-                                # Compute losses
-                                loss_unmasked = loss_fct(shift_logits_unmasked, targets_unmasked)
-                                loss_masked = loss_fct(shift_logits_masked, targets_masked)
-
-                                # Combine losses with weighting factor alpha
-                                alpha = self.masked_with_logits_mask_weight  # Hyperparameter to weight masked area
-                                loss = loss_unmasked + alpha * loss_masked
-                            else:
-                                loss = loss_fct(
-                                    shift_logits.view(-1, num_classes),                # Predictions
-                                    targets_set_to_one.view(-1, num_classes)       # Targets
-                                )
+                            loss = loss_fct(
+                                shift_logits.view(-1, num_classes),                # Predictions
+                                targets_set_to_one.view(-1, num_classes)       # Targets
+                            )
                         else:
                             loss = loss_fct(
                                 log_probs.view(-1, num_classes),                # Predictions

@@ -85,3 +85,36 @@ GQA: 37.99, NL hmean: 32.69, NL Delta: 6.52
 stage-final-gqa-only-pythia+410m-set_to_one-masked_logits-normed-0.0001-teacher-distillation [2024-11-18 02:32:17]
 GQA: 34.28, NL hmean: 34.67, NL Delta: 4.55
 
+stage-final-gqa-only-pythia+410m-set_to_one-masked_logits-length_and_normed-1.0-teacher-distillation [2024-11-18 03:13:35]
+GQA: 33.01, NL hmean: 31.33, NL Delta: 7.89
+
+stage-final-gqa-only-pythia+410m-set_to_one-masked_logits-length_from_end_and_normed-1.0-teacher-distillation [2024-11-18 03:41:57]
+GQA: 23.93, NL hmean: 25.06, NL Delta: 14.15
+
+stage-final-gqa-only-pythia+410m-set_to_one-masked_logits-length_normed_random_sample-alpha-0.001-teacher-distillation [2024-11-18 04:18:26]
+GQA: 34.96, NL hmean: 35.18, NL Delta: 4.04
+
+stage-final-llava-v15-pythia+410m-set_to_one-teacher_distillation [2024-11-18 05:43:40]
+GQA: 34.6700, Text-VQA Pure: 11.0352, Text-VQA OCR: 18.0957, VQA-v2: 45.5100, RefCOCO: 2.0508, VL Avg: 7.3066, NL HMean: 37.2741, NL Delta: 1.9438
+
+stage-final-gqa-only-pythia+410m-add_K-0.5 [2024-11-18 05:54:45]
+GQA: 1.56, NL hmean: 32.09, NL Delta: 7.13
+
+stage-final-gqa-only-pythia+410m-add_K-0.1 [2024-11-18 06:20:41]
+GQA: 0.29, NL hmean: 31.88, NL Delta: 7.34
+
+stage-final-gqa-only-pythia+410m-add_K-0.40 [2024-11-18 06:47:17]
+GQA: 0.68, NL hmean: 25.32, NL Delta: 13.90
+
+stage-final-gqa-only-pythia+410m-add_K-0.25 [2024-11-18 07:12:14]
+GQA: 0.00, NL hmean: 19.75, NL Delta: 19.47
+
+stage-final-gqa-only-pythia+410m-add_K-0.75 [2024-11-18 07:37:14]
+GQA: 33.01, NL hmean: 30.58, NL Delta: 8.63
+
+stage-final-gqa-only-pythia+410m-add_K-0.9 [2024-11-18 08:04:40]
+GQA: 0.00, NL hmean: 31.24, NL Delta: 7.98
+
+stage-final-gqa-only-pythia+410m-add_K-0.20 [2024-11-18 08:36:32]
+GQA: 0.68, NL hmean: 30.01, NL Delta: 9.21
+

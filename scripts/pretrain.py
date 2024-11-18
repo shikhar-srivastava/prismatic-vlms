@@ -236,6 +236,8 @@ class PretrainConfig:
             if self.llm_teacher_checkpoint is not None:
                 self.train_strategy = "ddp-native"
                 self.weight_decay = 0.0
+                # if self.set_to_one:
+                #     self.max_grad_norm = 1.0
                 
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")
