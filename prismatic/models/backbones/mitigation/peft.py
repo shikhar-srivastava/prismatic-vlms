@@ -191,29 +191,42 @@ def apply_mitigation(llm_model, cfg, hot_fix=0):
                 lora_target_modules = cfg.get("lora_target_modules")
                 reduce_lora_rank_by_factor_of_fullrank = cfg.get("reduce_lora_rank_by_factor_of_fullrank", 1)
                 use_rslora = cfg.get("use_rslora", False)
+                lora_dropout = cfg.get("lora_dropout", 0.05)
+                lora_use_2r_heuristic = cfg.get('lora_use_2r_heuristic', False)
             else:
                 lora_rank = getattr(cfg, 'lora_rank')
                 lora_alpha = getattr(cfg, 'lora_alpha')
                 lora_target_modules = getattr(cfg, 'lora_target_modules')
                 reduce_lora_rank_by_factor_of_fullrank = getattr(cfg, 'reduce_lora_rank_by_factor_of_fullrank', 1)
                 use_rslora = getattr(cfg, 'use_rslora', False)
+                lora_dropout = getattr(cfg, 'lora_dropout', 0.05)
+                lora_use_2r_heuristic = getattr(cfg, 'lora_use_2r_heuristic', False)
 
             if hot_fix >0:
                 lora_target_modules = 'all-linear'
                 lora_rank = lora_rank * 8
             if reduce_lora_rank_by_factor_of_fullrank != 1:
                 lora_rank = llm_model.config.hidden_size // reduce_lora_rank_by_factor_of_fullrank
+            if lora_use_2r_heuristic:
+                lora_alpha = 2 * lora_rank
+                use_rslora = False
                 # Lora_alpha should be 32
                 # lora_rank should be 16
+            overwatch.info(f"Final {mitigation_type} Setup", ctx_level = 1)
+            overwatch.info(f"LoRA Rank: {lora_rank}, Alpha: {lora_alpha}", ctx_level = 1)
+            overwatch.info(f"use_rslora: {use_rslora}, 2r heuristic: {lora_use_2r_heuristic}", ctx_level = 1)
+            overwatch.info(f"lora dropout: {lora_dropout}", ctx_level = 1)
+            overwatch.info(f"lora modules: {lora_target_modules}", ctx_level = 1)
+
             if 'adalora' in 'mitigation_type':
                 overwatch.info(f"Applying AdaLoRA with avg. rank and initial ranks of {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
                 llm_model = apply_adalora(llm_model, lora_r=lora_rank, \
-                                    lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
+                                    lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=lora_dropout,\
                                     use_rslora=use_rslora)
             else:
                 overwatch.info(f"Applying LORA with rank {lora_rank} and alpha {lora_alpha}, target_modules {lora_target_modules}", ctx_level=1)
                 llm_model = apply_lora(llm_model, lora_r=lora_rank, \
-                                    lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=0.05,\
+                                    lora_target_modules=lora_target_modules, lora_alpha=lora_alpha, lora_dropout=lora_dropout,\
                                     use_rslora=use_rslora)
         elif mitigation_type == 'prefix':
             llm_model = apply_prefix(llm_model)

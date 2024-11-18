@@ -63,12 +63,19 @@ class TrainingStrategy(ABC):
         cfg = None,
         **_: str,
     ) -> None:
+        
+        ############
+        ### Specific configuration related
+        # Distillation with Teacher LLM
+        self.llm_teacher_checkpoint = cfg['llm_teacher_checkpoint'] if isinstance(cfg, dict) else getattr(cfg, 'llm_teacher_checkpoint', None)
+
+        # Saving/Loading Logits Utilities
         self.save_logits = cfg['save_logits'] if isinstance(cfg, dict) else getattr(cfg, 'save_logits', False)
         self.save_logits_dir = cfg['save_logits_dir'] if isinstance(cfg, dict) else getattr(cfg, 'save_logits_dir', None)
-
         self.load_logits = cfg['load_logits'] if isinstance(cfg, dict) else getattr(cfg, 'load_logits', False)
         self.load_logits_dir = cfg['load_logits_dir'] if isinstance(cfg, dict) else getattr(cfg, 'load_logits_dir', None)
 
+        # Soft Targets Variants
         self.soft_alpha = cfg['soft_alpha'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha', None)
         self.soft_alpha_masked_interpolation = cfg['soft_alpha_masked_interpolation'] if isinstance(cfg, dict) else getattr(cfg, 'soft_alpha_masked_interpolation', False)
         self.label_smoothing = cfg['label_smoothing'] if isinstance(cfg, dict) else getattr(cfg, 'label_smoothing', 0.0)
@@ -76,14 +83,24 @@ class TrainingStrategy(ABC):
         self.add_K_percentage = cfg['add_K_percentage'] if isinstance(cfg, dict) else getattr(cfg, 'add_K_percentage', False)
         self.set_to_one = cfg['set_to_one'] if isinstance(cfg, dict) else getattr(cfg, 'set_to_one', False)
         self.max_logit = cfg['max_logit'] if isinstance(cfg, dict) else getattr(cfg, 'max_logit', False)
+        self.use_logits_in_max_logit = cfg['use_logits_in_max_logit'] if isinstance(cfg, dict) else getattr(cfg, 'use_logits_in_max_logit', False)
+
         self.soft_output_logits = cfg['soft_output_logits'] if isinstance(cfg, dict) else getattr(cfg, 'soft_output_logits', True)
         self.interpolation_dtype = cfg['interpolation_dtype'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_dtype', 'float32')
         self.interpolation_loss = cfg['interpolation_loss'] if isinstance(cfg, dict) else getattr(cfg, 'interpolation_loss', 'cross')
         self.masked_with_logits = cfg['masked_with_logits'] if isinstance(cfg, dict) else getattr(cfg, 'masked_with_logits', False)
         self.masked_with_logits_label_smoothing = cfg['masked_with_logits_label_smoothing'] if isinstance(cfg, dict) else getattr(cfg, 'masked_with_logits_label_smoothing', 0.01)
+        self.masked_with_logits_mask_weight = cfg['masked_with_logits_mask_weight'] if isinstance(cfg, dict) else getattr(cfg, 'masked_with_logits_mask_weight', 0.01)
+        
+        
+        # General mitigation methods related
         self.mitigation = cfg['mitigation'] if isinstance(cfg, dict) else getattr(cfg, 'mitigation', None)
+        
+        # LoRA Merging
         self.merges_after_steps = cfg['merges_after_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merges_after_steps', 0)
         self.merging_lr_warmup_steps = cfg['merging_lr_warmup_steps'] if isinstance(cfg, dict) else getattr(cfg, 'merging_lr_warmup_steps', 0.0)
+        
+        # Tracking Weight Plasticity of LoRA modules
         self.track_lora_plasticity = cfg['track_lora_plasticity'] if isinstance(cfg, dict) else getattr(cfg, 'track_lora_plasticity', False)
         self.track_ft_plasticity = cfg['track_ft_plasticity'] if isinstance(cfg, dict) else getattr(cfg, 'track_ft_plasticity', False)
         self.compare_plasticity_steps = cfg['compare_plasticity_steps'] if isinstance(cfg, dict) else getattr(cfg, 'compare_plasticity_steps', 0)
@@ -93,6 +110,9 @@ class TrainingStrategy(ABC):
         # Assert that if track_ft_plasticity is True, mitigation is None
         assert not self.track_ft_plasticity or self.mitigation is None, "Fine-tuning plasticity tracking is only supported with no mitigation."
         
+        ################
+        # General Configs and Training related
+
         self.cfg = cfg
         self.vlm, self.device_id = vlm, device_id
 
@@ -301,47 +321,47 @@ class TrainingStrategy(ABC):
                         # Extract sample indices
                         sample_indices = batch.pop('idx')
 
-                        if self.save_logits:
-                            # Inference mode: Disable gradient computations
-                            with torch.no_grad():
-                                output = self.vlm(
-                                    input_ids=batch["input_ids"],
-                                    attention_mask=batch["attention_mask"],
-                                    pixel_values=batch["pixel_values"] if batch["pixel_values"] is not None else None,
-                                    labels=batch["labels"],
-                                    multimodal_indices=batch["multimodal_indices"],
-                                )
-                            # Ensure directory exists
-                            logits_save_dir = self.save_logits_dir
+                        # if self.save_logits:
+                        #     # Inference mode: Disable gradient computations
+                        #     with torch.no_grad():
+                        #         output = self.vlm(
+                        #             input_ids=batch["input_ids"],
+                        #             attention_mask=batch["attention_mask"],
+                        #             pixel_values=batch["pixel_values"] if batch["pixel_values"] is not None else None,
+                        #             labels=batch["labels"],
+                        #             multimodal_indices=batch["multimodal_indices"],
+                        #         )
+                        #     # Ensure directory exists
+                        #     logits_save_dir = self.save_logits_dir
 
-                            # Detach logits and move to CPU
-                            logits = output.logits.detach().cpu()
+                        #     # Detach logits and move to CPU
+                        #     logits = output.logits.detach().cpu()
 
-                            # Save logits for each sample in the batch
-                            for idx_in_batch, sample_idx in enumerate(sample_indices):
-                                sample_logits = logits[idx_in_batch]
-                                filename = f'logits_{sample_idx.item()}.pt'
-                                filepath = os.path.join(logits_save_dir, filename)
-                                torch.save(sample_logits, filepath)
+                        #     # Save logits for each sample in the batch
+                        #     for idx_in_batch, sample_idx in enumerate(sample_indices):
+                        #         sample_logits = logits[idx_in_batch]
+                        #         filename = f'logits_{sample_idx.item()}.pt'
+                        #         filepath = os.path.join(logits_save_dir, filename)
+                        #         torch.save(sample_logits, filepath)
 
-                            # Release variables to free up memory
-                            del output, logits, sample_logits
-                            torch.cuda.empty_cache()
+                        #     # Release variables to free up memory
+                        #     del output, logits, sample_logits
+                        #     torch.cuda.empty_cache()
 
-                            # Update progress bar
-                            progress.update()
-                            progress.set_description(f"Saved logits for batch {train_idx}")
-                            continue
+                        #     # Update progress bar
+                        #     progress.update()
+                        #     progress.set_description(f"Saved logits for batch {train_idx}")
+                        #     continue
                             
-                        if self.load_logits:
-                            # Use the teacher_logits from the batch
-                            teacher_logits = batch.pop('teacher_logits')
-                            if teacher_logits is None:
-                                continue
-                            else:
-                                teacher_logits = teacher_logits.to(self.device_id)
+                        # if self.load_logits:
+                        #     # Use the teacher_logits from the batch
+                        #     teacher_logits = batch.pop('teacher_logits')
+                        #     if teacher_logits is None:
+                        #         continue
+                        #     else:
+                        #         teacher_logits = teacher_logits.to(self.device_id)
                         
-                            #print(f"Teacher logits shape: {teacher_logits.shape}, Output logits shape: {output.logits.shape}")
+                        #     #print(f"Teacher logits shape: {teacher_logits.shape}, Output logits shape: {output.logits.shape}")
 
 
                         if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None or \
@@ -354,6 +374,16 @@ class TrainingStrategy(ABC):
                                 multimodal_indices=batch["multimodal_indices"],
                                 return_labels=True,
                             )
+                            if self.vlm.llm_teacher is not None:
+                                with torch.no_grad():
+                                    teacher_output, teacher_fused_labels = self.vlm.teacher_forward(
+                                        input_ids=batch["input_ids"],
+                                        attention_mask=batch["attention_mask"],
+                                        pixel_values=batch["pixel_values"],
+                                        labels=batch["labels"],
+                                        multimodal_indices=batch["multimodal_indices"],
+                                        return_labels=True,
+                                    )
                         else:
                             output: CausalLMOutputWithPast = self.vlm(
                                 input_ids=batch["input_ids"],
@@ -520,6 +550,8 @@ class TrainingStrategy(ABC):
                         if self.load_logits:
                             # Use the teacher_logits from the batch
                             target_aligned_logits = teacher_logits[:, 1:, :].contiguous().to(dtype)
+                        elif self.vlm.llm_teacher is not None:
+                            target_aligned_logits = teacher_output.logits[:, 1:, :].contiguous().to(dtype)
                         else:
                             target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
 
@@ -630,6 +662,8 @@ class TrainingStrategy(ABC):
                         if self.load_logits:
                             # Use the teacher_logits from the batch
                             target_aligned_logits = teacher_logits[:, 1:, :].contiguous().to(dtype)
+                        elif self.vlm.llm_teacher is not None:
+                            target_aligned_logits = teacher_output.logits[:, 1:, :].contiguous().to(dtype)
                         else:
                             target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
 
@@ -697,10 +731,12 @@ class TrainingStrategy(ABC):
 
                         # Define the loss function
                         if self.interpolation_loss == 'cross':
-                            if self.masked_with_logits:
-                                loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
-                            elif self.label_smoothing > 0.0:
+                            # if self.masked_with_logits:
+                            #     loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.masked_with_logits_label_smoothing)
+                            if self.label_smoothing > 0.0:
                                 loss_fct = torch.nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
+                            elif self.masked_with_logits:
+                                loss_fct = torch.nn.CrossEntropyLoss()
                             else:
                                 loss_fct = torch.nn.CrossEntropyLoss()
                         elif self.interpolation_loss == 'kl':
@@ -709,10 +745,32 @@ class TrainingStrategy(ABC):
                             raise ValueError(f"Unsupported interpolation loss function: {self.interpolation_loss}")
 
                         if self.soft_output_logits:
-                            loss = loss_fct(
-                                shift_logits.view(-1, num_classes),                # Predictions
-                                targets_set_to_one.view(-1, num_classes)       # Targets
-                            )
+                            if self.masked_with_logits:
+                                # Compute separate losses for masked and unmasked areas
+                                shift_logits_flat = shift_logits.view(-1, num_classes)
+                                targets_flat = targets_set_to_one.view(-1, num_classes)
+                                mask_flat = mask.view(-1)
+
+                                # Unmasked positions
+                                shift_logits_unmasked = shift_logits_flat[mask_flat]
+                                targets_unmasked = targets_flat[mask_flat]
+
+                                # Masked positions
+                                shift_logits_masked = shift_logits_flat[~mask_flat][-len(shift_logits_unmasked):]
+                                targets_masked = targets_flat[~mask_flat][-len(shift_logits_unmasked):]
+
+                                # Compute losses
+                                loss_unmasked = loss_fct(shift_logits_unmasked, targets_unmasked)
+                                loss_masked = loss_fct(shift_logits_masked, targets_masked)
+
+                                # Combine losses with weighting factor alpha
+                                alpha = self.masked_with_logits_mask_weight  # Hyperparameter to weight masked area
+                                loss = loss_unmasked + alpha * loss_masked
+                            else:
+                                loss = loss_fct(
+                                    shift_logits.view(-1, num_classes),                # Predictions
+                                    targets_set_to_one.view(-1, num_classes)       # Targets
+                                )
                         else:
                             loss = loss_fct(
                                 log_probs.view(-1, num_classes),                # Predictions
@@ -730,6 +788,8 @@ class TrainingStrategy(ABC):
                         if self.load_logits:
                             # Use the teacher_logits from the batch
                             target_aligned_logits = teacher_logits[:, 1:, :].contiguous().to(dtype)
+                        elif self.vlm.llm_teacher is not None:
+                            target_aligned_logits = teacher_output.logits[:, 1:, :].contiguous().to(dtype)
                         else:
                             target_aligned_logits = output.logits[:, 1:, :].contiguous().to(dtype)  # [batch_size, seq_length - 1, num_classes]
 

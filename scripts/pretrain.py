@@ -94,12 +94,15 @@ class PretrainConfig:
     add_K_percentage: bool = False
     set_to_one: bool = False
     max_logit: bool = False
+    use_logits_in_max_logit: bool = False
 
     interpolation_dtype : str = 'float32'
     interpolation_loss: str = 'cross' # or 'kl'
     masked_with_logits: bool = False
     label_smoothing: float = 0.0
     masked_with_logits_label_smoothing: float = 0.01
+    masked_with_logits_mask_weight: float = 0.01
+    masked_with_logits_lr_increase_factor = 100.0
     olf: bool = False  # Last Transformer Block freezing
     oolf: bool = False # Last Output Layer freezing
 
@@ -108,6 +111,9 @@ class PretrainConfig:
     lora_alpha: int = 8
     lora_target_modules: Union[list, str] = 'all-linear' #["q_proj", "v_proj","down_proj"]  #
     reduce_lora_rank_by_factor_of_fullrank: int = 2
+    lora_use_2r_heuristic: bool = False
+    lora_dropout: float = 0.05
+
     use_rslora: bool = True
     half_batch_size: bool = False   
     ## LoRA Merging related
@@ -138,12 +144,16 @@ class PretrainConfig:
     save_logits_dir: str = None
     load_logits: bool = False
     load_logits_dir: str = None
+
+    # Teacher LLM
+    llm_teacher_checkpoint: str = None
     
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         # assert that load_logits and save_logits are not both true
         assert not (self.load_logits and self.save_logits), "Both load_logits and save_logits cannot be true"
+        assert not (self.lora_use_2r_heuristic and self.use_rslora), "Both use_rslora and self.lora_use_2r_heuristic cannot be true"
         if self.stage == "align":
             self.epochs = self.model.align_epochs
             self.max_steps = self.model.align_max_steps
@@ -190,6 +200,9 @@ class PretrainConfig:
                 self.per_device_batch_size = int(self.per_device_batch_size/2)
 
             self.learning_rate = self.model.finetune_learning_rate
+            # if self.masked_with_logits:
+            #     self.learning_rate *= self.masked_with_logits_lr_increase_factor
+
     
             self.max_grad_norm = self.model.finetune_max_grad_norm
 
@@ -217,6 +230,10 @@ class PretrainConfig:
                 self.train_strategy = self.model.finetune_train_strategy
                 self.weight_decay = self.model.finetune_weight_decay
             if self.track_ft_plasticity is True:
+                self.train_strategy = "ddp-native"
+                self.weight_decay = 0.0
+            
+            if self.llm_teacher_checkpoint is not None:
                 self.train_strategy = "ddp-native"
                 self.weight_decay = 0.0
                 
@@ -247,8 +264,12 @@ def pretrain(cfg: PretrainConfig) -> None:
     if cfg.mitigation is not None:
         if cfg.reduce_lora_rank_by_factor_of_fullrank != 1:
             overwatch.info(f"[bold green] Reducing lora rank by factor of full rank: {cfg.reduce_lora_rank_by_factor_of_fullrank} [/]")
-        else:
-            overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
+        if cfg.use_rslora:
+            overwatch.info(f"Using RSLoRA!", ctx_level=2)
+        elif cfg.lora_use_2r_heuristic:
+            overwatch.info(f"Using 2R Heuristic!", ctx_level = 2)
+        # else:
+        #     overwatch.info(f'Lora rank and alpha: {cfg.lora_rank} {cfg.lora_alpha}')
         overwatch.info(f"Lora target modules: {cfg.lora_target_modules}")
     if cfg.soft_alpha is not None:
         overwatch.info(f'Soft Alpha: {cfg.soft_alpha}', ctx_level=1)
@@ -278,6 +299,14 @@ def pretrain(cfg: PretrainConfig) -> None:
     llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
         cfg.model.llm_backbone_id, llm_max_length=cfg.model.llm_max_length, hf_token=hf_token, cfg=cfg)
 
+    llm_teacher = None
+    if cfg.llm_teacher_checkpoint is not None:
+        # Only load the model architecture, default weights for the llm.
+        overwatch.info(f"Loading Teacher LLM [bold]{cfg.model.llm_backbone_id}[/] via HF Transformers")
+        llm_teacher, llm_teacher_tokenizer = get_llm_backbone_and_tokenizer(
+            cfg.model.llm_backbone_id, llm_max_length=cfg.model.llm_max_length, hf_token=hf_token, cfg=cfg)
+        
+
     # Create VLM => wraps `vision_backbone` and `llm`
     overwatch.info(f"Instantiating PrismaticVLM `{model_id}` for Training Stage = `{cfg.stage}`")
     vlm = get_vlm(
@@ -286,12 +315,15 @@ def pretrain(cfg: PretrainConfig) -> None:
         vision_backbone,
         llm_backbone,
         enable_mixed_precision_training=cfg.model.enable_mixed_precision_training,
+        llm_teacher = llm_teacher,
     )
 
     # Load Weights from Checkpoint (depends on stage, config)
     overwatch.info(f"Invoking `VLM.load_checkpoint()` for `{model_id}` => Training Stage: `{cfg.stage}`")
     # Loads both LLM Backbone (if available) and Projector
-    vlm.load_from_checkpoint(cfg.stage, run_dir, pretrained_checkpoint=cfg.pretrained_checkpoint, cfg=cfg)
+    vlm.load_from_checkpoint(cfg.stage, run_dir, \
+        pretrained_checkpoint=cfg.pretrained_checkpoint, cfg=cfg, \
+        llm_teacher_checkpoint = cfg.llm_teacher_checkpoint)
     
     # [Explicit] Call to `freeze_backbones` here for clarity => will log exactly what is frozen / what's not!
     overwatch.info(f"Invoking `VLM.freeze_backbones()` for `{model_id}` => Training Stage: `{cfg.stage}`")
