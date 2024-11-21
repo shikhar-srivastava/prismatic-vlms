@@ -363,6 +363,45 @@ class PrismaticVLM(VLM):
     # Note =>> We're not explicitly subclassing `PreTrainedModel` because we don't need the bloat; however, `forward()`
     #          *must* match the signature of a `{Model}ForCausalLM` so that we can inherit from `GenerationMixin`
     # === GenerationMixin Methods ===
+
+    def get_embeddings(input_ids: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        pixel_values: Optional[torch.FloatTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        multimodal_indices: Optional[torch.LongTensor] = None,
+        return_labels: Optional[bool] = False,):
+            
+            # Run Visual Feature Extraction
+            with torch.set_grad_enabled(self.vision_backbone_requires_grad):
+                if isinstance(pixel_values, dict):
+                    patch_features = self.vision_backbone({k: pixel_values[k][multimodal_indices] for k in pixel_values})
+                else:
+                    patch_features = self.vision_backbone(pixel_values[multimodal_indices])
+
+            # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
+            projector = self.projector.module if isinstance(self.projector, DDP) else self.projector
+            projected_patch_embeddings = projector(patch_features)
+            projected_patch_attention_mask = None
+            if attention_mask is not None:
+                projected_patch_attention_mask = torch.full(
+                    (projected_patch_embeddings.shape[0], projected_patch_embeddings.shape[1]),
+                    True,
+                    dtype=attention_mask.dtype,
+                    device=attention_mask.device,
+                )
+
+            # Get Input Embeddings from LLM Backbone :: [bsz, input_seq_len, llm_embed_dim]
+            llm_backbone = self.llm_backbone.module if isinstance(self.llm_backbone, DDP) else self.llm_backbone
+            input_embeddings = llm_backbone.embed_input_ids(input_ids)
+            return projected_patch_embeddings, input_embeddings
+
+
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
