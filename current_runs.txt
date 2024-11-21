@@ -118,3 +118,9 @@ GQA: 0.00, NL hmean: 31.24, NL Delta: 7.98
 stage-final-gqa-only-pythia+410m-add_K-0.20 [2024-11-18 08:36:32]
 GQA: 0.68, NL hmean: 30.01, NL Delta: 9.21
 
+stage-final-gqa-only-pythia+410m-naive-ft-measure-entropy [2024-11-18 14:20:05]
+Error: Model directory 'evaluations/stage-final-gqa-only-pythia+410m-naive-ft-measure-entropy' does not exist.
+
+stage-final-gqa-only-pythia+410m-naive-ft-measure-entropy [2024-11-18 14:26:01]
+Error: Model directory 'evaluations/stage-final-gqa-only-pythia+410m-naive-ft-measure-entropy' does not exist.
+

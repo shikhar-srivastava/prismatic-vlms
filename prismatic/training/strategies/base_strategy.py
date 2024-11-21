@@ -1091,8 +1091,8 @@ def calculate_rank_entropy(output, fused_labels):
     shift_logits = logits[:, :-1, :].contiguous()  # Shape: (batch_size, seq_len - 1, vocab_size)
     valid_targets = labels[:, 1:].contiguous()     # Shape: (batch_size, seq_len - 1)
 
-    # Create mask for valid targets (labels != -100)
-    mask = (valid_targets != -100)  # Shape: (batch_size, seq_len - 1)
+    # Create mask for valid targets (labels != IGNORE_INDEX)
+    mask = (valid_targets != IGNORE_INDEX)  # Shape: (batch_size, seq_len - 1)
 
     # Replace -100 in labels to avoid indexing errors (temporary placeholder)
     valid_targets_clamped = valid_targets.clone()
@@ -1116,31 +1116,26 @@ def calculate_rank_entropy(output, fused_labels):
 
     # Compute the ranks of the correct tokens
     # Argsort in descending order to get ranks (highest logit has rank 1)
-    # To optimize, use torch.topk to get ranks without full sorting
-    # However, since we need the exact rank, argsort is necessary
     sorted_indices = torch.argsort(valid_logits, dim=-1, descending=True)  # Shape: (num_valid, vocab_size)
 
-    # Expand the target indices to compare with sorted indices
-    # This creates a mask where the sorted indices match the target
+    # Create a mask where the sorted indices match the target indices
     target_mask = sorted_indices == valid_targets_final.unsqueeze(1)      # Shape: (num_valid, vocab_size)
 
     # The rank is the index where the target_mask is True, plus 1 (1-based ranking)
     # Since there's exactly one True per row, we can use nonzero and gather
     ranks = torch.nonzero(target_mask, as_tuple=False)[:, 1] + 1        # Shape: (num_valid)
 
-    # Compute the histogram of ranks
-    # Determine the maximum rank to define the number of bins
-    max_rank = torch.min(ranks, torch.tensor(1000, device=device))  # Cap the max rank to avoid excessively large bins
+    # Cap the ranks at 1000 to avoid excessively large bins
+    ranks_capped = ranks.clamp(max=1000)
 
-    # To compute the histogram, we need to move ranks to CPU and convert to long
-    # Alternatively, compute on GPU using torch.histc
-    # However, torch.histc may not handle discrete integer ranks optimally
-    # Therefore, use bincount with appropriate adjustments
+    # Determine the maximum rank after capping to define the number of bins
+    max_rank = ranks_capped.max()
 
     # Adjust ranks to start from 0 for bincount
-    ranks_adjusted = ranks - 1  # Now ranks start at 0
+    ranks_adjusted = ranks_capped - 1  # Now ranks start at 0
 
     # Compute bincount with a minimum length to include all ranks
+    # Ensure max_rank is a scalar by calling .item()
     rank_counts = torch.bincount(ranks_adjusted, minlength=max_rank.item())
 
     # Convert counts to probabilities
