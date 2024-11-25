@@ -1,0 +1,69 @@
+11/21 [16:50:30] INFO     | >> [*] Prismatic VLM Training :: Gathering Light                                    pretrain.py:252
+                 INFO     | >>     |=> Mitigation method: None                                                  pretrain.py:265
+                 INFO     | >> [*] Loading Vision Backbone clip-vit-l-336px via TIMM                            pretrain.py:296
+11/21 [16:50:35] INFO     | >> Loading pretrained weights from Hugging Face hub                                 _builder.py:186
+                          (('timm/vit_large_patch14_clip_336.openai', 'open_clip_pytorch_model.bin'))                          
+                 INFO     | >>  Safe alternative available for 'open_clip_pytorch_model.bin' (as                    _hub.py:180
+                          'open_clip_model.safetensors'). Loading weights using safetensors.                                   
+11/21 [16:50:36] INFO     | >> [*] Loading Pretrained LLM pythia-410m via HF Transformers                       pretrain.py:302
+                 INFO     | >>     |=> Loading pythia LLM from `EleutherAI/pythia-410m-deduped`                 base_llm.py:149
+11/21 [16:50:36] INFO     | >> Loading pretrained weights from Hugging Face hub                                 _builder.py:186
+                          (('timm/vit_large_patch14_clip_336.openai', 'open_clip_pytorch_model.bin'))                          
+11/21 [16:50:36] INFO     | >> Loading pretrained weights from Hugging Face hub                                 _builder.py:186
+                          (('timm/vit_large_patch14_clip_336.openai', 'open_clip_pytorch_model.bin'))                          
+11/21 [16:50:36] INFO     | >> Loading pretrained weights from Hugging Face hub                                 _builder.py:186
+                          (('timm/vit_large_patch14_clip_336.openai', 'open_clip_pytorch_model.bin'))                          
+                 INFO     | >>  Safe alternative available for 'open_clip_pytorch_model.bin' (as                    _hub.py:180
+                          'open_clip_model.safetensors'). Loading weights using safetensors.                                   
+                 INFO     | >>  Safe alternative available for 'open_clip_pytorch_model.bin' (as                    _hub.py:180
+                          'open_clip_model.safetensors'). Loading weights using safetensors.                                   
+                 INFO     | >>  Safe alternative available for 'open_clip_pytorch_model.bin' (as                    _hub.py:180
+                          'open_clip_model.safetensors'). Loading weights using safetensors.                                   
+                 INFO     | >>     |=> Loading pythia (Fast) Tokenizer via the AutoTokenizer API                base_llm.py:247
+11/21 [16:50:37] INFO     | >> [*] Instantiating PrismaticVLM `stage0-pythia+410m` for Training Stage =         pretrain.py:315
+                          `finetune`                                                                                           
+                 INFO     | >> [*] Dimensions of Projector:                                                     prismatic.py:77
+                           vision_dim: 1024, llm_dim: 1024                                                                     
+                 INFO     | >> [*] Total Parameters: 2097152                                                    prismatic.py:78
+                 INFO     | >> [*] Invoking `VLM.load_checkpoint()` for `stage0-pythia+410m` => Training Stage: pretrain.py:326
+                          `finetune`                                                                                           
+                 INFO     | >>     |=> Stage `finetune` requires `align` pretrained weights                    prismatic.py:250
+                 INFO     | >>     |=> [VLM.load_from_checkpoint] Loading from Provided Checkpoint             prismatic.py:254
+                          `/scratch/ssrivas9/prismatic-vlms/runs/reproduction-align-pythia+410m/checkpoints/la                 
+                          test-checkpoint.pt`                                                                                  
+                 INFO     | >> [*] Invoking `VLM.freeze_backbones()` for `stage0-pythia+410m` => Training       pretrain.py:333
+                          Stage: `finetune`                                                                                    
+                 INFO     | >>     |=> LLM Backbone has requires_grad = True. Mitigation is None               prismatic.py:180
+                 INFO     | >>     |=> [Frozen]    🥶 =>> Vision Backbone `clip-vit-l-336px`                   prismatic.py:195
+                 INFO     | >>     |=> [TRAINABLE] 🔥 =>> LLM Backbone `pythia-410m`                           prismatic.py:199
+                 INFO     | >>     |=> [TRAINABLE] 🔥 =>> Projector `gelu-mlp`                                 prismatic.py:201
+                 INFO     | >> [*] Trainable parameters in LLM model: 405334016                                 pretrain.py:338
+                 INFO     | >> [*] Creating Dataset `gqa-only` => Stage: `finetune`                             pretrain.py:341
+11/21 [16:50:39] INFO     | >> [*] Initializing Train Strategy `fsdp-full-shard`                                pretrain.py:355
+                 INFO     | >>     |=> LLM's FSDP Wrap Policy: STANDARD                                         base_llm.py:302
+                 INFO     | >> [*] Casting Vision Backbone to *Half Precision* via `.to(dtype=...)`                 fsdp.py:172
+11/21 [16:50:41] INFO     | >> [*] FSDP Full-Shard Strategy =>> Finalized Training Setup:                           fsdp.py:384
+                          Sharding Strategy = ShardingStrategy.FULL_SHARD                                                      
+                                   |-> Global (Effective) Batch Size = 128                                                     
+                                   |-> Per-Device Batch Size = 16                                                              
+                                   |-> Distributed World Size = 4                                                              
+                                   |-> Gradient Accumulation Steps = 2                                                         
+                                                                                                                               
+                                   |-> LLM Backbone FSDP Gradient Checkpointing = True                                         
+                                   |-> Use FSDP Mixed Precision = True                                                         
+                                           |-> Parameter Precision = torch.bfloat16                                            
+                                           |-> Reduction Precision = torch.bfloat16                                            
+                                           |-> Buffer Precision = torch.bfloat16                                               
+                                                                                                                               
+                                   |-> Default AdamW LR = 2e-05                                                                
+                                   |-> AdamW Weight Decay = 0.1                                                                
+                                   |-> LR Scheduler Type = linear-warmup+cosine-decay                                          
+                                   |-> LR Scheduler Warmup Steps (Ratio) = 16 (0.03)                                           
+                                   |-> Dataset Size = 72192 Examples                                                           
+                                   |-> Max Steps = 564                                                                         
+                                                                                                                               
+                 INFO     | >> [*] Creating Metrics with Active Trackers => `('jsonl', 'wandb')`                pretrain.py:379
+11/21 [16:50:43] INFO     | >> [*] Starting Training Loop                                                       pretrain.py:395
+11/21 [16:50:50] INFO     | >> [*] llm.gpt_neox.embed_in, torch.Size([25756160])                           base_strategy.py:934
+                 INFO     | >> [*] Num Embeddings: 50304, embedding_dim: 1024                              base_strategy.py:935
+                 INFO     | >> [*] llm.embed_out, torch.Size([0])                                          base_strategy.py:937
