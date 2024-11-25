@@ -927,6 +927,16 @@ class TrainingStrategy(ABC):
                     normalized_loss = loss / self.grad_accumulation_steps
                     normalized_loss.backward()
 
+                    # # Go through the modules of vlm.model.llm_backbone, and print which is trainable
+                    # for name, module in self.vlm.llm_backbone.named_modules():
+                    #     # if the module is the embed_in or embed_out layer
+                    #     if 'embed_in' in name or 'embed_out' in name:
+                    #         overwatch.info(f"{name}, {module.weight.shape}")
+                    #         # print if grad is set to true
+                    #         overwatch.info(f"{name}, {module.weight.requires_grad}")
+                            
+                    # exit()
+
                     # Step =>> Only if Done w/ Gradient Accumulation
                     if (train_idx + 1) % self.grad_accumulation_steps == 0:
                         metrics.commit(update_step_time=True)
