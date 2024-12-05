@@ -13,6 +13,7 @@ import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.nn as nn
 from torch.optim import AdamW
+from pytorch_optimizer import create_optimizer, StableAdamW
 from transformers.optimization import get_cosine_schedule_with_warmup, \
         get_constant_schedule_with_warmup, get_constant_schedule
 from prismatic.util.infinite_schedule import get_infinite_schedule_with_warmup_rsqrt_cooldown
@@ -125,9 +126,13 @@ class DDPStrategy(TrainingStrategy):
         #   => Optimizer should only operate on parameters that are *unfrozen* / trainable!
         trainable_params = [param for param in self.vlm.parameters() if param.requires_grad]
         overwatch.info(f"Number of Trainable Parameters: {len(trainable_params)}")
+
         if(self.mitigation in ['lora','sgm','ia3']) and self.merges_after_steps > 0:
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
-            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            if self.stableadam:
+                self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            else:
+                self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
             # for param_group in self.optimizer.param_groups:
             #     param_group["lr"] = 0.0
             self.lr_scheduler = None
@@ -148,7 +153,11 @@ class DDPStrategy(TrainingStrategy):
             num_warmup_steps = int(num_training_steps * self.warmup_ratio)
 
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
-            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            if self.stableadam:
+                self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            else:
+                self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+
             # Get optimizer state keys 
             self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps, num_training_steps)
         elif self.lr_scheduler_type == "schedule-free": # Facebook's https://github.com/facebookresearch/schedule_free
@@ -173,11 +182,18 @@ class DDPStrategy(TrainingStrategy):
             # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
             num_warmup_steps = int(num_training_steps * self.warmup_ratio)
 
-            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            if self.stableadam:
+                self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            else:
+                self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+
             self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps)
         elif self.lr_scheduler_type == "constant":
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
-            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            if self.stableadam:
+                self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            else:
+                self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
             self.lr_scheduler = get_constant_schedule(self.optimizer)
         elif self.lr_scheduler_type == "infinite+rsqrt-cooldown":
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
@@ -188,7 +204,11 @@ class DDPStrategy(TrainingStrategy):
             # Set warmup steps (floor) based on `warmup_ratio` (should be 0.03 - 0.05)
             num_warmup_steps = int(num_training_steps * self.warmup_ratio)
 
-            self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            if self.stableadam:
+                self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+            else:
+                self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+
             self.lr_scheduler = get_infinite_schedule_with_warmup_rsqrt_cooldown(self.optimizer, num_warmup_steps=num_warmup_steps, \
                 decay_steps=num_training_steps - 2 * num_warmup_steps, cooldown_steps=num_warmup_steps)
         else:

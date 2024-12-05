@@ -73,6 +73,7 @@ class TrainingStrategy(ABC):
 
         # Distillation with Teacher LLM
         self.llm_teacher_checkpoint = cfg['llm_teacher_checkpoint'] if isinstance(cfg, dict) else getattr(cfg, 'llm_teacher_checkpoint', None)
+        self.stableadam = cfg['stableadam'] if isinstance(cfg, dict) else getattr(cfg, 'stableadam', False)
 
         # Saving/Loading Logits Utilities
         self.save_logits = cfg['save_logits'] if isinstance(cfg, dict) else getattr(cfg, 'save_logits', False)

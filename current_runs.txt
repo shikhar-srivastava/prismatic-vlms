@@ -252,17 +252,28 @@ GQA: 35.94, NLU Avg: 39.93, NLU Delta: -0.74, NLG Avg: 32.78, NLG Delta: 6.58, N
 NEW FORMAT: Vicuna
 ==================
 
+# Language Only LLM
 reproduction-llava-v15+7b+stage-align+x7 [2024-11-24 21:15:17]
 GQA: 0.0264, Text-VQA Pure: 0.0308, Text-VQA OCR: 0.0448, VQA-v2: 0.0478, RefCOCO: 0.0000, VL Avg: 0.0000, NLU Avg: 0.6402, NLU Delta: 0.0000, NLG Avg: 0.6435, NLG Delta: 0.0000, NL Avg: 0.6418, NL Delta: 0.0000
 
+# LLaVA ORIGINAL
 reproduction-llava-v15+7b+stage-finetune+x7 [2024-11-24 21:15:17]
 GQA: 0.5596, Text-VQA Pure: 0.4570, Text-VQA OCR: 0.5608, VQA-v2: 0.7467, RefCOCO: 0.2041, VL Avg: 0.4168, NLU Avg: 0.6500, NLU Delta: -0.0098, NLG Avg: 0.6231, NLG Delta: 0.0204, NL Avg: 0.6363, NL Delta: 0.0056
+
+# Task Arithmetic Merging
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.05_weight_0.05 [2024-11-24 21:15:20]
+GQA: 0.5625, Text-VQA Pure: 0.4597, Text-VQA OCR: 0.5699, VQA-v2: 0.7486, RefCOCO: 0.2041, VL Avg: 0.4186, NLU Avg: 0.6521, NLU Delta: -0.0120, NLG Avg: 0.6286, NLG Delta: 0.0149, NL Avg: 0.6401, NL Delta: 0.0017
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.025_weight_0.025 [2024-11-26 16:38:16]
+GQA: 0.5605, Text-VQA Pure: 0.4589, Text-VQA OCR: 0.5645, VQA-v2: 0.7448, RefCOCO: 0.2021, VL Avg: 0.4158, NLU Avg: 0.6512, NLU Delta: -0.0110, NLG Avg: 0.6255, NLG Delta: 0.0180, NL Avg: 0.6381, NL Delta: 0.0038
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.1_weight_0.1 [2024-11-26 16:38:18]
+GQA: 0.5596, Text-VQA Pure: 0.4575, Text-VQA OCR: 0.5674, VQA-v2: 0.7446, RefCOCO: 0.2041, VL Avg: 0.4174, NLU Avg: 0.6500, NLU Delta: -0.0098, NLG Avg: 0.6231, NLG Delta: 0.0204, NL Avg: 0.6363, NL Delta: 0.0056
 
 reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.01_weight_0.01 [2024-11-24 21:15:19]
 GQA: 0.5576, Text-VQA Pure: 0.4570, Text-VQA OCR: 0.5635, VQA-v2: 0.7479, RefCOCO: 0.2031, VL Avg: 0.4161, NLU Avg: 0.6499, NLU Delta: -0.0097, NLG Avg: 0.6245, NLG Delta: 0.0190, NL Avg: 0.6369, NL Delta: 0.0049
 
-reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.05_weight_0.05 [2024-11-24 21:15:20]
-GQA: 0.5625, Text-VQA Pure: 0.4597, Text-VQA OCR: 0.5699, VQA-v2: 0.7486, RefCOCO: 0.2041, VL Avg: 0.4186, NLU Avg: 0.6521, NLU Delta: -0.0120, NLG Avg: 0.6286, NLG Delta: 0.0149, NL Avg: 0.6401, NL Delta: 0.0017
 
 reproduction-llava-v15-7b-stage-finetune-x7-ties_density_0.01_weight_0.01 [2024-11-24 21:15:18]
 GQA: 0.5596, Text-VQA Pure: 0.4600, Text-VQA OCR: 0.5660, VQA-v2: 0.7448, RefCOCO: 0.2002, VL Avg: 0.4144, NLU Avg: 0.6511, NLU Delta: -0.0109, NLG Avg: 0.6295, NLG Delta: 0.0140, NL Avg: 0.6401, NL Delta: 0.0017
@@ -277,4 +288,47 @@ reproduction-llava-v15-7b-stage-finetune-x7-ties_density_0.5_weight_0.5 [2024-11
 GQA: 0.1035, Text-VQA Pure: 0.1297, Text-VQA OCR: 0.1337, VQA-v2: 0.2649, RefCOCO: 0.0000, VL Avg: 0.0000, NLU Avg: 0.6436, NLU Delta: -0.0034, NLG Avg: 0.6534, NLG Delta: -0.0099, NL Avg: 0.6485, NL Delta: -0.0066
 reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.5_weight_0.5 [2024-11-24 21:15:20]
 GQA: 0.5430, Text-VQA Pure: 0.4709, Text-VQA OCR: 0.5504, VQA-v2: 0.7298, RefCOCO: 0.1143, VL Avg: 0.3144, NLU Avg: 0.6562, NLU Delta: -0.0160, NLG Avg: 0.6606, NLG Delta: -0.0171, NL Avg: 0.6584, NL Delta: -0.0165
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.2_weight_0.2 [2024-11-25 20:43:46]
+GQA: 0.5605, Text-VQA Pure: 0.4687, Text-VQA OCR: 0.5758, VQA-v2: 0.7420, RefCOCO: 0.1875, VL Avg: 0.4053, NLU Avg: 0.6519, NLU Delta: -0.0117, NLG Avg: 0.6410, NLG Delta: 0.0025, NL Avg: 0.6464, NL Delta: -0.0045
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.25_weight_0.25 [2024-11-25 21:16:14]
+GQA: 0.5645, Text-VQA Pure: 0.4714, Text-VQA OCR: 0.5751, VQA-v2: 0.7426, RefCOCO: 0.1631, VL Avg: 0.3814, NLU Avg: 0.6539, NLU Delta: -0.0137, NLG Avg: 0.6454, NLG Delta: -0.0019, NL Avg: 0.6496, NL Delta: -0.0078
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.3_weight_0.3 [2024-11-25 21:47:56]
+GQA: 0.5547, Text-VQA Pure: 0.4756, Text-VQA OCR: 0.5765, VQA-v2: 0.7407, RefCOCO: 0.1504, VL Avg: 0.3666, NLU Avg: 0.6543, NLU Delta: -0.0141, NLG Avg: 0.6495, NLG Delta: -0.0060, NL Avg: 0.6519, NL Delta: -0.0101
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.4_weight_0.4 [2024-11-25 22:19:50]
+GQA: 0.5508, Text-VQA Pure: 0.4771, Text-VQA OCR: 0.5779, VQA-v2: 0.7333, RefCOCO: 0.1279, VL Avg: 0.3373, NLU Avg: 0.6588, NLU Delta: -0.0186, NLG Avg: 0.6561, NLG Delta: -0.0126, NL Avg: 0.6575, NL Delta: -0.0156
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.45_weight_0.45 [2024-11-25 22:50:28]
+GQA: 0.5488, Text-VQA Pure: 0.4772, Text-VQA OCR: 0.5703, VQA-v2: 0.7359, RefCOCO: 0.1211, VL Avg: 0.3271, NLU Avg: 0.6583, NLU Delta: -0.0181, NLG Avg: 0.6594, NLG Delta: -0.0159, NL Avg: 0.6589, NL Delta: -0.0170
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.51_weight_0.51 [2024-11-25 23:22:38]
+GQA: 0.5371, Text-VQA Pure: 0.4699, Text-VQA OCR: 0.5457, VQA-v2: 0.7294, RefCOCO: 0.1211, VL Avg: 0.3236, NLU Avg: 0.6558, NLU Delta: -0.0156, NLG Avg: 0.6608, NLG Delta: -0.0173, NL Avg: 0.6583, NL Delta: -0.0164
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.49_weight_0.49 [2024-11-25 23:53:18]
+GQA: 0.5449, Text-VQA Pure: 0.4709, Text-VQA OCR: 0.5537, VQA-v2: 0.7340, RefCOCO: 0.1123, VL Avg: 0.3119, NLU Avg: 0.6573, NLU Delta: -0.0171, NLG Avg: 0.6612, NLG Delta: -0.0177, NL Avg: 0.6592, NL Delta: -0.0174reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.02_weight_0.02 [2024-11-26 20:53:43]
+GQA: 0.5596, Text-VQA Pure: 0.4611, Text-VQA OCR: 0.5660, VQA-v2: 0.7465, RefCOCO: 0.2090, VL Avg: 0.4221, NLU Avg: 0.6509, NLU Delta: -0.0107, NLG Avg: 0.6247, NLG Delta: 0.0188, NL Avg: 0.6375, NL Delta: 0.0043
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.03_weight_0.03 [2024-11-26 21:26:48]
+GQA: 0.5635, Text-VQA Pure: 0.4586, Text-VQA OCR: 0.5674, VQA-v2: 0.7441, RefCOCO: 0.1982, VL Avg: 0.4130, NLU Avg: 0.6507, NLU Delta: -0.0105, NLG Avg: 0.6260, NLG Delta: 0.0175, NL Avg: 0.6381, NL Delta: 0.0037
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.04_weight_0.04 [2024-11-26 21:59:17]
+GQA: 0.5615, Text-VQA Pure: 0.4605, Text-VQA OCR: 0.5667, VQA-v2: 0.7480, RefCOCO: 0.2080, VL Avg: 0.4215, NLU Avg: 0.6511, NLU Delta: -0.0109, NLG Avg: 0.6272, NLG Delta: 0.0163, NL Avg: 0.6389, NL Delta: 0.0029
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.015_weight_0.015 [2024-11-26 22:31:05]
+GQA: 0.5605, Text-VQA Pure: 0.4611, Text-VQA OCR: 0.5634, VQA-v2: 0.7432, RefCOCO: 0.2070, VL Avg: 0.4200, NLU Avg: 0.6508, NLU Delta: -0.0106, NLG Avg: 0.6249, NLG Delta: 0.0186, NL Avg: 0.6376, NL Delta: 0.0043
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.005_weight_0.005 [2024-11-26 23:03:01]
+GQA: 0.5586, Text-VQA Pure: 0.4622, Text-VQA OCR: 0.5611, VQA-v2: 0.7421, RefCOCO: 0.2031, VL Avg: 0.4164, NLU Avg: 0.6501, NLU Delta: -0.0099, NLG Avg: 0.6235, NLG Delta: 0.0200, NL Avg: 0.6365, NL Delta: 0.0053
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.001_weight_0.001 [2024-11-26 23:34:48]
+GQA: 0.5605, Text-VQA Pure: 0.4582, Text-VQA OCR: 0.5610, VQA-v2: 0.7440, RefCOCO: 0.2061, VL Avg: 0.4185, NLU Avg: 0.6504, NLU Delta: -0.0102, NLG Avg: 0.6229, NLG Delta: 0.0206, NL Avg: 0.6364, NL Delta: 0.0055
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.0005_weight_0.0005 [2024-11-27 00:08:40]
+GQA: 0.5605, Text-VQA Pure: 0.4586, Text-VQA OCR: 0.5635, VQA-v2: 0.7441, RefCOCO: 0.2080, VL Avg: 0.4205, NLU Avg: 0.6504, NLU Delta: -0.0102, NLG Avg: 0.6229, NLG Delta: 0.0206, NL Avg: 0.6364, NL Delta: 0.0055
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.0001_weight_0.0001 [2024-11-27 00:41:12]
+GQA: 0.5566, Text-VQA Pure: 0.4567, Text-VQA OCR: 0.5628, VQA-v2: 0.7447, RefCOCO: 0.2031, VL Avg: 0.4157, NLU Avg: 0.6504, NLU Delta: -0.0102, NLG Avg: 0.6229, NLG Delta: 0.0206, NL Avg: 0.6364, NL Delta: 0.0055
 

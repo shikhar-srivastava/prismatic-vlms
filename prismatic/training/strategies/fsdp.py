@@ -27,6 +27,8 @@ from torch.distributed.fsdp import (
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim import AdamW
+from pytorch_optimizer import create_optimizer, StableAdamW
+
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup, get_constant_schedule
 from prismatic.util.infinite_schedule import get_infinite_schedule_with_warmup_rsqrt_cooldown
 from prismatic.models.vlms import PrismaticVLM
@@ -252,6 +254,13 @@ class FSDPStrategy(TrainingStrategy):
             groups = [{"params": decay, "weight_decay": self.weight_decay}, {"params": no_decay, "weight_decay": 0.0}]
             # Create Optimizer & LR Scheduler
             self.optimizer = AdamW(groups, lr=self.learning_rate)
+
+            if self.stableadam:
+                self.optimizer = StableAdamW(groups, lr=self.learning_rate)
+            else:
+                self.optimizer = AdamW(groups, lr=self.learning_rate)
+
+
             self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps, num_training_steps)
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = 0.0
@@ -312,7 +321,11 @@ class FSDPStrategy(TrainingStrategy):
             # Build Parameter Groups
             groups = [{"params": decay, "weight_decay": self.weight_decay}, {"params": no_decay, "weight_decay": 0.0}]
             # Create Optimizer & LR Scheduler
-            self.optimizer = AdamW(groups, lr=self.learning_rate)
+            if self.stableadam:
+                self.optimizer = StableAdamW(groups, lr=self.learning_rate)
+            else:
+                self.optimizer = AdamW(groups, lr=self.learning_rate)
+
             self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps) #get_constant_schedule(self.optimizer) 
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = 0.0
@@ -340,7 +353,11 @@ class FSDPStrategy(TrainingStrategy):
             # Build Parameter Groups
             groups = [{"params": decay, "weight_decay": self.weight_decay}, {"params": no_decay, "weight_decay": 0.0}]
             # Create Optimizer & LR Scheduler
-            self.optimizer = AdamW(groups, lr=self.learning_rate)
+            if self.stableadam:
+                self.optimizer = StableAdamW(groups, lr=self.learning_rate)
+            else:
+                self.optimizer = AdamW(groups, lr=self.learning_rate)
+
             self.lr_scheduler = get_constant_schedule(self.optimizer)
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = 0.0
@@ -371,7 +388,11 @@ class FSDPStrategy(TrainingStrategy):
             # Build Parameter Groups
             groups = [{"params": decay, "weight_decay": self.weight_decay}, {"params": no_decay, "weight_decay": 0.0}]
             # Create Optimizer & LR Scheduler
-            self.optimizer = AdamW(groups, lr=self.learning_rate)
+            if self.stableadam:
+                self.optimizer = StableAdamW(groups, lr=self.learning_rate)
+            else:
+                self.optimizer = AdamW(groups, lr=self.learning_rate)
+                
             self.lr_scheduler = get_infinite_schedule_with_warmup_rsqrt_cooldown(self.optimizer, num_warmup_steps=num_warmup_steps, \
                 decay_steps=num_training_steps - 2 * num_warmup_steps, cooldown_steps=num_warmup_steps)
             for param_group in self.optimizer.param_groups:
