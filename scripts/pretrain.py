@@ -152,6 +152,9 @@ class PretrainConfig:
     stableadam: bool = False
     adopt_optim: bool = False
 
+    # Projector Type
+    projector_type: str = None
+
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         # assert that load_logits and save_logits are not both true
@@ -170,6 +173,10 @@ class PretrainConfig:
             self.warmup_ratio = self.model.align_warmup_ratio
 
             self.train_strategy = self.model.align_train_strategy
+
+            if self.projector_type is not None:
+                self.model.arch_specifier = self.projector_type
+                overwatch.info(f"Projector Type: {self.projector_type}")
 
         elif self.stage.endswith("finetune"):
             self.epochs = self.model.finetune_epochs if self.epoch_count == 1 else self.epoch_count
@@ -241,6 +248,10 @@ class PretrainConfig:
                 self.weight_decay = 0.0
                 # if self.set_to_one:
                 #     self.max_grad_norm = 1.0
+            
+            if self.projector_type is not None:
+                self.model.arch_specifier = self.projector_type
+                overwatch.info(f"Projector Type: {self.projector_type}")
                 
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")
