@@ -60,6 +60,20 @@ class LLaVA_GQA_Only_Config(DatasetConfig):
     )
     dataset_root_dir: Path = Path("data")
 
+@dataclass
+class LLaVA_SHAREGPT_Only_Config(DatasetConfig):
+    dataset_id: str = "sharegpt-only"
+
+    align_stage_components: Tuple[Path, Path] = (
+        Path("download/llava-laion-cc-sbu-558k/chat.json"),
+        Path("download/llava-laion-cc-sbu-558k/"),
+    )
+    finetune_stage_components: Tuple[Path, Path] = (
+        Path("continual/splits/sg_40688k.json"),
+        Path("download/llava-v1.5-instruct/"),
+    )
+    dataset_root_dir: Path = Path("data")
+
 
 
 # [Multimodal-Only] LLava-v15 WITHOUT the Language-Only ShareGPT Data (No Co-Training)
@@ -632,6 +646,7 @@ class DatasetRegistry(Enum):
 
     # ======== Datasets Only ========
     LLAVA_GQA_ONLY = LLaVA_GQA_Only_Config
+    LLAVA_SHAREGPT_ONLY = LLaVA_SHAREGPT_Only_Config
     
     # LLAVA FULL CL 
     INSTRUCT = INSTRUCT_Config

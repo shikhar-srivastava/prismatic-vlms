@@ -113,6 +113,8 @@ class LLaVa_v15_Reproduction_7B(ModelConfig):
     finetune_train_strategy: str = "fsdp-full-shard"
 
 
+
+
 @dataclass
 class Stage0_after_llava(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-after-llava+7b"

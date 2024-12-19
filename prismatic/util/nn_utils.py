@@ -6,6 +6,7 @@ Utility functions and PyTorch submodule definitions.
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F 
 
 
 # === Definitions for Various Projection Modules, with Signature :: [..., in_dim] --> [..., out_dim] ===
@@ -51,3 +52,21 @@ class FusedMLPProjector(nn.Module):
 
     def forward(self, fused_img_patches: torch.Tensor) -> torch.Tensor:
         return self.projector(fused_img_patches)
+
+
+# === New GLUProjector Class based on suggested modifications ===
+# Based on : https://arxiv.org/pdf/2412.04616 (Zhang et al. 2024)
+class GLUProjector(nn.Module):
+    def __init__(self, vision_dim: int, llm_dim: int, mlp_type: str = "glu-zhang") -> None:
+        super().__init__()
+        assert mlp_type == "glu-zhang", f"GLU Projector with `{mlp_type = }` is not supported!"
+        # Single linear layer that outputs 2 * llm_dim for gating
+        self.linear = nn.Linear(vision_dim, 2 * llm_dim, bias=True)
+        self.relu = nn.ReLU()
+
+    def forward(self, img_patches: torch.Tensor) -> torch.Tensor:
+        x = self.linear(img_patches)
+        # Apply GLU: splits the output into two halves and applies a sigmoid gate
+        x = F.glu(x, dim=-1)
+        x = self.relu(x)
+        return x
