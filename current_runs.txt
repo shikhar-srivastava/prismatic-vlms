@@ -346,3 +346,15 @@ GQA: 0.3252, Text-VQA Pure: 0.0788, Text-VQA OCR: 0.1119, VQA-v2: 0.4135, RefCOC
 stage-final-llava-v15-pythia+410m-set_to_one-teacher_distillation-adopt_optim-1 [2024-12-05 03:24:53]
 Error: Model directory 'evaluations/stage-final-llava-v15-pythia+410m-set_to_one-teacher_distillation-adopt_optim-1' does not exist.
 
+stage-final-llava-v15-pythia+2p8b-glu [2024-12-19 10:16:43]
+Error: Model directory 'evaluations/stage-final-llava-v15-pythia+2p8b-glu' does not exist.
+
+stage-final-llava-v15-pythia+2p8b-glu [2024-12-19 10:31:44]
+Error: Model directory 'evaluations/stage-final-llava-v15-pythia+2p8b-glu' does not exist.
+
+stage-final-llava-v15-pythia+2p8b-glu [2024-12-19 10:59:29]
+Error: Model directory 'evaluations/stage-final-llava-v15-pythia+2p8b-glu' does not exist.
+
+stage-final-llava-v15-pythia+2p8b-glu [2024-12-20 03:10:14]
+Error: Baseline model directory 'evaluations/reproduction-align-pythia+2p8b' does not exist.
+

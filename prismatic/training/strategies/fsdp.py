@@ -28,7 +28,6 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim import AdamW
 from pytorch_optimizer import create_optimizer, StableAdamW
-from prismatic.util.adopt import ADOPT
 
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup, get_constant_schedule
 from prismatic.util.infinite_schedule import get_infinite_schedule_with_warmup_rsqrt_cooldown
@@ -258,8 +257,7 @@ class FSDPStrategy(TrainingStrategy):
 
             if self.stableadam:
                 self.optimizer = StableAdamW(groups, lr=self.learning_rate)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(groups, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
+
             else:
                 self.optimizer = AdamW(groups, lr=self.learning_rate)
 
@@ -325,8 +323,7 @@ class FSDPStrategy(TrainingStrategy):
             # Create Optimizer & LR Scheduler
             if self.stableadam:
                 self.optimizer = StableAdamW(groups, lr=self.learning_rate)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(groups, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
+
             else:
                 self.optimizer = AdamW(groups, lr=self.learning_rate)
 
@@ -359,8 +356,7 @@ class FSDPStrategy(TrainingStrategy):
             # Create Optimizer & LR Scheduler
             if self.stableadam:
                 self.optimizer = StableAdamW(groups, lr=self.learning_rate)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(groups, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
+
             else:
                 self.optimizer = AdamW(groups, lr=self.learning_rate)
 
@@ -396,8 +392,7 @@ class FSDPStrategy(TrainingStrategy):
             # Create Optimizer & LR Scheduler
             if self.stableadam:
                 self.optimizer = StableAdamW(groups, lr=self.learning_rate)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(groups, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
+
             else:
                 self.optimizer = AdamW(groups, lr=self.learning_rate)
                 

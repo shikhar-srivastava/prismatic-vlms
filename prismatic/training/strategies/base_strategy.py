@@ -74,7 +74,6 @@ class TrainingStrategy(ABC):
         # Distillation with Teacher LLM
         self.llm_teacher_checkpoint = cfg['llm_teacher_checkpoint'] if isinstance(cfg, dict) else getattr(cfg, 'llm_teacher_checkpoint', None)
         self.stableadam = cfg['stableadam'] if isinstance(cfg, dict) else getattr(cfg, 'stableadam', False)
-        self.adopt_optim = cfg['adopt_optim'] if isinstance(cfg, dict) else getattr(cfg, 'adopt_optim', False)
 
         # Saving/Loading Logits Utilities
         self.save_logits = cfg['save_logits'] if isinstance(cfg, dict) else getattr(cfg, 'save_logits', False)
@@ -326,7 +325,8 @@ class TrainingStrategy(ABC):
                         enabled=self.enable_mixed_precision_training,
                     ):  
                         # Extract sample indices
-                        sample_indices = batch.pop('idx')
+                        if stage == 'finetune':
+                            sample_indices = batch.pop('idx')
 
                         # if self.save_logits:
                         #     # Inference mode: Disable gradient computations

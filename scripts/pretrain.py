@@ -150,8 +150,6 @@ class PretrainConfig:
     # Teacher LLM
     llm_teacher_checkpoint: str = None
     stableadam: bool = False
-    adopt_optim: bool = False
-
     # Projector Type
     projector_type: str = None
 
@@ -292,7 +290,7 @@ def pretrain(cfg: PretrainConfig) -> None:
     elif cfg.soft_alpha_masked_interpolation is not None:
         overwatch.info(f'Soft Alpha Masked Interpolation: {cfg.soft_alpha_masked_interpolation}', ctx_level=1)
 
-    overwatch.info(f"StableAdamW: {cfg.stableadam}, ADOPT: {cfg.adopt_optim}")
+    overwatch.info(f"StableAdamW: {cfg.stableadam}")
     # Start =>> Build Directories and Set Randomness
     hf_token = cfg.hf_token.read_text().strip() if isinstance(cfg.hf_token, Path) else os.environ[cfg.hf_token]
     worker_init_fn = set_global_seed(cfg.seed, get_worker_init_fn=True)

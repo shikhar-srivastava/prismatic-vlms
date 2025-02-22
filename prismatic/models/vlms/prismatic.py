@@ -24,7 +24,7 @@ from prismatic.models.backbones.llm.prompting import PromptBuilder
 from prismatic.models.backbones.vision import VisionBackbone
 from prismatic.models.vlms.base_vlm import VLM
 from prismatic.overwatch import initialize_overwatch
-from prismatic.util.nn_utils import FusedMLPProjector, LinearProjector, MLPProjector
+from prismatic.util.nn_utils import FusedMLPProjector, LinearProjector, MLPProjector, GLUProjector
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from prismatic.models.backbones.mitigation import apply_mitigation
@@ -72,6 +72,10 @@ class PrismaticVLM(VLM):
             self.projector = MLPProjector(vision_backbone.embed_dim, llm_backbone.embed_dim)
             if llm_teacher is not None:
                 self.teacher_projector = MLPProjector(vision_backbone.embed_dim, llm_backbone.embed_dim)
+        elif arch_specifier.endswith("glu-zhang"):
+            self.projector = GLUProjector(vision_backbone.embed_dim, llm_backbone.embed_dim)
+            if llm_teacher is not None:
+                self.teacher_projector = GLUProjector(vision_backbone.embed_dim, llm_backbone.embed_dim)
         else:
             raise ValueError(f"PrismaticVLM with `{arch_specifier = }` is not supported!")
         overwatch.info(f'Dimensions of Projector: \n vision_dim: {vision_backbone.embed_dim}, llm_dim: {llm_backbone.embed_dim}')

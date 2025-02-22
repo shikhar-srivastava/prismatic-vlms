@@ -14,7 +14,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.nn as nn
 from torch.optim import AdamW
 from pytorch_optimizer import create_optimizer, StableAdamW
-from prismatic.util.adopt import ADOPT
 from transformers.optimization import get_cosine_schedule_with_warmup, \
         get_constant_schedule_with_warmup, get_constant_schedule
 from prismatic.util.infinite_schedule import get_infinite_schedule_with_warmup_rsqrt_cooldown
@@ -132,8 +131,6 @@ class DDPStrategy(TrainingStrategy):
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
             if self.stableadam:
                 self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
             else:
                 self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
 
@@ -159,8 +156,6 @@ class DDPStrategy(TrainingStrategy):
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
             if self.stableadam:
                 self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
             else:
                 self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
             # Get optimizer state keys 
@@ -189,8 +184,7 @@ class DDPStrategy(TrainingStrategy):
 
             if self.stableadam:
                 self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
+
             else:
                 self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
             self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps)
@@ -198,8 +192,7 @@ class DDPStrategy(TrainingStrategy):
             assert self.weight_decay == 0, "DDP training does not currently support `weight_decay` > 0!"
             if self.stableadam:
                 self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
+
             else:
                 self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)            
             self.lr_scheduler = get_constant_schedule(self.optimizer)
@@ -214,8 +207,7 @@ class DDPStrategy(TrainingStrategy):
 
             if self.stableadam:
                 self.optimizer = StableAdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
-            elif self.adopt_optim:
-                self.optimizer = ADOPT(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay, decouple=True)
+
             else:
                 self.optimizer = AdamW(trainable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
             self.lr_scheduler = get_infinite_schedule_with_warmup_rsqrt_cooldown(self.optimizer, num_warmup_steps=num_warmup_steps, \
