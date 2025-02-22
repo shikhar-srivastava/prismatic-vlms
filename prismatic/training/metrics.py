@@ -145,6 +145,7 @@ class Metrics:
         ft_total_weight_change: Optional[float] = None,
         ft_layer_weight_changes: Optional[Dict[str, Dict[str, float]]] = None,
         ft_parameter_weight_changes: Optional[Dict[str, float]] = None,
+        rank_entropy: Optional[float] = None,
         **kwargs
     ) -> None:
         if global_step is not None:
@@ -178,6 +179,8 @@ class Metrics:
             self.state["ft_layer_weight_changes"] = ft_layer_weight_changes
         if ft_parameter_weight_changes is not None:
             self.state["ft_parameter_weight_changes"] = ft_parameter_weight_changes
+        if rank_entropy is not None:
+            self.state["rank_entropy"].append(rank_entropy)
 
         # Generic Keyword Arguments
         for key, value in kwargs.items():

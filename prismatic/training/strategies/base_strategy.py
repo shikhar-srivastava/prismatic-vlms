@@ -73,6 +73,7 @@ class TrainingStrategy(ABC):
 
         # Distillation with Teacher LLM
         self.llm_teacher_checkpoint = cfg['llm_teacher_checkpoint'] if isinstance(cfg, dict) else getattr(cfg, 'llm_teacher_checkpoint', None)
+        self.scale_patch_embeddings = cfg['scale_patch_embeddings'] if isinstance(cfg, dict) else getattr(cfg, 'scale_patch_embeddings', False)
         self.stableadam = cfg['stableadam'] if isinstance(cfg, dict) else getattr(cfg, 'stableadam', False)
 
         # Saving/Loading Logits Utilities
@@ -955,6 +956,7 @@ class TrainingStrategy(ABC):
                             with torch.no_grad():
                                 rank_entropy = calculate_rank_entropy(output, fused_labels)
                                 metrics.commit(global_step=metrics.global_step + 1, rank_entropy=rank_entropy)
+                        
                         # Push Metrics
                         metrics.commit(global_step=metrics.global_step + 1, \
                                 lr=self.optimizer.param_groups[0]['lr'] if self.lr_scheduler_type != 'schedule-free' else self.optimizer.get_lr())

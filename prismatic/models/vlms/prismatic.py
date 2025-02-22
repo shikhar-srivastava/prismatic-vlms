@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Type, Union
 
 import torch
+import math
 from PIL import Image
 from torch.distributed.fsdp.wrap import _module_wrap_policy, _or_policy
 from transformers.modeling_outputs import CausalLMOutputWithPast
@@ -46,6 +47,7 @@ class PrismaticVLM(VLM):
         llm_teacher: LLMBackbone = None,
         arch_specifier: str = "gelu-mlp",
         init_projector_path: str = None,
+        scale_patch_embeddings: bool = False,
     ) -> None:
         super().__init__(
             "prismatic",
@@ -53,7 +55,8 @@ class PrismaticVLM(VLM):
             vision_backbone,
             llm_backbone,
             enable_mixed_precision_training=enable_mixed_precision_training,
-            llm_teacher=llm_teacher
+            llm_teacher=llm_teacher,
+            scale_patch_embeddings=scale_patch_embeddings,
         )
 
         # Set Weight Initialization Seed for Projector Consistency
@@ -396,6 +399,9 @@ class PrismaticVLM(VLM):
                     patch_features = self.vision_backbone({k: pixel_values[k][multimodal_indices] for k in pixel_values})
                 else:
                     patch_features = self.vision_backbone(pixel_values[multimodal_indices])
+                
+            if self.scale_patch_embeddings:
+                patch_features = scale_by_inv_sqrt(patch_features)
 
             # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
             projector = self.projector.module if isinstance(self.projector, DDP) else self.projector
@@ -499,6 +505,8 @@ class PrismaticVLM(VLM):
                 patch_features = self.vision_backbone({k: pixel_values[k][multimodal_indices] for k in pixel_values})
             else:
                 patch_features = self.vision_backbone(pixel_values[multimodal_indices])
+        if self.scale_patch_embeddings:
+                patch_features = scale_by_inv_sqrt(patch_features)
 
         # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
         projector = self.projector.module if isinstance(self.projector, DDP) else self.projector
@@ -702,6 +710,9 @@ class PrismaticVLM(VLM):
                 patch_features = self.vision_backbone({k: pixel_values[k][multimodal_indices] for k in pixel_values})
             else:
                 patch_features = self.vision_backbone(pixel_values[multimodal_indices])
+        
+        if self.scale_patch_embeddings:
+                patch_features = scale_by_inv_sqrt(patch_features)
 
         # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
         projector = self.teacher_projector.module if isinstance(self.teacher_projector, DDP) else self.teacher_projector
@@ -979,5 +990,16 @@ class PrismaticVLM(VLM):
                         print(f"  {name} is trainable")
 
 
-
-
+def scale_by_inv_sqrt(x: torch.Tensor) -> torch.Tensor:
+    """
+    Scales the input tensor by 1 / sqrt(d), where d is the size of the last dimension.
+    Args:
+        x (torch.Tensor): Input tensor with shape [..., d].
+    Returns:
+        torch.Tensor: Scaled tensor with the same shape as x.
+    """
+    # Get the size of the last dimension (d)
+    d = torch.tensor(x.size(-1), dtype=x.dtype)    
+    # Compute the scaling factor as 1 / sqrt(d) using torch.sqrt
+    scaling_factor = 1 / torch.sqrt(d)
+    return x * scaling_factor

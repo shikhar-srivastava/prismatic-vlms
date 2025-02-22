@@ -157,6 +157,8 @@ class PretrainConfig:
     init_projector: str = None # "ledoitwolf"
     init_projector_path: str = None
 
+    scale_patch_embeddings: bool = False # If true, then scale by 1/sqrt(d_model) before projecting 
+
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         # assert that load_logits and save_logits are not both true
@@ -176,6 +178,10 @@ class PretrainConfig:
             overwatch.info(f"Projector Type: {self.model.arch_specifier}")
             overwatch.info("Project Init Path: {self.init_projector_path}")
 
+        if self.scale_patch_embeddings:
+            overwatch.critical("Scaling Patch Embeddings by 1/sqrt(d_model)")
+
+        # STAGES 
         if self.stage == "align":
             self.epochs = self.model.align_epochs
             self.max_steps = self.model.align_max_steps
@@ -353,7 +359,8 @@ def pretrain(cfg: PretrainConfig) -> None:
         llm_backbone,
         enable_mixed_precision_training=cfg.model.enable_mixed_precision_training,
         llm_teacher = llm_teacher,
-        init_projector_path = cfg.init_projector_path
+        init_projector_path = cfg.init_projector_path,
+        scale_patch_embeddings=cfg.scale_patch_embeddings,
     )
 
     # Load Weights from Checkpoint (depends on stage, config)

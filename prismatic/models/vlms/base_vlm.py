@@ -36,12 +36,14 @@ class VLM(nn.Module, GenerationMixin, ABC):
         llm_backbone: LLMBackbone,
         enable_mixed_precision_training: bool = True,
         llm_teacher: LLMBackbone = None, 
+        scale_patch_embeddings: bool = False,
     ) -> None:
         super().__init__()
         self.model_family, self.model_id = model_family, model_id
         self.vision_backbone, self.llm_backbone = vision_backbone, llm_backbone
         self.enable_mixed_precision_training = enable_mixed_precision_training
         self.llm_teacher = llm_teacher
+        self.scale_patch_embeddings = scale_patch_embeddings
 
         # Instance Attributes for a generic VLM
         self.all_module_keys, self.trainable_module_keys = None, None
