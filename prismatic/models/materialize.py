@@ -135,6 +135,7 @@ def get_vlm(
     llm_backbone: LLMBackbone,
     enable_mixed_precision_training: bool = True,
     llm_teacher: LLMBackbone = None,
+    init_projector_path: str = None,
 ) -> PrismaticVLM:
     """Lightweight wrapper around initializing a VLM, mostly for future-proofing (if one wants to add a new VLM)."""
     return PrismaticVLM(
@@ -144,4 +145,5 @@ def get_vlm(
         enable_mixed_precision_training=enable_mixed_precision_training,
         arch_specifier=arch_specifier,
         llm_teacher = llm_teacher,
+        init_projector_path = init_projector_path
     )

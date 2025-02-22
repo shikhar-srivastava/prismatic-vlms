@@ -326,7 +326,8 @@ class TrainingStrategy(ABC):
                         enabled=self.enable_mixed_precision_training,
                     ):  
                         # Extract sample indices
-                        sample_indices = batch.pop('idx')
+                        if stage == "finetune":
+                            sample_indices = batch.pop('idx')
 
                         # if self.save_logits:
                         #     # Inference mode: Disable gradient computations
