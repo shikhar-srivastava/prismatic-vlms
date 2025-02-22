@@ -247,8 +247,10 @@ GQA: 34.86, NLU Avg: 36.94, NLU Delta: 2.24, NLG Avg: 21.21, NLG Delta: 18.14, N
 stage-final-gqa-only-pythia-410m-naive-ft-task_arithmetic_density_0.05_weight_0.05 [2024-11-24 21:12:34]
 GQA: 36.52, NLU Avg: 36.97, NLU Delta: 2.21, NLG Avg: 22.47, NLG Delta: 16.88, NL Avg: 27.95, NL Delta: 11.32
 
+=====
 stage-final-gqa-only-pythia-410m-naive-ft-task_arithmetic_density_0.5_weight_0.5 [2024-11-24 21:12:34]
 GQA: 35.94, NLU Avg: 39.93, NLU Delta: -0.74, NLG Avg: 32.78, NLG Delta: 6.58, NL Avg: 36.00, NL Delta: 3.27
+=====
 
 
 NEW FORMAT: Vicuna
@@ -264,8 +266,15 @@ GQA: 0.5596, Text-VQA Pure: 0.4570, Text-VQA OCR: 0.5608, VQA-v2: 0.7467, RefCOC
 
 # Task Arithmetic Merging
 
+=====
+
+reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.04_weight_0.04 [2024-11-26 21:59:17]
+GQA: 0.5615, Text-VQA Pure: 0.4605, Text-VQA OCR: 0.5667, VQA-v2: 0.7480, RefCOCO: 0.2080, VL Avg: 0.4215, NLU Avg: 0.6511, NLU Delta: -0.0109, NLG Avg: 0.6272, NLG Delta: 0.0163, NL Avg: 0.6389, NL Delta: 0.0029
+
 reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.05_weight_0.05 [2024-11-24 21:15:20]
 GQA: 0.5625, Text-VQA Pure: 0.4597, Text-VQA OCR: 0.5699, VQA-v2: 0.7486, RefCOCO: 0.2041, VL Avg: 0.4186, NLU Avg: 0.6521, NLU Delta: -0.0120, NLG Avg: 0.6286, NLG Delta: 0.0149, NL Avg: 0.6401, NL Delta: 0.0017
+
+=====
 
 reproduction-llava-v15-7b-stage-finetune-x7-task_arithmetic_density_0.025_weight_0.025 [2024-11-26 16:38:16]
 GQA: 0.5605, Text-VQA Pure: 0.4589, Text-VQA OCR: 0.5645, VQA-v2: 0.7448, RefCOCO: 0.2021, VL Avg: 0.4158, NLU Avg: 0.6512, NLU Delta: -0.0110, NLG Avg: 0.6255, NLG Delta: 0.0180, NL Avg: 0.6381, NL Delta: 0.0038

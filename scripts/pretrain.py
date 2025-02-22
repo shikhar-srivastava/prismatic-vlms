@@ -153,11 +153,29 @@ class PretrainConfig:
     # Projector Type
     projector_type: str = None
 
+    # Init Projector 
+    init_projector: str = None # "ledoitwolf"
+    init_projector_path: str = None
+
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         # assert that load_logits and save_logits are not both true
         assert not (self.load_logits and self.save_logits), "Both load_logits and save_logits cannot be true"
         assert not (self.lora_use_2r_heuristic and self.use_rslora), "Both use_rslora and self.lora_use_2r_heuristic cannot be true"
+
+        # Assert that self.init_projector must be None or 'ledoitwolf' 
+        assert self.init_projector is None or self.init_projector == 'ledoitwolf', "init_projector must be None or 'ledoitwolf'"
+        if (self.init_projector is not None):
+            if (self.stage != "align"):
+                raise ValueError(f"init_projector can only be used in align stage")
+            elif (self.init_projector_path is None):
+                raise ValueError(f"init_projector_path must be provided if init_projector is not None")
+        if self.init_projector == 'ledoitwolf':
+            self.model.arch_specifier = 'linear'
+            overwatch.info("Initializing projector with Ledoit-Wolf")
+            overwatch.info(f"Projector Type: {self.model.arch_specifier}")
+            overwatch.info("Project Init Path: {self.init_projector_path}")
+
         if self.stage == "align":
             self.epochs = self.model.align_epochs
             self.max_steps = self.model.align_max_steps
@@ -175,6 +193,10 @@ class PretrainConfig:
             if self.projector_type is not None:
                 self.model.arch_specifier = self.projector_type
                 overwatch.info(f"Projector Type: {self.projector_type}")
+            if self.bigger_batch is True:
+                #self.global_batch_size = self.model.align_global_batch_size * 2 # 128
+                self.per_device_batch_size = self.model.align_per_device_batch_size * 4
+
 
         elif self.stage.endswith("finetune"):
             self.epochs = self.model.finetune_epochs if self.epoch_count == 1 else self.epoch_count
@@ -331,6 +353,7 @@ def pretrain(cfg: PretrainConfig) -> None:
         llm_backbone,
         enable_mixed_precision_training=cfg.model.enable_mixed_precision_training,
         llm_teacher = llm_teacher,
+        init_projector_path = cfg.init_projector_path
     )
 
     # Load Weights from Checkpoint (depends on stage, config)

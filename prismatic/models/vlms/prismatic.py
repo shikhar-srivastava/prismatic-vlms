@@ -45,6 +45,7 @@ class PrismaticVLM(VLM):
         enable_mixed_precision_training: bool = True,
         llm_teacher: LLMBackbone = None,
         arch_specifier: str = "gelu-mlp",
+        init_projector_path: str = None,
     ) -> None:
         super().__init__(
             "prismatic",
@@ -80,6 +81,14 @@ class PrismaticVLM(VLM):
             raise ValueError(f"PrismaticVLM with `{arch_specifier = }` is not supported!")
         overwatch.info(f'Dimensions of Projector: \n vision_dim: {vision_backbone.embed_dim}, llm_dim: {llm_backbone.embed_dim}')
         overwatch.info(f'Total Parameters: {vision_backbone.embed_dim * llm_backbone.embed_dim + llm_backbone.embed_dim * llm_backbone.embed_dim }')
+        if init_projector_path is not None:
+            try:
+                self.projector.load_state_dict(torch.load(init_projector_path))
+                overwatch.info(f"Loaded Projector from {init_projector_path}")
+            except Exception as e:
+                overwatch.error(f"Failed to load Projector from {init_projector_path} with error: {e}")
+                # Exit the program
+                exit(1)
         # Trackers
         self.vision_backbone_requires_grad = False
 
