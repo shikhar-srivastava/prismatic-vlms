@@ -352,21 +352,22 @@ GQA: 31.25, NL hmean: 33.96, NL Delta: 5.26
 stage-final-llava-v15-pythia+410m-set_to_one-teacher_distillation-stabladam-1 [2024-12-05 03:21:38]
 GQA: 0.3252, Text-VQA Pure: 0.0788, Text-VQA OCR: 0.1119, VQA-v2: 0.4135, RefCOCO: 0.0020, VL Avg: 0.0093, NLU Avg: 0.3943, NLU Delta: -0.0024, NLG Avg: 0.2624, NLG Delta: 0.1312, NL Avg: 0.3151, NL Delta: 0.0776
 
-stage-final-llava-v15-pythia+410m-set_to_one-teacher_distillation-adopt_optim-1 [2024-12-05 03:24:53]
-Error: Model directory 'evaluations/stage-final-llava-v15-pythia+410m-set_to_one-teacher_distillation-adopt_optim-1' does not exist.
 
-stage-final-llava-v15-pythia+2p8b-glu [2024-12-19 10:16:43]
-Error: Model directory 'evaluations/stage-final-llava-v15-pythia+2p8b-glu' does not exist.
+# 1/sqrt(d) scaled training
+stage-final-llava-v15-pythia+1b-scaled_patch
+GQA: 0.1465, Text-VQA Pure: 0.0066, Text-VQA OCR: 0.0154, VQA-v2: 0.1491, RefCOCO: 0.0000, VL Avg: 0.0000, NLU Avg: 0.4569, NLU Delta: -0.0208, NLG Avg: 0.3957, NLG Delta: 0.0439, NL Avg: 0.4241, NL Delta: 0.0137
 
-stage-final-llava-v15-pythia+2p8b-glu [2024-12-19 10:31:44]
-Error: Model directory 'evaluations/stage-final-llava-v15-pythia+2p8b-glu' does not exist.
+# Standard
+stage-final-llava-v15-pythia+1b
+GQA: 0.4609, Text-VQA Pure: 0.3595, Text-VQA OCR: 0.3760, VQA-v2: 0.6435, RefCOCO: 0.0801, VL Avg: 0.2309, NLU Avg: 0.4525, NLU Delta: -0.0163, NLG Avg: 0.3901, NLG Delta: 0.0495, NL Avg: 0.4189, NL Delta: 0.0189
 
-stage-final-llava-v15-pythia+2p8b-glu [2024-12-19 10:59:29]
-Error: Model directory 'evaluations/stage-final-llava-v15-pythia+2p8b-glu' does not exist.
+# Non-linear projection with scaling
+stage-final-llava-v15-pythia+1b-scaled_patch-fused_gelu [2025-02-23 09:51:28]
+GQA: 0.1943, Text-VQA Pure: 0.0203, Text-VQA OCR: 0.0271, VQA-v2: 0.2306, RefCOCO: 0.0000, VL Avg: 0.0000, NLU Avg: 0.4499, NLU Delta: -0.0138, NLG Avg: 0.3939, NLG Delta: 0.0456, NL Avg: 0.4201, NL Delta: 0.0177
 
-stage-final-llava-v15-pythia+2p8b-glu [2024-12-20 03:10:14]
-Error: Baseline model directory 'evaluations/reproduction-align-pythia+2p8b' does not exist.
 
+stage-final-llava-v15-pythia+1b-scaled_patch-fused_gelu [2025-02-23 03:02:24]
+GQA: 19.43, NL hmean: 43.75, NL Delta: -0.07
 stage-final-llava-v15-pythia+1b-scaled_patch-fused_gelu [2025-02-23 03:02:24]
 GQA: 19.43, NL hmean: 43.75, NL Delta: -0.07
 
