@@ -159,6 +159,10 @@ class PretrainConfig:
 
     scale_patch_embeddings: bool = False # If true, then scale by 1/sqrt(d_model) before projecting 
 
+    # Alignment loss
+    align_weight: float = 0.01
+    align_loss: bool = False
+
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         # assert that load_logits and save_logits are not both true
@@ -300,7 +304,9 @@ def pretrain(cfg: PretrainConfig) -> None:
     else:
         cfg.run_id = f"{dataset_id}+{model_id}+stage-{cfg.stage}+x{cfg.seed}" if cfg.run_id is None else cfg.run_id
 
+    overwatch.critical(f"Alignment Loss: {cfg.align_loss} with Align weight: {cfg.align_weight}")
     overwatch.info(f'Mitigation method: {cfg.mitigation}', ctx_level=1)
+    
     if cfg.epoch_count !=1 :
         overwatch.info(f"Raising No of Epochs to : {cfg.epoch_count}",ctx_level=1)
     if cfg.mitigation is not None:

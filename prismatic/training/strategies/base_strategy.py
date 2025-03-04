@@ -67,6 +67,9 @@ class TrainingStrategy(ABC):
         ############
         ### Specific configuration related
 
+        # Align Loss
+        self.align_loss = cfg['align_loss'] if isinstance(cfg, dict) else getattr(cfg, 'align_loss', False)
+        self.align_weight = cfg['align_weight'] if isinstance(cfg, dict) else getattr(cfg, 'align_weight', 0.01)
         # Measure Rank Entropy
 
         self.measure_rank_entropy = cfg['measure_rank_entropy'] if isinstance(cfg, dict) else getattr(cfg, 'measure_rank_entropy', False)
@@ -329,6 +332,7 @@ class TrainingStrategy(ABC):
                         if stage == 'finetune':
                             sample_indices = batch.pop('idx')
 
+
                         # if self.save_logits:
                         #     # Inference mode: Disable gradient computations
                         #     with torch.no_grad():
@@ -381,6 +385,7 @@ class TrainingStrategy(ABC):
                                 labels=batch["labels"],
                                 multimodal_indices=batch["multimodal_indices"],
                                 return_labels=True,
+                                align_loss=self.align_loss
                             )
                             if self.vlm.llm_teacher is not None:
                                 with torch.no_grad():
@@ -391,6 +396,7 @@ class TrainingStrategy(ABC):
                                         labels=batch["labels"],
                                         multimodal_indices=batch["multimodal_indices"],
                                         return_labels=True,
+                                        align_loss=self.align_loss
                                     )
                         else:
                             output: CausalLMOutputWithPast = self.vlm(
@@ -399,6 +405,7 @@ class TrainingStrategy(ABC):
                                 pixel_values=batch["pixel_values"],
                                 labels=batch["labels"],
                                 multimodal_indices=batch["multimodal_indices"],
+                                align_loss=self.align_loss
                             )
                         
                     if self.soft_alpha is not None:
@@ -887,7 +894,13 @@ class TrainingStrategy(ABC):
                             )
 
                     else:
+                        if self.align_loss:
+                            output, alignment_loss_val = output
+                        
                         loss = output.loss
+
+                        if (self.align_loss) and (alignment_loss_val is not None):
+                            loss = loss + self.align_weight * alignment_loss_val
 
                     # if self.soft_alpha is not None:
                     #     num_classes = output.logits.size(-1)  # Assuming shape [batch_size, seq_length, num_classes]

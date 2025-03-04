@@ -420,6 +420,38 @@ class PrismaticVLM(VLM):
             input_embeddings = llm_backbone.embed_input_ids(input_ids)
             return projected_patch_embeddings, input_embeddings
 
+    def compute_alignment_loss(
+        self,
+        projected_vis: torch.Tensor,
+        text_embeds: torch.Tensor) -> torch.Tensor:
+        """
+        Compute a simple MSE alignment loss on the (sample) covariance difference between
+        projected visual embeddings and text embeddings. Both are expected to be shape:
+          [N, dim] or [B, K, dim].
+        Steps:
+          1) Flatten => [N, d].
+          2) Center => Cov(Xc) = Xc^T Xc / (N-1)
+          3) Cov difference => MSE of the difference matrix.
+        """
+        V = projected_vis.reshape(-1, projected_vis.shape[-1])  # flatten
+        T = text_embeds.reshape(-1, text_embeds.shape[-1])
+
+        if V.shape[0] < 2 or T.shape[0] < 2:
+            return torch.tensor(0.0, device=V.device)
+
+        V_mean = V.mean(dim=0, keepdim=True)
+        T_mean = T.mean(dim=0, keepdim=True)
+        Vc = V - V_mean
+        Tc = T - T_mean
+
+        nV = Vc.shape[0]
+        nT = Tc.shape[0]
+        cov_vis = (Vc.t() @ Vc) / max(nV - 1, 1)
+        cov_text = (Tc.t() @ Tc) / max(nT - 1, 1)
+
+        diff = cov_vis - cov_text
+        align_loss_val = (diff ** 2).mean()
+        return align_loss_val
 
     def forward(
         self,
@@ -430,6 +462,7 @@ class PrismaticVLM(VLM):
         inputs_embeds: Optional[torch.FloatTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         use_cache: Optional[bool] = None,
+        align_loss: bool = False, 
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
@@ -620,7 +653,17 @@ class PrismaticVLM(VLM):
         )
         if return_labels:
             return output, fused_labels
+        alignment_loss_val = None
+        if align_loss:
+            alignment_loss_val = self.compute_alignment_loss(
+                projected_patch_embeddings,  # visual side
+                input_embeddings,           # text side
+            )
+            # Return a tuple so the caller can handle it
+            return (output, alignment_loss_val)
+
         return output
+        
 
     #   => Note: The following methods override the functionality of `transformers.GenerationMixin`; these expect the
     #            contract in each of the function signatures, and also expect our `forward` function to roughly take
