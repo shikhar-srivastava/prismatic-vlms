@@ -162,6 +162,7 @@ class PretrainConfig:
     # Alignment loss
     align_weight: float = 0.01
     align_loss: bool = False
+    track_embeddings: bool = False
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""

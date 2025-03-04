@@ -70,6 +70,7 @@ class TrainingStrategy(ABC):
         # Align Loss
         self.align_loss = cfg['align_loss'] if isinstance(cfg, dict) else getattr(cfg, 'align_loss', False)
         self.align_weight = cfg['align_weight'] if isinstance(cfg, dict) else getattr(cfg, 'align_weight', 0.01)
+        self.track_embeddings = cfg['track_embeddings'] if isinstance(cfg, dict) else getattr(cfg, 'track_embeddings', False)
         # Measure Rank Entropy
 
         self.measure_rank_entropy = cfg['measure_rank_entropy'] if isinstance(cfg, dict) else getattr(cfg, 'measure_rank_entropy', False)
@@ -902,32 +903,34 @@ class TrainingStrategy(ABC):
                         if (self.align_loss) and (alignment_loss_val is not None):
                             loss = loss + self.align_weight * alignment_loss_val
 
-                    # if self.soft_alpha is not None:
-                    #     num_classes = output.logits.size(-1)  # Assuming shape [batch_size, seq_length, num_classes]
-                    #     valid_mask = fused_labels != IGNORE_INDEX
-                    #     valid_labels = fused_labels[valid_mask]
 
-                    #     if valid_labels.numel() > 0:
-                    #         # Adjusted smoothing value calculation
-                    #         base_smoothing = self.soft_alpha / (num_classes - 1) if num_classes > 1 else 0
-                    #         confidence = 1 - self.soft_alpha
 
-                    #         # Initialize the tensor for smoothed labels
-                    #         targets_smooth = torch.full((valid_labels.size(0), num_classes), base_smoothing, device=fused_labels.device)
-                    #         targets_smooth.scatter_(1, valid_labels.unsqueeze(1), confidence + base_smoothing)
-
-                    #         # Gather logits corresponding to valid labels for loss computation
-                    #         logits = output.logits[valid_mask].view(-1, num_classes)
-                    #         loss = F.cross_entropy(logits, targets_smooth, reduction='mean')
-                    #     else:
-                    #         # If there are no valid labels, default to a zero loss
-                    #         loss = torch.tensor(0.0, device=output.logits.device)
-                    # else:
-                    #     # Use the default loss calculated by the model when label smoothing is not applied
-                    #     loss = output.loss
-
-                    # Commit Loss (Prior to Gradient Accumulation Normalization)
-                    metrics.commit(loss=loss)
+                    if self.track_embeddings:
+                        with torch.no_grad():
+                            vis_emb, txt_emb = self.vlm.get_embeddings(
+                                input_ids=batch["input_ids"],
+                                attention_mask=batch["attention_mask"],
+                                pixel_values=batch["pixel_values"],
+                                labels=batch["labels"],
+                                multimodal_indices=batch["multimodal_indices"]
+                            )
+                            # compute stats
+                            vis_stats = compute_embedding_stats(vis_emb)
+                            txt_stats = compute_embedding_stats(txt_emb)
+                        metrics.commit(
+                        loss=loss,
+                        vis_embed_mean=vis_stats["embed_mean"],
+                        vis_embed_std=vis_stats["embed_std"],
+                        vis_l2_mean=vis_stats["l2_mean"],
+                        vis_l2_std=vis_stats["l2_std"],
+                        txt_embed_mean=txt_stats["embed_mean"],
+                        txt_embed_std=txt_stats["embed_std"],
+                        txt_l2_mean=txt_stats["l2_mean"],
+                        txt_l2_std=txt_stats["l2_std"]
+                    )
+                    else:    
+                        # Commit Loss (Prior to Gradient Accumulation Normalization)
+                        metrics.commit(loss=loss)
                     # Normalize Loss to account for Gradient Accumulation --> Backward!
                     # [IMPORTANT] Technically speaking, doing gradient accumulation in this way is "incorrect"; this is
                     #             because in general, each batch has a *different number of masked out tokens* (because
@@ -1174,3 +1177,26 @@ def calculate_rank_entropy(output, fused_labels):
     entropy = -torch.sum(rank_probs * torch.log(rank_probs + epsilon)).item()
 
     return entropy
+
+
+# *** UTILITY to compute embedding stats: mean, std, l2-mean, l2-std
+def compute_embedding_stats(emb: torch.Tensor) -> dict:
+    """
+    Given emb shape [B, N, D] or [N, D],
+    returns dict with mean, std of values, plus mean, std of L2 norms.
+    """
+    # flatten to 2D (N, D)
+    e2d = emb.reshape(-1, emb.shape[-1])  # [total_vectors, D]
+    # coordinate-wise mean, std
+    mean_val = e2d.mean().item()
+    std_val = e2d.std().item()
+    # l2 norm per row
+    norms = torch.norm(e2d, p=2, dim=-1)
+    mean_norm = norms.mean().item()
+    std_norm = norms.std().item()
+    return {
+        "embed_mean": mean_val,
+        "embed_std": std_val,
+        "l2_mean": mean_norm,
+        "l2_std": std_norm
+    }
