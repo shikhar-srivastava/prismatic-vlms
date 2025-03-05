@@ -380,7 +380,9 @@ class PrismaticVLM(VLM):
     #          *must* match the signature of a `{Model}ForCausalLM` so that we can inherit from `GenerationMixin`
     # === GenerationMixin Methods ===
 
-    def get_embeddings(input_ids: Optional[torch.LongTensor] = None,
+    def get_embeddings(
+        self,
+        input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         pixel_values: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
@@ -420,38 +422,6 @@ class PrismaticVLM(VLM):
             input_embeddings = llm_backbone.embed_input_ids(input_ids)
             return projected_patch_embeddings, input_embeddings
 
-    def compute_alignment_loss(
-        self,
-        projected_vis: torch.Tensor,
-        text_embeds: torch.Tensor) -> torch.Tensor:
-        """
-        Compute a simple MSE alignment loss on the (sample) covariance difference between
-        projected visual embeddings and text embeddings. Both are expected to be shape:
-          [N, dim] or [B, K, dim].
-        Steps:
-          1) Flatten => [N, d].
-          2) Center => Cov(Xc) = Xc^T Xc / (N-1)
-          3) Cov difference => MSE of the difference matrix.
-        """
-        V = projected_vis.reshape(-1, projected_vis.shape[-1])  # flatten
-        T = text_embeds.reshape(-1, text_embeds.shape[-1])
-
-        if V.shape[0] < 2 or T.shape[0] < 2:
-            return torch.tensor(0.0, device=V.device)
-
-        V_mean = V.mean(dim=0, keepdim=True)
-        T_mean = T.mean(dim=0, keepdim=True)
-        Vc = V - V_mean
-        Tc = T - T_mean
-
-        nV = Vc.shape[0]
-        nT = Tc.shape[0]
-        cov_vis = (Vc.t() @ Vc) / max(nV - 1, 1)
-        cov_text = (Tc.t() @ Tc) / max(nT - 1, 1)
-
-        diff = cov_vis - cov_text
-        align_loss_val = (diff ** 2).mean()
-        return align_loss_val
 
     def forward(
         self,
@@ -1032,6 +1002,38 @@ class PrismaticVLM(VLM):
                     if param.requires_grad:
                         print(f"  {name} is trainable")
 
+    def compute_alignment_loss(
+        self,
+        projected_vis: torch.Tensor,
+        text_embeds: torch.Tensor) -> torch.Tensor:
+        """
+        Compute a simple MSE alignment loss on the (sample) covariance difference between
+        projected visual embeddings and text embeddings. Both are expected to be shape:
+          [N, dim] or [B, K, dim].
+        Steps:
+          1) Flatten => [N, d].
+          2) Center => Cov(Xc) = Xc^T Xc / (N-1)
+          3) Cov difference => MSE of the difference matrix.
+        """
+        V = projected_vis.reshape(-1, projected_vis.shape[-1])  # flatten
+        T = text_embeds.reshape(-1, text_embeds.shape[-1])
+
+        if V.shape[0] < 2 or T.shape[0] < 2:
+            return torch.tensor(0.0, device=V.device)
+
+        V_mean = V.mean(dim=0, keepdim=True)
+        T_mean = T.mean(dim=0, keepdim=True)
+        Vc = V - V_mean
+        Tc = T - T_mean
+
+        nV = Vc.shape[0]
+        nT = Tc.shape[0]
+        cov_vis = (Vc.t() @ Vc) / max(nV - 1, 1)
+        cov_text = (Tc.t() @ Tc) / max(nT - 1, 1)
+
+        diff = cov_vis - cov_text
+        align_loss_val = (diff ** 2).mean()
+        return align_loss_val
 
 def scale_by_inv_sqrt(x: torch.Tensor) -> torch.Tensor:
     """

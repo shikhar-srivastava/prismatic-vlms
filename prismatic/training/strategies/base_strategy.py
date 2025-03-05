@@ -320,7 +320,7 @@ class TrainingStrategy(ABC):
                 # Note that we'll unpack batch (and let AMP/FSDP do its thing) in the VLM.forward() call
                 #   => Basically, if we're using mixed precision (or not), autocast()/FSDP will move to device!
                 for train_idx, batch in enumerate(dataloader):
-                    if self.__class__.__name__ == 'DDPStrategy':
+                    if self.__class__.__name__ == 'DDPStrategy' or self.track_embeddings:
                         # DDP does not automatically move the data to the device.
                         batch = {k: v.to(self.device_id) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
                     # [Contract] self.vlm.forward() must automatically compute `loss` and return!
@@ -408,6 +408,18 @@ class TrainingStrategy(ABC):
                                 multimodal_indices=batch["multimodal_indices"],
                                 align_loss=self.align_loss
                             )
+                            if self.track_embeddings:
+                                with torch.no_grad():
+                                    vis_emb, txt_emb = self.vlm.get_embeddings(
+                                        input_ids=batch["input_ids"],
+                                        attention_mask=batch["attention_mask"],
+                                        pixel_values=batch["pixel_values"],
+                                        labels=batch["labels"],
+                                        multimodal_indices=batch["multimodal_indices"]
+                                    )
+                                    # compute stats
+                                    vis_stats = compute_embedding_stats(vis_emb)
+                                    txt_stats = compute_embedding_stats(txt_emb)
                         
                     if self.soft_alpha is not None:
                         shift_logits = output.logits[:, :-1, :].contiguous()
@@ -906,17 +918,6 @@ class TrainingStrategy(ABC):
 
 
                     if self.track_embeddings:
-                        with torch.no_grad():
-                            vis_emb, txt_emb = self.vlm.get_embeddings(
-                                input_ids=batch["input_ids"],
-                                attention_mask=batch["attention_mask"],
-                                pixel_values=batch["pixel_values"],
-                                labels=batch["labels"],
-                                multimodal_indices=batch["multimodal_indices"]
-                            )
-                            # compute stats
-                            vis_stats = compute_embedding_stats(vis_emb)
-                            txt_stats = compute_embedding_stats(txt_emb)
                         metrics.commit(
                         loss=loss,
                         vis_embed_mean=vis_stats["embed_mean"],
