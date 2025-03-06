@@ -117,6 +117,7 @@ class PrismaticVLM(VLM):
         enable_mixed_precision_training: bool = True,
         arch_specifier: str = "gelu-mlp",
         llm_teacher: LLMBackbone = None,
+        device = 'cuda'
     ) -> PrismaticVLM:
         """Initialize a PrismaticVLM from a pretrained checkpoint, freezing all weights, tailored for inference."""
         vlm = cls(
@@ -144,7 +145,7 @@ class PrismaticVLM(VLM):
                     new_model_state_dict[k.replace('llm.', '')] = v
                 else:
                     new_model_state_dict[k] = v
-            new_model_state_dict = {k: v.to('cuda') for k, v in new_model_state_dict.items()}
+            new_model_state_dict = {k: v.to(device) for k, v in new_model_state_dict.items()}
             vlm.llm_backbone.llm.load_state_dict(new_model_state_dict)
             del new_model_state_dict
         elif "projector" in model_state_dict:

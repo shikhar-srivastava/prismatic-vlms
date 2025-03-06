@@ -49,6 +49,7 @@ def get_model_description(model_id_or_name: str) -> str:
 # === Load Pretrained Model ===
 def load(
     model_id_or_path: Union[str, Path], hf_token: Optional[str] = None, cache_dir: Optional[Union[str, Path]] = None,
+    device = "cuda"
 ) -> PrismaticVLM:
     """Loads a pretrained PrismaticVLM from either local disk or the HuggingFace Hub."""
     if os.path.isdir(model_id_or_path):
@@ -117,6 +118,7 @@ def load(
         vision_backbone,
         llm_backbone,
         arch_specifier=model_cfg["arch_specifier"],
+        device = device
     )
 
     return vlm
