@@ -10,6 +10,8 @@ You can also circumvent the mandatory password entry by using ssh-copy-id, but y
 sudo apt update
 sudo apt install screen
 
+# ENV var issues
+Remove conda py_3.10 from PATH in /etc/bash.bashrc file 
 # Creating new environments
 Do not create new conda environments directly. These will be unstable, and will not work with the ROCm stack. Instead, use the conda env (py_3.10) in the docker image. This saves a lot of time and effort trying to get it to work (flash attention for example will fail without this).
 
@@ -19,3 +21,6 @@ conda create --name prism --clone py_3.10
 #### For install prismatic
 Ensure toml doesn't have specific versions. Do not reinstall torch, torchvision. You don't need torchaudio (Remove them from toml).
 Let others install without version constraints. 
+
+#### For installling using pip install -e . : use the following:
+pip install --no-cache-dir -e .
