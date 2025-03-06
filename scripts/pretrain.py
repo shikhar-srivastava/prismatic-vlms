@@ -164,6 +164,10 @@ class PretrainConfig:
     align_loss: bool = False
     track_embeddings: bool = False
 
+    # Mixed precision training
+    disable_mixed_precision: bool = False
+    
+
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         # assert that load_logits and save_logits are not both true
@@ -185,7 +189,6 @@ class PretrainConfig:
 
         if self.scale_patch_embeddings:
             overwatch.critical("Scaling Patch Embeddings by 1/sqrt(d_model)")
-
         # STAGES 
         if self.stage == "align":
             self.epochs = self.model.align_epochs
@@ -287,6 +290,10 @@ class PretrainConfig:
         else:
             raise ValueError(f"Stage `{self.stage}` is not supported!")
 
+        if self.ddp:
+            self.train_strategy = "ddp-native"
+            self.weight_decay = 0.0
+            overwatch.critical(f"Using DDP with weight decay: {self.weight_decay}")
     # fmt: on
 
 
@@ -297,6 +304,10 @@ def pretrain(cfg: PretrainConfig) -> None:
     # torch.cuda.set_device(device_id := (overwatch.rank() % torch.cuda.device_count()))
     torch.cuda.set_device(device_id := (overwatch.local_rank()))
     torch.cuda.empty_cache()
+
+    if cfg.disable_mixed_precision:
+        overwatch.critical("Disabling Mixed Precision Training")
+        cfg.model.enable_mixed_precision_training = False
 
     # Create Unique Run Name & Save Directory
     model_id = cfg.model.model_id

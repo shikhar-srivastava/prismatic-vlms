@@ -83,12 +83,11 @@ def check_bloat16_supported() -> bool:
         import torch.distributed as dist
 
         return (
-            (torch.version.cuda is not None)
-            and torch.cuda.is_bf16_supported()
-            and (packaging.version.parse(torch.version.cuda).release >= (11, 0))
+            torch.cuda.is_bf16_supported()
             and dist.is_nccl_available()
             and (nccl.version() >= (2, 10))
         )
+
 
     except Exception:
         return False

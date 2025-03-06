@@ -401,7 +401,12 @@ class PrismaticVLM(VLM):
                     patch_features = self.vision_backbone({k: pixel_values[k][multimodal_indices] for k in pixel_values})
                 else:
                     patch_features = self.vision_backbone(pixel_values[multimodal_indices])
-                
+            
+            # @TODO: Risky one incase stacks multiple images. Which doesn't occur in this case, does it?
+            if isinstance(patch_features, list):
+                assert len(patch_features) == 1, "Multiple outputs from Vision Backbone not supported!"
+                patch_features = patch_features[0]
+
             if self.scale_patch_embeddings:
                 patch_features = scale_by_inv_sqrt(patch_features)
 
@@ -508,8 +513,14 @@ class PrismaticVLM(VLM):
                 patch_features = self.vision_backbone({k: pixel_values[k][multimodal_indices] for k in pixel_values})
             else:
                 patch_features = self.vision_backbone(pixel_values[multimodal_indices])
+
+        # @TODO: Risky one incase stacks multiple images. Which doesn't occur in this case, does it?
+        if isinstance(patch_features, list):
+            assert len(patch_features) == 1, "Multiple outputs from Vision Backbone not supported!"
+            patch_features = patch_features[0]
+
         if self.scale_patch_embeddings:
-                patch_features = scale_by_inv_sqrt(patch_features)
+            patch_features = scale_by_inv_sqrt(patch_features)
 
         # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
         projector = self.projector.module if isinstance(self.projector, DDP) else self.projector

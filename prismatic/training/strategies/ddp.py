@@ -117,7 +117,8 @@ class DDPStrategy(TrainingStrategy):
         overwatch.info("Wrapping VLM with Distributed Data Parallel", ctx_level=1)
         #self.vlm = DDP(self.vlm, device_ids=[self.device_id], gradient_as_bucket_view=True, find_unused_parameters=True)
         # Wrap trainable components with Distributed Data Parallel
-        self.vlm.llm_backbone = DDP(self.vlm.llm_backbone, device_ids=[self.device_id], gradient_as_bucket_view=True)
+        if self.cfg.stage != "align":
+            self.vlm.llm_backbone = DDP(self.vlm.llm_backbone, device_ids=[self.device_id], gradient_as_bucket_view=True)
         self.vlm.projector = DDP(self.vlm.projector, device_ids=[self.device_id], gradient_as_bucket_view=True)
 
 

@@ -30,17 +30,17 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "accelerate>=0.25.0",
+    "accelerate",
     "draccus @ git+https://github.com/dlwh/draccus",
     "einops",
     # "flash_attn>=2.3.3",  # Here for documentation -- install *AFTER* editable install (follow README)
     "jsonlines",
     "rich",
-    "timm==0.9.10",
-    "torch>=2.1.0",
-    "torchvision>=0.16.0",
-    "torchaudio",
-    "transformers>=4.34.1",
+    "timm",
+    # "torch",
+    # "torchvision",
+    # "torchaudio",
+    "transformers",
     "wandb"
 ]
 
