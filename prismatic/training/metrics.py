@@ -129,6 +129,7 @@ class Metrics:
             "txt_embed_std": deque(maxlen=window_size),
             "txt_l2_mean": deque(maxlen=window_size),
             "txt_l2_std": deque(maxlen=window_size),
+            "alignment_loss": deque(maxlen=window_size),  # Add this line
         }
 
     def log(self, global_step: int, metrics: Dict[str, Union[int, float]]) -> None:
@@ -164,6 +165,7 @@ class Metrics:
         txt_embed_std: Optional[float] = None,
         txt_l2_mean: Optional[float] = None,
         txt_l2_std: Optional[float] = None,
+        alignment_loss: Optional[torch.Tensor] = None,  # Add this parameter
         **kwargs
     ) -> None:
         if global_step is not None:
@@ -176,6 +178,10 @@ class Metrics:
         # Basic logging
         if lr is not None:
             self.state["lr"].append(lr)
+
+        if alignment_loss is not None:
+            alignment_loss_val = alignment_loss.detach()
+            self.state["alignment_loss"].append(alignment_loss_val)
 
         if update_step_time:
             self.state["step_time"].append(time.time() - self.step_start_time)
@@ -247,6 +253,11 @@ class Metrics:
             f"{prefix}/Learning Rate": lr,
             f"{prefix}/Step Time": step_time,
         }
+        # Add alignment loss if it exists
+        if len(self.state["alignment_loss"]) > 0:
+            alignment_loss = torch.stack(list(self.state["alignment_loss"])).mean().item()
+            metrics[f"{prefix}/Alignment Loss"] = alignment_loss
+            self.state["alignment_loss"].clear()
 
         # 2) rank entropy
         if len(self.state["rank_entropy"]) > 0:

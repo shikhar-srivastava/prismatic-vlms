@@ -32,6 +32,8 @@ from prismatic.util.lora_utils import capture_initial_weights, \
     measure_lora_weight_change, measure_lora_weight_change_per_layer, log_weight_change_detailed
 
 import os
+import numpy as np
+
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -71,6 +73,8 @@ class TrainingStrategy(ABC):
         self.align_loss = cfg['align_loss'] if isinstance(cfg, dict) else getattr(cfg, 'align_loss', False)
         self.align_weight = cfg['align_weight'] if isinstance(cfg, dict) else getattr(cfg, 'align_weight', 0.01)
         self.track_embeddings = cfg['track_embeddings'] if isinstance(cfg, dict) else getattr(cfg, 'track_embeddings', False)
+        self.track_top_p = cfg['track_top_p'] if isinstance(cfg, dict) else getattr(cfg, 'track_top_p', False)
+        
         # Measure Rank Entropy
 
         self.measure_rank_entropy = cfg['measure_rank_entropy'] if isinstance(cfg, dict) else getattr(cfg, 'measure_rank_entropy', False)
@@ -250,6 +254,15 @@ class TrainingStrategy(ABC):
             worker_init_fn=self.worker_init_fn,
             #pin_memory=True,
         )
+
+        # Load both saved batches if tracking top_n_coverage is enabled
+        if self.track_top_p:
+            batch_align = torch.load('batch_align.pt')
+            batch_align = {k: v.to(self.device_id) if isinstance(v, torch.Tensor) else v for k, v in batch_align.items()}
+            batch_finetune = torch.load('batch_finetune.pt')
+            batch_finetune = {k: v.to(self.device_id) if isinstance(v, torch.Tensor) else v for k, v in batch_finetune.items()}
+
+
         initial_weights = None
         last_weights = None
         # Max Steps vs. Epochs Computation
@@ -918,17 +931,31 @@ class TrainingStrategy(ABC):
 
 
                     if self.track_embeddings:
-                        metrics.commit(
-                        loss=loss,
-                        vis_embed_mean=vis_stats["embed_mean"],
-                        vis_embed_std=vis_stats["embed_std"],
-                        vis_l2_mean=vis_stats["l2_mean"],
-                        vis_l2_std=vis_stats["l2_std"],
-                        txt_embed_mean=txt_stats["embed_mean"],
-                        txt_embed_std=txt_stats["embed_std"],
-                        txt_l2_mean=txt_stats["l2_mean"],
-                        txt_l2_std=txt_stats["l2_std"]
-                    )
+                        if self.align_loss:
+                            metrics.commit(
+                            loss=loss,
+                            alignment_loss=alignment_loss_val,
+                            vis_embed_mean=vis_stats["embed_mean"],
+                            vis_embed_std=vis_stats["embed_std"],
+                            vis_l2_mean=vis_stats["l2_mean"],
+                            vis_l2_std=vis_stats["l2_std"],
+                            txt_embed_mean=txt_stats["embed_mean"],
+                            txt_embed_std=txt_stats["embed_std"],
+                            txt_l2_mean=txt_stats["l2_mean"],
+                            txt_l2_std=txt_stats["l2_std"]
+                        )
+                        else:
+                            metrics.commit(
+                            loss=loss,
+                            vis_embed_mean=vis_stats["embed_mean"],
+                            vis_embed_std=vis_stats["embed_std"],
+                            vis_l2_mean=vis_stats["l2_mean"],
+                            vis_l2_std=vis_stats["l2_std"],
+                            txt_embed_mean=txt_stats["embed_mean"],
+                            txt_embed_std=txt_stats["embed_std"],
+                            txt_l2_mean=txt_stats["l2_mean"],
+                            txt_l2_std=txt_stats["l2_std"]
+                        )
                     else:    
                         # Commit Loss (Prior to Gradient Accumulation Normalization)
                         metrics.commit(loss=loss)
@@ -962,6 +989,36 @@ class TrainingStrategy(ABC):
                         metrics.commit(update_step_time=True)
                         # Clip Gradients --> this is custom, per-strategy because of DDP vs. FSDP locality-assumptions
                         self.clip_grad_norm()
+
+                        # Track top-n coverage every 100 steps for both stages
+                    if self.track_top_p:
+                        with torch.no_grad():
+                            # Compute for align batch
+                            output_align, fused_labels_align = self.vlm(
+                                input_ids=batch_align["input_ids"],
+                                attention_mask=batch_align["attention_mask"],
+                                pixel_values=batch_align["pixel_values"],
+                                labels=batch_align["labels"],
+                                multimodal_indices=batch_align["multimodal_indices"],
+                                return_labels=True,
+                            )
+                            top_n_align = calculate_top_n_coverage(output_align, fused_labels_align, top_n=10)
+
+                            # Compute for finetune batch
+                            output_finetune, fused_labels_finetune = self.vlm(
+                                input_ids=batch_finetune["input_ids"],
+                                attention_mask=batch_finetune["attention_mask"],
+                                pixel_values=batch_finetune["pixel_values"],
+                                labels=batch_finetune["labels"],
+                                multimodal_indices=batch_finetune["multimodal_indices"],
+                                return_labels=True,
+                            )
+                            top_n_finetune = calculate_top_n_coverage(output_finetune, fused_labels_finetune, top_n=10)
+
+                            # Log metrics with specific names
+                            metrics.log(metrics.global_step, {"top_n_align": top_n_align})
+                            metrics.log(metrics.global_step, {"top_n_finetune": top_n_finetune})
+
                         # Optimizer & LR Scheduler Step
                         if self.lr_scheduler_type == 'schedule-free':
                             self.optimizer.step() 
@@ -1201,3 +1258,49 @@ def compute_embedding_stats(emb: torch.Tensor) -> dict:
         "l2_mean": mean_norm,
         "l2_std": std_norm
     }
+
+def calculate_top_n_coverage(output, fused_labels, top_n=10):
+    """
+    Calculates the cumulative top-n coverage (percentage of correct tokens within top-n predictions).
+
+    Args:
+        output: Model output containing logits (batch_size, seq_len, vocab_size).
+        fused_labels: Ground truth labels (batch_size, seq_len).
+        top_n: Number of top predictions to consider (default: 10).
+
+    Returns:
+        float: Percentage of correct tokens within the top-n predictions.
+    """
+    device = output.logits.device
+    logits = output.logits
+    labels = fused_labels
+
+    # Align logits and labels by shifting
+    shift_logits = logits[:, :-1, :].contiguous()  # (batch_size, seq_len-1, vocab_size)
+    valid_targets = labels[:, 1:].contiguous()     # (batch_size, seq_len-1)
+
+    # Create mask for valid targets (labels != -100)
+    mask = (valid_targets != -100)
+
+    # Replace -100 to avoid indexing errors
+    valid_targets_clamped = valid_targets.clone()
+    valid_targets_clamped[~mask] = 0
+
+    # Flatten tensors
+    flat_logits = shift_logits.view(-1, shift_logits.size(-1))  # (batch_size*(seq_len-1), vocab_size)
+    flat_targets = valid_targets_clamped.view(-1)               # (batch_size*(seq_len-1))
+    flat_mask = mask.view(-1)                                   # (batch_size*(seq_len-1))
+
+    # Filter valid positions
+    valid_logits = flat_logits[flat_mask]                       # (num_valid, vocab_size)
+    valid_targets_final = flat_targets[flat_mask]               # (num_valid)
+
+    # Sort logits and find ranks
+    sorted_indices = torch.argsort(valid_logits, dim=-1, descending=True)
+    target_mask = (sorted_indices == valid_targets_final.unsqueeze(1))
+    ranks = torch.nonzero(target_mask, as_tuple=False)[:, 1] + 1
+
+    # Calculate coverage
+    ranks_np = ranks.cpu().numpy()
+    top_n_coverage = np.mean(ranks_np <= top_n) * 100.0 if len(ranks_np) > 0 else 0.0
+    return top_n_coverage

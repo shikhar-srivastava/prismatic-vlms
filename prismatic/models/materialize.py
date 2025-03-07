@@ -137,6 +137,7 @@ def get_vlm(
     llm_teacher: LLMBackbone = None,
     init_projector_path: str = None,
     scale_patch_embeddings: bool = False,
+    pre_projection_layer_norm: bool = False
 ) -> PrismaticVLM:
     """Lightweight wrapper around initializing a VLM, mostly for future-proofing (if one wants to add a new VLM)."""
     return PrismaticVLM(
@@ -147,5 +148,6 @@ def get_vlm(
         arch_specifier=arch_specifier,
         llm_teacher = llm_teacher,
         init_projector_path = init_projector_path,
-        scale_patch_embeddings = scale_patch_embeddings
+        scale_patch_embeddings = scale_patch_embeddings,
+        pre_projection_layer_norm = pre_projection_layer_norm
     )

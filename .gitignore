@@ -285,3 +285,5 @@ vicuna_cos_dist_finetuned.pkl
 vicuna_eu_dist_aligned.pkl
 vicuna_eu_dist_finetuned.pkl
 projector_inits/*
+batch_align.pt
+batch_finetune.pt

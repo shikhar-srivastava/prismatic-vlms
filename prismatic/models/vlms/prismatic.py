@@ -48,6 +48,7 @@ class PrismaticVLM(VLM):
         arch_specifier: str = "gelu-mlp",
         init_projector_path: str = None,
         scale_patch_embeddings: bool = False,
+        pre_projection_layer_norm: bool = False,
     ) -> None:
         super().__init__(
             "prismatic",
@@ -57,6 +58,7 @@ class PrismaticVLM(VLM):
             enable_mixed_precision_training=enable_mixed_precision_training,
             llm_teacher=llm_teacher,
             scale_patch_embeddings=scale_patch_embeddings,
+            pre_projection_layer_norm=pre_projection_layer_norm,
         )
 
         # Set Weight Initialization Seed for Projector Consistency
@@ -82,6 +84,12 @@ class PrismaticVLM(VLM):
                 self.teacher_projector = GLUProjector(vision_backbone.embed_dim, llm_backbone.embed_dim)
         else:
             raise ValueError(f"PrismaticVLM with `{arch_specifier = }` is not supported!")
+        
+        # Add LayerNorm for visual embeddings if pre_projection_layer_norm is True
+        self.pre_projection_layer_norm = pre_projection_layer_norm
+        if self.pre_projection_layer_norm:
+            self.layer_norm = torch.nn.LayerNorm(vision_backbone.embed_dim)
+            
         overwatch.info(f'Dimensions of Projector: \n vision_dim: {vision_backbone.embed_dim}, llm_dim: {llm_backbone.embed_dim}')
         overwatch.info(f'Total Parameters: {vision_backbone.embed_dim * llm_backbone.embed_dim + llm_backbone.embed_dim * llm_backbone.embed_dim }')
         if init_projector_path is not None:
@@ -410,6 +418,10 @@ class PrismaticVLM(VLM):
 
             if self.scale_patch_embeddings:
                 patch_features = scale_by_inv_sqrt(patch_features)
+            
+            # Apply LayerNorm to patch_features if pre_projection_layer_norm is True
+            if self.pre_projection_layer_norm:
+                patch_features = self.layer_norm(patch_features)
 
             # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
             projector = self.projector.module if isinstance(self.projector, DDP) else self.projector

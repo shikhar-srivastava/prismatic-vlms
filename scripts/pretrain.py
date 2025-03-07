@@ -157,12 +157,16 @@ class PretrainConfig:
     init_projector: str = None # "ledoitwolf"
     init_projector_path: str = None
 
+    # Visual embedding scaling 
     scale_patch_embeddings: bool = False # If true, then scale by 1/sqrt(d_model) before projecting 
+    pre_projection_layer_norm: bool = False
 
     # Alignment loss
     align_weight: float = 0.01
     align_loss: bool = False
+
     track_embeddings: bool = False
+    track_top_p: bool = False
 
     # Mixed precision training
     disable_mixed_precision: bool = False
