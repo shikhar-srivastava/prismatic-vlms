@@ -33,6 +33,8 @@ from prismatic.util.lora_utils import capture_initial_weights, \
 
 import os
 import numpy as np
+import wandb
+
 
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -72,11 +74,19 @@ class TrainingStrategy(ABC):
         # Align Loss
         self.align_loss = cfg['align_loss'] if isinstance(cfg, dict) else getattr(cfg, 'align_loss', False)
         self.align_weight = cfg['align_weight'] if isinstance(cfg, dict) else getattr(cfg, 'align_weight', 0.01)
+        self.norm_reg = cfg['norm_reg'] if isinstance(cfg, dict) else getattr(cfg, 'norm_reg', False)
+        self.norm_reg_weight = cfg['norm_reg_weight'] if isinstance(cfg, dict) else getattr(cfg, 'norm_reg_weight', 0.01)
+
+
         self.track_embeddings = cfg['track_embeddings'] if isinstance(cfg, dict) else getattr(cfg, 'track_embeddings', False)
-        self.track_top_p = cfg['track_top_p'] if isinstance(cfg, dict) else getattr(cfg, 'track_top_p', False)
+        self.track_embeddings_histogram = cfg['track_embeddings_histogram'] if isinstance(cfg, dict) else getattr(cfg, 'track_embeddings_histogram', False)
+        self.track_embeddings_values = cfg['track_embeddings_values'] if isinstance(cfg, dict) else getattr(cfg, 'track_embeddings_values', False)
+        self.track_covariance = cfg['track_covariance'] if isinstance(cfg, dict) else getattr(cfg, 'track_covariance', False)
+        self.use_precomputed_covariance = cfg['use_precomputed_covariance'] if isinstance(cfg, dict) else getattr(cfg, 'use_precomputed_covariance', False)
+        self.precomputed_covariance_path = cfg['precomputed_covariance_path'] if isinstance(cfg, dict) else getattr(cfg, 'precomputed_covariance_path', "/home/aac/ssrivas9/prismatic-vlms/text_covariance_186K.pt")
+        self.track_avg_rank = cfg['track_avg_rank'] if isinstance(cfg, dict) else getattr(cfg, 'track_avg_rank', False)
         
         # Measure Rank Entropy
-
         self.measure_rank_entropy = cfg['measure_rank_entropy'] if isinstance(cfg, dict) else getattr(cfg, 'measure_rank_entropy', False)
 
         # Distillation with Teacher LLM
@@ -209,6 +219,137 @@ class TrainingStrategy(ABC):
         if self.lr_scheduler_type == 'schedule-free':
             self.optimizer.train()
 
+    def _compute_embedding_metrics(self, vis_emb, txt_emb, alignment_loss_val=None, reg_loss=None):
+        """Helper method to compute embedding metrics and prepare kwargs for metrics.commit."""
+        metrics_kwargs = {}
+        
+        # Only compute stats if tracking embeddings
+        if self.track_embeddings:
+            with torch.no_grad():
+                # ----- Visual embedding stats -----
+                if (vis_emb is not None) and (vis_emb.numel() > 0):
+                    vis_stats = compute_embedding_stats(vis_emb)
+                    metrics_kwargs.update({
+                        "vis_embed_mean": vis_stats["embed_mean"],
+                        "vis_embed_std": vis_stats["embed_std"],
+                        "vis_l2_mean": vis_stats["l2_mean"],
+                        "vis_l2_std": vis_stats["l2_std"],
+                    })
+                else:
+                    # If no images were provided, store a default of zero for each metric
+                    metrics_kwargs.update({
+                        "vis_embed_mean": 0.0,
+                        "vis_embed_std": 0.0,
+                        "vis_l2_mean": 0.0,
+                        "vis_l2_std": 0.0,
+                    })
+
+                # ----- Text embedding stats -----
+                if (txt_emb is not None) and (txt_emb.numel() > 0):
+                    txt_stats = compute_embedding_stats(txt_emb)
+                    metrics_kwargs.update({
+                        "txt_embed_mean": txt_stats["embed_mean"],
+                        "txt_embed_std": txt_stats["embed_std"],
+                        "txt_l2_mean": txt_stats["l2_mean"],
+                        "txt_l2_std": txt_stats["l2_std"],
+                    })
+                else:
+                    metrics_kwargs.update({
+                        "txt_embed_mean": 0.0,
+                        "txt_embed_std": 0.0,
+                        "txt_l2_mean": 0.0,
+                        "txt_l2_std": 0.0,
+                    })
+                
+                # ----- Compute cosine similarity only if both vis and txt embeddings exist -----
+                if (
+                    (vis_emb is not None) and (vis_emb.numel() > 0) and
+                    (txt_emb is not None) and (txt_emb.numel() > 0)
+                ):
+                    # Flatten and cast
+                    vis_flat = vis_emb.reshape(-1, vis_emb.shape[-1]).to(torch.float32)
+                    txt_flat = txt_emb.reshape(-1, txt_emb.shape[-1]).to(torch.float32)
+
+                    # Normalize each row so that dot product becomes cosine similarity
+                    vis_norm = F.normalize(vis_flat, p=2, dim=-1)
+                    txt_norm = F.normalize(txt_flat, p=2, dim=-1)
+
+                    # Cosine similarity matrix: (vis_count, txt_count)
+                    cos_sim = torch.matmul(vis_norm, txt_norm.transpose(0, 1))
+
+                    # Grab min, max, and mean over all pairwise cos-sims
+                    cos_sim_min = cos_sim.min().item()
+                    cos_sim_max = cos_sim.max().item()
+                    cos_sim_mean = cos_sim.mean().item()
+
+                    # Log them with descriptive keys
+                    metrics_kwargs["vis_txt_cosine_min"] = cos_sim_min
+                    metrics_kwargs["vis_txt_cosine_max"] = cos_sim_max
+                    metrics_kwargs["vis_txt_cosine_mean"] = cos_sim_mean
+                else:
+                    # If one is missing, store default zeros
+                    metrics_kwargs["vis_txt_cosine_min"] = 0.0
+                    metrics_kwargs["vis_txt_cosine_max"] = 0.0
+                    metrics_kwargs["vis_txt_cosine_mean"] = 0.0
+
+        # ----- Compute histogram if tracking it -----
+        if self.track_embeddings_histogram:
+            with torch.no_grad():
+                # Only compute histogram if vis_emb has data
+                if (vis_emb is not None) and (vis_emb.numel() > 0):
+                    # Flatten the batch and patch dimensions
+                    vis_emb_flat = vis_emb.reshape(-1, vis_emb.shape[-1])  # [batch_size * n_patches, hidden_dim]
+                    vis_emb_flat = vis_emb_flat.to(torch.float32)
+                    
+                    # Sample a subset of the embedding values to keep size manageable
+                    sample_dims = torch.arange(0, vis_emb_flat.shape[1], 10)
+                    sample_points = min(1000, vis_emb_flat.shape[0])
+                    if vis_emb_flat.shape[0] > sample_points:
+                        indices = torch.randperm(vis_emb_flat.shape[0])[:sample_points]
+                        sampled_data = vis_emb_flat[indices][:, sample_dims]
+                    else:
+                        sampled_data = vis_emb_flat[:, sample_dims]
+                    
+                    # Store the raw sampled data for WandB to process
+                    metrics_kwargs["projected_embeddings_histogram"] = sampled_data
+                else:
+                    # If there's no vis_emb, skip or store an empty tensor
+                    metrics_kwargs["projected_embeddings_histogram"] = torch.empty(0)
+
+        # ----- Compute covariance if tracking it -----
+        if self.track_covariance and self.align_loss:
+            with torch.no_grad():
+                # Only compute covariance if vis_emb has data
+                if (vis_emb is not None) and (vis_emb.numel() > 0):
+                    V = vis_emb.reshape(-1, vis_emb.shape[-1])
+                    V_mean = V.mean(dim=0, keepdim=True)
+                    Vc = V - V_mean
+                    nV = Vc.shape[0]
+                    cov_vis = (Vc.t() @ Vc) / max(nV - 1, 1)
+                    metrics_kwargs["covariance_matrix"] = cov_vis
+                else:
+                    metrics_kwargs["covariance_matrix"] = torch.empty(0)
+
+        # ----- Alignment loss -----
+        if self.align_loss:
+            metrics_kwargs["alignment_loss"] = alignment_loss_val if alignment_loss_val is not None else 0.0
+
+        # ----- Regularization loss -----
+        if self.norm_reg:
+            metrics_kwargs["reg_loss"] = reg_loss if reg_loss is not None else 0.0
+
+        # ----- Track raw embedding values per-dimension (if requested) -----
+        if self.track_embeddings_values:
+            with torch.no_grad():
+                if (vis_emb is not None) and (vis_emb.numel() > 0):
+                    vis_emb_flat = vis_emb.reshape(-1, vis_emb.shape[-1]).to(torch.float32)
+                    mean_per_dimension = vis_emb_flat.mean(dim=0)  # [hidden_dim]
+                    metrics_kwargs["projected_embeddings_values"] = mean_per_dimension
+                else:
+                    metrics_kwargs["projected_embeddings_values"] = torch.empty(0)
+
+        return metrics_kwargs
+
     def run_training(
         self,
         dataset: Dataset,
@@ -256,7 +397,7 @@ class TrainingStrategy(ABC):
         )
 
         # Load both saved batches if tracking top_n_coverage is enabled
-        if self.track_top_p:
+        if self.track_avg_rank:
             batch_align = torch.load('batch_align.pt')
             batch_align = {k: v.to(self.device_id) if isinstance(v, torch.Tensor) else v for k, v in batch_align.items()}
             batch_finetune = torch.load('batch_finetune.pt')
@@ -305,6 +446,8 @@ class TrainingStrategy(ABC):
                 if self.max_steps is None
                 else self.max_steps
             )
+
+        # metrics.log(metrics.global_step, {"test_histogram": wandb.Histogram(np.random.randn(1000))})
 
         status = metrics.get_status()
         with tqdm(
@@ -419,9 +562,11 @@ class TrainingStrategy(ABC):
                                 pixel_values=batch["pixel_values"],
                                 labels=batch["labels"],
                                 multimodal_indices=batch["multimodal_indices"],
-                                align_loss=self.align_loss
+                                align_loss=self.align_loss,
+                                use_precomputed_covariance=self.use_precomputed_covariance,
+                                precomputed_covariance_path=self.precomputed_covariance_path
                             )
-                            if self.track_embeddings:
+                            if self.track_embeddings or self.track_embeddings_histogram or self.track_covariance:
                                 with torch.no_grad():
                                     vis_emb, txt_emb = self.vlm.get_embeddings(
                                         input_ids=batch["input_ids"],
@@ -430,10 +575,10 @@ class TrainingStrategy(ABC):
                                         labels=batch["labels"],
                                         multimodal_indices=batch["multimodal_indices"]
                                     )
-                                    # compute stats
-                                    vis_stats = compute_embedding_stats(vis_emb)
-                                    txt_stats = compute_embedding_stats(txt_emb)
-                        
+                                    
+                                    # The calculations for histograms and covariance matrices are now handled
+                                    # by the _compute_embedding_metrics helper method when needed
+
                     if self.soft_alpha is not None:
                         shift_logits = output.logits[:, :-1, :].contiguous()
                         valid_targets = fused_labels[:, 1:].contiguous()
@@ -928,37 +1073,44 @@ class TrainingStrategy(ABC):
                         if (self.align_loss) and (alignment_loss_val is not None):
                             loss = loss + self.align_weight * alignment_loss_val
 
+                        # Add norm-based regularization if enabled
+                        if self.norm_reg:
+                            # Compute projected visual embeddings
+                            vis_emb_for_norm, _ = self.vlm.get_embeddings(
+                                input_ids=batch["input_ids"],
+                                attention_mask=batch["attention_mask"],
+                                pixel_values=batch["pixel_values"],
+                                labels=batch["labels"],
+                                multimodal_indices=batch["multimodal_indices"],
+                            )
+                            # Compute L2 norm of projected visual embeddings
+                            vis_emb_norm = torch.norm(vis_emb_for_norm, p=2, dim=-1)  # Shape: [bsz, num_patches]
+                            # Regularization loss: mean of squared L2 norms
+                            reg_loss = (vis_emb_norm ** 2).mean()
+                            # Add to the main loss
+                            loss = loss + self.norm_reg_weight * reg_loss
 
-
-                    if self.track_embeddings:
-                        if self.align_loss:
-                            metrics.commit(
-                            loss=loss,
-                            alignment_loss=alignment_loss_val,
-                            vis_embed_mean=vis_stats["embed_mean"],
-                            vis_embed_std=vis_stats["embed_std"],
-                            vis_l2_mean=vis_stats["l2_mean"],
-                            vis_l2_std=vis_stats["l2_std"],
-                            txt_embed_mean=txt_stats["embed_mean"],
-                            txt_embed_std=txt_stats["embed_std"],
-                            txt_l2_mean=txt_stats["l2_mean"],
-                            txt_l2_std=txt_stats["l2_std"]
-                        )
+                    # Compute and commit metrics
+                    if self.track_embeddings or self.track_embeddings_histogram or self.track_covariance or self.norm_reg:
+                        # Get alignment_loss_val if it's available
+                        alignment_loss_val_for_metrics = alignment_loss_val if self.align_loss else None
+                        reg_loss_for_metrics = reg_loss if self.norm_reg else None
+                        
+                        # Compute all necessary metrics
+                        metrics_kwargs = self._compute_embedding_metrics(vis_emb, txt_emb, alignment_loss_val_for_metrics, reg_loss_for_metrics)
+                        metrics_kwargs["loss"] = loss
+                        
+                        # Commit all metrics
+                        metrics.commit(**metrics_kwargs)
+                    else:
+                        if self.align_loss and alignment_loss_val is not None:
+                            if self.norm_reg:
+                                metrics.commit(loss=loss, alignment_loss=alignment_loss_val, reg_loss=reg_loss)
+                            else:
+                                metrics.commit(loss=loss, alignment_loss=alignment_loss_val)
                         else:
-                            metrics.commit(
-                            loss=loss,
-                            vis_embed_mean=vis_stats["embed_mean"],
-                            vis_embed_std=vis_stats["embed_std"],
-                            vis_l2_mean=vis_stats["l2_mean"],
-                            vis_l2_std=vis_stats["l2_std"],
-                            txt_embed_mean=txt_stats["embed_mean"],
-                            txt_embed_std=txt_stats["embed_std"],
-                            txt_l2_mean=txt_stats["l2_mean"],
-                            txt_l2_std=txt_stats["l2_std"]
-                        )
-                    else:    
-                        # Commit Loss (Prior to Gradient Accumulation Normalization)
-                        metrics.commit(loss=loss)
+                            metrics.commit(loss=loss)
+
                     # Normalize Loss to account for Gradient Accumulation --> Backward!
                     # [IMPORTANT] Technically speaking, doing gradient accumulation in this way is "incorrect"; this is
                     #             because in general, each batch has a *different number of masked out tokens* (because
@@ -991,33 +1143,36 @@ class TrainingStrategy(ABC):
                         self.clip_grad_norm()
 
                         # Track top-n coverage every 100 steps for both stages
-                    if self.track_top_p:
-                        with torch.no_grad():
-                            # Compute for align batch
-                            output_align, fused_labels_align = self.vlm(
-                                input_ids=batch_align["input_ids"],
-                                attention_mask=batch_align["attention_mask"],
-                                pixel_values=batch_align["pixel_values"],
-                                labels=batch_align["labels"],
-                                multimodal_indices=batch_align["multimodal_indices"],
-                                return_labels=True,
-                            )
-                            top_n_align = calculate_top_n_coverage(output_align, fused_labels_align, top_n=10)
+                        if self.track_avg_rank:
+                            with torch.no_grad():
+                                # Compute for align batch
+                                output_align, fused_labels_align = self.vlm(
+                                    input_ids=batch_align["input_ids"],
+                                    attention_mask=batch_align["attention_mask"],
+                                    pixel_values=batch_align["pixel_values"],
+                                    labels=batch_align["labels"],
+                                    multimodal_indices=batch_align["multimodal_indices"],
+                                    return_labels=True,
+                                )
+                                avg_rank_align, min_rank_align, max_rank_align = calculate_average_rank(output_align, fused_labels_align)
+                                # Compute for finetune batch
+                                output_finetune, fused_labels_finetune = self.vlm(
+                                    input_ids=batch_finetune["input_ids"],
+                                    attention_mask=batch_finetune["attention_mask"],
+                                    pixel_values=batch_finetune["pixel_values"],
+                                    labels=batch_finetune["labels"],
+                                    multimodal_indices=batch_finetune["multimodal_indices"],
+                                    return_labels=True,
+                                )
+                                avg_rank_finetune, min_rank_finetune, max_rank_finetune = calculate_average_rank(output_finetune, fused_labels_finetune)
 
-                            # Compute for finetune batch
-                            output_finetune, fused_labels_finetune = self.vlm(
-                                input_ids=batch_finetune["input_ids"],
-                                attention_mask=batch_finetune["attention_mask"],
-                                pixel_values=batch_finetune["pixel_values"],
-                                labels=batch_finetune["labels"],
-                                multimodal_indices=batch_finetune["multimodal_indices"],
-                                return_labels=True,
-                            )
-                            top_n_finetune = calculate_top_n_coverage(output_finetune, fused_labels_finetune, top_n=10)
-
-                            # Log metrics with specific names
-                            metrics.log(metrics.global_step, {"top_n_align": top_n_align})
-                            metrics.log(metrics.global_step, {"top_n_finetune": top_n_finetune})
+                                # Log metrics with specific names
+                                metrics.log(metrics.global_step, {"avg_rank_align": avg_rank_align})
+                                metrics.log(metrics.global_step, {"avg_rank_finetune": avg_rank_finetune})
+                                metrics.log(metrics.global_step, {"min_rank_align": min_rank_align})
+                                metrics.log(metrics.global_step, {"min_rank_finetune": min_rank_finetune})
+                                metrics.log(metrics.global_step, {"max_rank_align": max_rank_align})
+                                metrics.log(metrics.global_step, {"max_rank_finetune": max_rank_finetune})
 
                         # Optimizer & LR Scheduler Step
                         if self.lr_scheduler_type == 'schedule-free':
@@ -1259,7 +1414,7 @@ def compute_embedding_stats(emb: torch.Tensor) -> dict:
         "l2_std": std_norm
     }
 
-def calculate_top_n_coverage(output, fused_labels, top_n=10):
+def calculate_top_n_coverage(output, fused_labels, top_n=1):
     """
     Calculates the cumulative top-n coverage (percentage of correct tokens within top-n predictions).
 
@@ -1304,3 +1459,60 @@ def calculate_top_n_coverage(output, fused_labels, top_n=10):
     ranks_np = ranks.cpu().numpy()
     top_n_coverage = np.mean(ranks_np <= top_n) * 100.0 if len(ranks_np) > 0 else 0.0
     return top_n_coverage
+
+
+def calculate_average_rank(output, fused_labels):
+    """
+    Calculates the average 1-based rank of the correct token within the model's top predictions.
+    
+    Args:
+        output (CausalLMOutputWithPast): Model output containing `.logits` of shape (batch_size, seq_len, vocab_size).
+        fused_labels (torch.Tensor): Ground truth labels (batch_size, seq_len).
+
+    Returns:
+        float: The average rank of the correct token over all valid positions. 
+               (Rank 1 means the token was the top prediction, Rank 2 means it was second, etc.)
+               If there are no valid positions, returns 0.0.
+    """
+    device = output.logits.device
+    logits = output.logits
+    labels = fused_labels
+
+    # Align logits and labels by shifting. 
+    # Typically, for language modeling, logits[:, t, :] is the prediction for labels[:, t+1].
+    shift_logits = logits[:, :-1, :].contiguous()  # (batch_size, seq_len-1, vocab_size)
+    valid_targets = labels[:, 1:].contiguous()     # (batch_size, seq_len-1)
+
+    # Create mask for valid targets (labels != -100)
+    mask = (valid_targets != -100)
+
+    # Replace -100 to avoid indexing errors
+    valid_targets_clamped = valid_targets.clone()
+    valid_targets_clamped[~mask] = 0
+
+    # Flatten tensors
+    flat_logits = shift_logits.view(-1, shift_logits.size(-1))  # (batch_size*(seq_len-1), vocab_size)
+    flat_targets = valid_targets_clamped.view(-1)               # (batch_size*(seq_len-1))
+    flat_mask = mask.view(-1)                                   # (batch_size*(seq_len-1))
+
+    # Filter valid positions
+    valid_logits = flat_logits[flat_mask]                       # (num_valid, vocab_size)
+    valid_targets_final = flat_targets[flat_mask]               # (num_valid)
+
+    # If there are no valid positions (e.g., all were -100), return 0.0
+    if valid_logits.numel() == 0:
+        return 0.0
+
+    # Sort logits to find the rank of the correct token 
+    # (descending => highest logit has rank 1)
+    sorted_indices = torch.argsort(valid_logits, dim=-1, descending=True)  
+    # Create a mask where the sorted indices match the target indices
+    target_mask = (sorted_indices == valid_targets_final.unsqueeze(1))  
+    # The rank is the index where the target_mask is True, plus 1 (1-based)
+    ranks = torch.nonzero(target_mask, as_tuple=False)[:, 1] + 1  # shape: (num_valid,)
+
+    # Compute the average rank
+    avg_rank = ranks.float().mean().item()
+    min_rank = ranks.float().min().item()
+    max_rank = ranks.float().max().item()
+    return avg_rank, min_rank, max_rank

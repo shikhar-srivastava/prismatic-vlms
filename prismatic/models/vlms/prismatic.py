@@ -86,9 +86,9 @@ class PrismaticVLM(VLM):
             raise ValueError(f"PrismaticVLM with `{arch_specifier = }` is not supported!")
         
         # Add LayerNorm for visual embeddings if pre_projection_layer_norm is True
-        self.pre_projection_layer_norm = pre_projection_layer_norm
+        #self.pre_projection_layer_norm = pre_projection_layer_norm
         if self.pre_projection_layer_norm:
-            self.layer_norm = torch.nn.LayerNorm(vision_backbone.embed_dim)
+            self.layer_norm = torch.nn.LayerNorm(llm_backbone.embed_dim)
             
         overwatch.info(f'Dimensions of Projector: \n vision_dim: {vision_backbone.embed_dim}, llm_dim: {llm_backbone.embed_dim}')
         overwatch.info(f'Total Parameters: {vision_backbone.embed_dim * llm_backbone.embed_dim + llm_backbone.embed_dim * llm_backbone.embed_dim }')
@@ -105,6 +105,8 @@ class PrismaticVLM(VLM):
 
         # Set Module Keys =>> used in Checkpoint Saving / Model Loading
         self.all_module_keys = ["vision_backbone", "llm_backbone", "projector"]
+        if self.pre_projection_layer_norm:
+            self.all_module_keys.append("layer_norm")
         self.trainable_module_keys = []
 
         # === Generation Utilities ===
@@ -147,6 +149,12 @@ class PrismaticVLM(VLM):
         if "projector" in model_state_dict and "llm_backbone" in model_state_dict:
             overwatch.info("[VLM.from_pretrained] Loading `projector` and `llm_backbone` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
+            
+            # Load layer_norm if it exists in the checkpoint and is enabled in the model
+            if vlm.pre_projection_layer_norm and "layer_norm" in model_state_dict:
+                overwatch.info("[VLM.from_pretrained] Loading `layer_norm` from checkpoint", ctx_level=1)
+                vlm.layer_norm.load_state_dict(model_state_dict["layer_norm"])
+            
             new_model_state_dict = {}
             for k, v in model_state_dict['llm_backbone'].items():
                 if k.startswith('llm.'):
@@ -159,6 +167,11 @@ class PrismaticVLM(VLM):
         elif "projector" in model_state_dict:
             overwatch.error("Loading only `projector` from checkpoint", ctx_level=1)
             vlm.projector.load_state_dict(model_state_dict["projector"])
+            
+            # Load layer_norm if it exists in the checkpoint and is enabled in the model
+            if vlm.pre_projection_layer_norm and "layer_norm" in model_state_dict:
+                overwatch.info("[VLM.from_pretrained] Loading `layer_norm` from checkpoint", ctx_level=1)
+                vlm.layer_norm.load_state_dict(model_state_dict["layer_norm"])
         
         del model_state_dict # @TODO: Check what consequence this has.
         # Freeze Weights
@@ -185,9 +198,16 @@ class PrismaticVLM(VLM):
             self.vision_backbone.requires_grad_(False)
             self.llm_backbone.requires_grad_(False)
             self.projector.requires_grad_(True)
+            
+            # Ensure layer_norm is trainable if it exists
+            if self.pre_projection_layer_norm:
+                self.layer_norm.requires_grad_(True)
+                overwatch.info(f"[TRAINABLE] 🔥 =>> Layer Norm before projection", ctx_level=1)
 
             # Add to `self.trainable_module_keys`
             self.trainable_module_keys = ["projector"]
+            if self.pre_projection_layer_norm:
+                self.trainable_module_keys.append("layer_norm")
 
             # Update Trackers
             self.vision_backbone_requires_grad = False
@@ -205,13 +225,20 @@ class PrismaticVLM(VLM):
                 overwatch.info(f"LLM Backbone has requires_grad = True. Mitigation is None", ctx_level=1)
                 self.llm_backbone.requires_grad_(True)
             self.projector.requires_grad_(True)
+            
+            # Ensure layer_norm is trainable if it exists
+            if self.pre_projection_layer_norm:
+                self.layer_norm.requires_grad_(True)
+                overwatch.info(f"[TRAINABLE] 🔥 =>> Layer Norm before projection", ctx_level=1)
 
             # Add to `self.trainable_module_keys`
             if 'align-only' in self.model_id:
                 self.trainable_module_keys = ["projector"]
             else:
                 self.trainable_module_keys = ["projector", "llm_backbone"]
-
+                
+            if self.pre_projection_layer_norm:
+                self.trainable_module_keys.append("layer_norm")
 
             # Update Trackers
             self.vision_backbone_requires_grad = False
@@ -228,18 +255,23 @@ class PrismaticVLM(VLM):
             if self.llm_teacher is not None:
                 overwatch.info(f"[Frozen] 🥶 =>> Teacher LLM `{self.llm_teacher.identifier}` and Teacher Projector", ctx_level=1)
                 self.llm_teacher.requires_grad_(False)
-
                 self.teacher_projector.requires_grad_(False)
-
 
         elif stage == "full-finetune":
             self.vision_backbone.dtype = torch.float32
             self.vision_backbone.requires_grad_(True)
             self.llm_backbone.requires_grad_(True)
             self.projector.requires_grad_(True)
+            
+            # Ensure layer_norm is trainable if it exists
+            if self.pre_projection_layer_norm:
+                self.layer_norm.requires_grad_(True)
+                overwatch.info(f"[TRAINABLE] 🔥 =>> Layer Norm before projection", ctx_level=1)
 
             # Add to `self.trainable_module_keys`
             self.trainable_module_keys = ["vision_backbone", "projector", "llm_backbone"]
+            if self.pre_projection_layer_norm:
+                self.trainable_module_keys.append("layer_norm")
 
             # Update Trackers
             self.vision_backbone_requires_grad = True
@@ -279,6 +311,12 @@ class PrismaticVLM(VLM):
             overwatch.info(f"[VLM.load_from_checkpoint] Loading from Provided Checkpoint `{pretrained_checkpoint}`", ctx_level=1)
             model_state_dict = torch.load(pretrained_checkpoint)["model"]
             self.projector.load_state_dict(model_state_dict["projector"])
+            
+            # Load layer_norm if it exists in the checkpoint and is enabled in the model
+            if self.pre_projection_layer_norm and "layer_norm" in model_state_dict:
+                overwatch.info(f"Loading Layer Norm from Provided Checkpoint", ctx_level=1)
+                self.layer_norm.load_state_dict(model_state_dict["layer_norm"])
+                overwatch.info(f"Successfully loaded Layer Norm from Provided Checkpoint", ctx_level=1)
             
             if 'llm_backbone' in model_state_dict.keys():
                 overwatch.info(f"Loading LLM Backbone from Provided Checkpoint", ctx_level=1)
@@ -362,7 +400,7 @@ class PrismaticVLM(VLM):
         # Get Prismatic Wrapping Policy =>> just a module wrapping policy around `self.projector`
         prismatic_fsdp_wrapping_policy = partial(
             _module_wrap_policy,
-            module_classes={LinearProjector, MLPProjector, FusedMLPProjector},
+            module_classes={LinearProjector, MLPProjector, FusedMLPProjector, GLUProjector, torch.nn.LayerNorm},
         )
 
         # Return union (_or_) over constituent policies
@@ -406,10 +444,18 @@ class PrismaticVLM(VLM):
             
             # Run Visual Feature Extraction
             with torch.set_grad_enabled(self.vision_backbone_requires_grad):
+                # Get the data type from the vision_backbone's parameters
+                param_dtype = next(self.vision_backbone.parameters()).dtype
                 if isinstance(pixel_values, dict):
-                    patch_features = self.vision_backbone({k: pixel_values[k][multimodal_indices] for k in pixel_values})
+                    # Cast each tensor in the dictionary to the parameter's dtype
+                    pixel_values_cast = {k: v.to(param_dtype) for k, v in pixel_values.items()}
+                    patch_features = self.vision_backbone(
+                        {k: pixel_values_cast[k][multimodal_indices] for k in pixel_values_cast}
+                    )
                 else:
-                    patch_features = self.vision_backbone(pixel_values[multimodal_indices])
+                    # Cast the tensor to the parameter's dtype
+                    patch_features = self.vision_backbone(pixel_values[multimodal_indices].to(param_dtype))
+    
             
             # @TODO: Risky one incase stacks multiple images. Which doesn't occur in this case, does it?
             if isinstance(patch_features, list):
@@ -419,13 +465,14 @@ class PrismaticVLM(VLM):
             if self.scale_patch_embeddings:
                 patch_features = scale_by_inv_sqrt(patch_features)
             
-            # Apply LayerNorm to patch_features if pre_projection_layer_norm is True
-            if self.pre_projection_layer_norm:
-                patch_features = self.layer_norm(patch_features)
-
             # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
             projector = self.projector.module if isinstance(self.projector, DDP) else self.projector
             projected_patch_embeddings = projector(patch_features)
+            
+            # Apply LayerNorm after projection if enabled
+            if self.pre_projection_layer_norm:
+                projected_patch_embeddings = self.layer_norm(projected_patch_embeddings)
+            
             projected_patch_attention_mask = None
             if attention_mask is not None:
                 projected_patch_attention_mask = torch.full(
@@ -451,6 +498,8 @@ class PrismaticVLM(VLM):
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         use_cache: Optional[bool] = None,
         align_loss: bool = False, 
+        use_precomputed_covariance: bool = False,
+        precomputed_covariance_path: Optional[str] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
@@ -534,10 +583,15 @@ class PrismaticVLM(VLM):
 
         if self.scale_patch_embeddings:
             patch_features = scale_by_inv_sqrt(patch_features)
-
+        
         # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
         projector = self.projector.module if isinstance(self.projector, DDP) else self.projector
         projected_patch_embeddings = projector(patch_features)
+        
+        # Apply LayerNorm after projection if enabled
+        if self.pre_projection_layer_norm:
+            projected_patch_embeddings = self.layer_norm(projected_patch_embeddings)
+            
         projected_patch_attention_mask = None
         if attention_mask is not None:
             projected_patch_attention_mask = torch.full(
@@ -652,6 +706,8 @@ class PrismaticVLM(VLM):
             alignment_loss_val = self.compute_alignment_loss(
                 projected_patch_embeddings,  # visual side
                 input_embeddings,           # text side
+                use_precomputed_covariance,
+                precomputed_covariance_path
             )
             # Return a tuple so the caller can handle it
             return (output, alignment_loss_val)
@@ -754,6 +810,11 @@ class PrismaticVLM(VLM):
         # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
         projector = self.teacher_projector.module if isinstance(self.teacher_projector, DDP) else self.teacher_projector
         projected_patch_embeddings = projector(patch_features)
+        
+        # Apply LayerNorm after projection if enabled
+        if self.pre_projection_layer_norm:
+            projected_patch_embeddings = self.layer_norm(projected_patch_embeddings)
+            
         projected_patch_attention_mask = None
         if attention_mask is not None:
             projected_patch_attention_mask = torch.full(
@@ -1029,7 +1090,9 @@ class PrismaticVLM(VLM):
     def compute_alignment_loss(
         self,
         projected_vis: torch.Tensor,
-        text_embeds: torch.Tensor) -> torch.Tensor:
+        text_embeds: torch.Tensor,
+        use_precomputed_covariance: bool = False,
+        precomputed_covariance_path: str = None) -> torch.Tensor:
         """
         Compute a simple MSE alignment loss on the (sample) covariance difference between
         projected visual embeddings and text embeddings. Both are expected to be shape:
@@ -1038,22 +1101,36 @@ class PrismaticVLM(VLM):
           1) Flatten => [N, d].
           2) Center => Cov(Xc) = Xc^T Xc / (N-1)
           3) Cov difference => MSE of the difference matrix.
+
+        If use_precomputed_covariance is True, uses a precomputed text covariance matrix
+        loaded from precomputed_covariance_path instead of computing it from the current batch.
         """
         V = projected_vis.reshape(-1, projected_vis.shape[-1])  # flatten
-        T = text_embeds.reshape(-1, text_embeds.shape[-1])
 
-        if V.shape[0] < 2 or T.shape[0] < 2:
+        if V.shape[0] < 2:
             return torch.tensor(0.0, device=V.device)
 
         V_mean = V.mean(dim=0, keepdim=True)
-        T_mean = T.mean(dim=0, keepdim=True)
         Vc = V - V_mean
-        Tc = T - T_mean
 
         nV = Vc.shape[0]
-        nT = Tc.shape[0]
         cov_vis = (Vc.t() @ Vc) / max(nV - 1, 1)
-        cov_text = (Tc.t() @ Tc) / max(nT - 1, 1)
+
+        if use_precomputed_covariance and precomputed_covariance_path is not None:
+            # Load precomputed text covariance matrix
+            if not hasattr(self, 'precomputed_text_cov'):
+                self.precomputed_text_cov = torch.load(precomputed_covariance_path, map_location=V.device)
+            cov_text = self.precomputed_text_cov
+        else:
+            # Compute text covariance from the current batch
+            T = text_embeds.reshape(-1, text_embeds.shape[-1])
+            if T.shape[0] < 2:
+                return torch.tensor(0.0, device=V.device)
+            
+            T_mean = T.mean(dim=0, keepdim=True)
+            Tc = T - T_mean
+            nT = Tc.shape[0]
+            cov_text = (Tc.t() @ Tc) / max(nT - 1, 1)
 
         diff = cov_vis - cov_text
         align_loss_val = (diff ** 2).mean()

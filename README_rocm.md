@@ -18,6 +18,14 @@ Do not create new conda environments directly. These will be unstable, and will 
 ### Clone off py_3.10 as a base for any new environment
 conda create --name prism --clone py_3.10
 
+
+#### *CAREFUL* For installing libraries (such as torch/numpy/..even matplotlib)
+Use conda install -n prism <library> instead of pip install <library>.
+This is because conda will install the correct version of the library that is compatible with the ROCm stack.
+
+For example: `pip install peft` worked just fine. `pip install matplotlib` completely messed up the environment, since it updates numpy. Doesn't work, screws up their carefully configured libraries. Bad idea! 
+So, one *must* do `conda install` for those instead (`matplotlib` in this case).
+
 #### For install prismatic
 Ensure toml doesn't have specific versions. Do not reinstall torch, torchvision. You don't need torchaudio (Remove them from toml).
 Let others install without version constraints. 

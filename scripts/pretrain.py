@@ -154,7 +154,7 @@ class PretrainConfig:
     projector_type: str = None
 
     # Init Projector 
-    init_projector: str = None # "ledoitwolf"
+    init_projector: str = None # "ledoitwolf", "ledoitwolf-mlp"
     init_projector_path: str = None
 
     # Visual embedding scaling 
@@ -165,8 +165,17 @@ class PretrainConfig:
     align_weight: float = 0.01
     align_loss: bool = False
 
+    # Norm-based regularization
+    norm_reg: bool = False
+    norm_reg_weight: float = 0.01
+
     track_embeddings: bool = False
-    track_top_p: bool = False
+    track_embeddings_histogram: bool = False
+    track_embeddings_values: bool = False
+    track_covariance: bool = False
+    use_precomputed_covariance: bool = False
+    precomputed_covariance_path: str = "/home/aac/ssrivas9/prismatic-vlms/text_covariance_186K.pt"
+    track_avg_rank: bool = False
 
     # Mixed precision training
     disable_mixed_precision: bool = False
@@ -179,7 +188,7 @@ class PretrainConfig:
         assert not (self.lora_use_2r_heuristic and self.use_rslora), "Both use_rslora and self.lora_use_2r_heuristic cannot be true"
 
         # Assert that self.init_projector must be None or 'ledoitwolf' 
-        assert self.init_projector is None or self.init_projector == 'ledoitwolf', "init_projector must be None or 'ledoitwolf'"
+        assert self.init_projector is None or self.init_projector == 'ledoitwolf' or self.init_projector == 'ledoitwolf-mlp', "init_projector must be None or 'ledoitwolf' or 'ledoitwolf-mlp'"
         if (self.init_projector is not None):
             if (self.stage != "align"):
                 raise ValueError(f"init_projector can only be used in align stage")
@@ -187,12 +196,19 @@ class PretrainConfig:
                 raise ValueError(f"init_projector_path must be provided if init_projector is not None")
         if self.init_projector == 'ledoitwolf':
             self.model.arch_specifier = 'linear'
-            overwatch.info("Initializing projector with Ledoit-Wolf")
+            overwatch.critical("Initializing projector with Ledoit-Wolf")
+            overwatch.info(f"Projector Type: {self.model.arch_specifier}")
+            overwatch.info("Project Init Path: {self.init_projector_path}")
+        elif self.init_projector == 'ledoitwolf-mlp':
+            self.model.arch_specifier = 'gelu-mlp'
+            overwatch.critical("Initializing projector with Ledoit-Wolf MLP")
             overwatch.info(f"Projector Type: {self.model.arch_specifier}")
             overwatch.info("Project Init Path: {self.init_projector_path}")
 
         if self.scale_patch_embeddings:
             overwatch.critical("Scaling Patch Embeddings by 1/sqrt(d_model)")
+        if self.pre_projection_layer_norm:
+            overwatch.critical("Using Layer Norm before projection")
         # STAGES 
         if self.stage == "align":
             self.epochs = self.model.align_epochs
@@ -304,6 +320,11 @@ class PretrainConfig:
 @draccus.wrap()
 def pretrain(cfg: PretrainConfig) -> None:
     overwatch.info("Prismatic VLM Training :: Gathering Light")
+    overwatch.info(f"track_embeddings_histogram: {cfg.track_embeddings_histogram}")
+    overwatch.info(f"track_covariance: {cfg.track_covariance}")
+    overwatch.info(f"align_loss: {cfg.align_loss}")
+    overwatch.info(f"norm_reg: {cfg.norm_reg}")
+    overwatch.info(f"norm_reg_weight: {cfg.norm_reg_weight}")
     # Note => Under `torchrun` initializing `overwatch` will automatically set up `torch.distributed`
     # torch.cuda.set_device(device_id := (overwatch.rank() % torch.cuda.device_count()))
     torch.cuda.set_device(device_id := (overwatch.local_rank()))

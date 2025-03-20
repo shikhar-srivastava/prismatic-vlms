@@ -313,6 +313,14 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         self.llm.gradient_checkpointing_enable()
 
     def embed_input_ids(self, input_ids: torch.LongTensor) -> torch.Tensor:
+        # emb_layer = self.llm.get_input_embeddings()
+        # overwatch.info(f"Embedding layer type: {type(emb_layer)}")
+        # overwatch.info(f"Embedding weight shape: {emb_layer.weight.shape}")
+        # if not isinstance(emb_layer, nn.Embedding):
+        #     overwatch.error(f"Embedding layer is not nn.Embedding: {type(emb_layer)}")
+        # elif not isinstance(emb_layer.weight, torch.Tensor) or emb_layer.weight.dim() != 2:
+        #     overwatch.error(f"Embedding weight is not a 2D tensor: {emb_layer.weight}")
+        # return emb_layer(input_ids)
         return self.llm.get_input_embeddings()(input_ids)
 
     # [Contract] Should match the `forward` call of the underlying `llm` instance!

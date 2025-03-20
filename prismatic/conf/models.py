@@ -88,7 +88,7 @@ class LLaVa_v15_Reproduction_7B(ModelConfig):
     align_epochs: int = 1
     align_max_steps: Optional[int] = None
     align_global_batch_size: int = 256
-    align_per_device_batch_size: int = 16
+    align_per_device_batch_size: int = 32
 
     align_learning_rate: float = 1e-3
     align_weight_decay: float = 0.0
@@ -164,30 +164,30 @@ class Stage0_pythia_2p8b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+2p8b"
     llm_backbone_id: str = "pythia-2p8b"
     # finetune_train_strategy: str = "fsdp-hybrid-shard"
-    finetune_global_batch_size: int = 128 
-    finetune_per_device_batch_size: int = 8
+    # finetune_global_batch_size: int = 128 
+    # finetune_per_device_batch_size: int = 8
 
 @dataclass
 class Stage0_pythia_6p9b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-pythia+6p9b"
     llm_backbone_id: str = "pythia-6p9b"
     # finetune_train_strategy: str = "fsdp-hybrid-shard"
-    finetune_global_batch_size: int = 128 
-    finetune_per_device_batch_size: int = 8
+    # finetune_global_batch_size: int = 128 
+    # finetune_per_device_batch_size: int = 8
 
 @dataclass
 class Stage0_gemma_2b(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-gemma+2b"
     llm_backbone_id: str = "gemma-2b"
-    align_per_device_batch_size: int = 8
-    finetune_per_device_batch_size: int = 4
+    # align_per_device_batch_size: int = 8
+    # finetune_per_device_batch_size: int = 4
 
 @dataclass
 class Stage0_gemma_2b_it(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-gemma+2b-it"
     llm_backbone_id: str = "gemma-2b-it"
-    align_per_device_batch_size: int = 8
-    finetune_per_device_batch_size: int = 4
+    # align_per_device_batch_size: int = 8
+    # finetune_per_device_batch_size: int = 4
 
 @dataclass
 class Stage0_qwen_1_5_0p5b(LLaVa_v15_Reproduction_7B):
