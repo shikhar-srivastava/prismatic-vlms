@@ -372,4 +372,9 @@ stage-final-llava-v15-pythia+1b-scaled_patch-fused_gelu [2025-02-23 03:02:24]
 GQA: 19.43, NL hmean: 43.75, NL Delta: -0.07
 
 stage-final-llava-v15-pythia+1b-scaled_patch-fused_gelu [2025-02-23 09:51:28]
-GQA: 0.1943, Text-VQA Pure: 0.0203, Text-VQA OCR: 0.0271, VQA-v2: 0.2306, RefCOCO: 0.0000, VL Avg: 0.0000, NLU Avg: 0.4499, NLU Delta: -0.0138, NLG Avg: 0.3939, NLG Delta: 0.0456, NL Avg: 0.4201, NL Delta: 0.0177
+GQA: 0.1943, Text-VQA Pure: 0.0203, Text-VQA OCR: 0.0271, VQA-v2: 0.2306, RefCOCO: 0.0000, VL Avg: 0.0000, NLU Avg: 0.4499, NLU Delta: -0.0138, NLG Avg: 0.3939, NLG Delta: 0.0456, NL Avg: 0.4201, NL Delta: 0.0177final-llava-v15-pythia+1b-pre(default)-ft(default) [2025-03-20 10:35:29]
+Error: Model directory 'evaluations/final-llava-v15-pythia+1b-pre(default)-ft(default)' does not exist.
+
+final-llava-v15-pythia+1b-pre(init_cov_mlp)-ft(default) [2025-03-20 10:44:53]
+Error: Model directory 'evaluations/final-llava-v15-pythia+1b-pre(init_cov_mlp)-ft(default)' does not exist.
+

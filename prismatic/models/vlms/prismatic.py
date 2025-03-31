@@ -88,7 +88,7 @@ class PrismaticVLM(VLM):
         # Add LayerNorm for visual embeddings if pre_projection_layer_norm is True
         #self.pre_projection_layer_norm = pre_projection_layer_norm
         if self.pre_projection_layer_norm:
-            self.layer_norm = torch.nn.LayerNorm(llm_backbone.embed_dim)
+            self.layer_norm = torch.nn.LayerNorm(vision_backbone.embed_dim)
             
         overwatch.info(f'Dimensions of Projector: \n vision_dim: {vision_backbone.embed_dim}, llm_dim: {llm_backbone.embed_dim}')
         overwatch.info(f'Total Parameters: {vision_backbone.embed_dim * llm_backbone.embed_dim + llm_backbone.embed_dim * llm_backbone.embed_dim }')
@@ -465,13 +465,13 @@ class PrismaticVLM(VLM):
             if self.scale_patch_embeddings:
                 patch_features = scale_by_inv_sqrt(patch_features)
             
+            if self.pre_projection_layer_norm:
+                patch_features = self.layer_norm(patch_features)
+            
             # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
             projector = self.projector.module if isinstance(self.projector, DDP) else self.projector
             projected_patch_embeddings = projector(patch_features)
-            
-            # Apply LayerNorm after projection if enabled
-            if self.pre_projection_layer_norm:
-                projected_patch_embeddings = self.layer_norm(projected_patch_embeddings)
+        
             
             projected_patch_attention_mask = None
             if attention_mask is not None:
@@ -584,13 +584,12 @@ class PrismaticVLM(VLM):
         if self.scale_patch_embeddings:
             patch_features = scale_by_inv_sqrt(patch_features)
         
+        if self.pre_projection_layer_norm:
+            patch_features = self.layer_norm(patch_features)
+        
         # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
         projector = self.projector.module if isinstance(self.projector, DDP) else self.projector
         projected_patch_embeddings = projector(patch_features)
-        
-        # Apply LayerNorm after projection if enabled
-        if self.pre_projection_layer_norm:
-            projected_patch_embeddings = self.layer_norm(projected_patch_embeddings)
             
         projected_patch_attention_mask = None
         if attention_mask is not None:
@@ -807,13 +806,13 @@ class PrismaticVLM(VLM):
         if self.scale_patch_embeddings:
                 patch_features = scale_by_inv_sqrt(patch_features)
 
+        if self.pre_projection_layer_norm:
+            patch_features = self.layer_norm(patch_features)
+
         # Projection Logic :: [bsz, num_patches, llm_embed_dim] =>> num_patches = (2 *) (256 + 1) for ViT-L + CLS
         projector = self.teacher_projector.module if isinstance(self.teacher_projector, DDP) else self.teacher_projector
         projected_patch_embeddings = projector(patch_features)
-        
-        # Apply LayerNorm after projection if enabled
-        if self.pre_projection_layer_norm:
-            projected_patch_embeddings = self.layer_norm(projected_patch_embeddings)
+
             
         projected_patch_attention_mask = None
         if attention_mask is not None:

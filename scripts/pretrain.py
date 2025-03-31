@@ -404,6 +404,7 @@ def pretrain(cfg: PretrainConfig) -> None:
         llm_teacher = llm_teacher,
         init_projector_path = cfg.init_projector_path,
         scale_patch_embeddings=cfg.scale_patch_embeddings,
+        pre_projection_layer_norm=cfg.pre_projection_layer_norm
     )
 
     # Load Weights from Checkpoint (depends on stage, config)
