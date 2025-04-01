@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Type, Union
+from typing import Callable, Dict, List, Optional, Type, Union, Tuple
 
 import torch
 import math
@@ -505,8 +505,25 @@ class PrismaticVLM(VLM):
         return_dict: Optional[bool] = None,
         multimodal_indices: Optional[torch.LongTensor] = None,
         return_labels: Optional[bool] = False,
-    ) -> CausalLMOutputWithPast:
-        """Run a forward pass through the VLM, returning a CausalLMOutputWithPast instance (contains loss)."""
+        output_layer_stats: Optional[bool] = False,
+    ) -> Union[CausalLMOutputWithPast, Tuple[CausalLMOutputWithPast, Optional[torch.Tensor]], Tuple[CausalLMOutputWithPast, torch.Tensor, Tuple[torch.Tensor], Tuple[int, int]]]:
+        """
+        Run a forward pass through the VLM, returning a CausalLMOutputWithPast instance (contains loss).
+
+        Args:
+            ... existing args ...
+            output_layer_stats (bool, optional): If True, return hidden states and visual token indices
+                                                  for layer-wise analysis. Defaults to False.
+
+        Returns:
+            Union[CausalLMOutputWithPast,
+                  Tuple[CausalLMOutputWithPast, Optional[torch.Tensor]],
+                  Tuple[CausalLMOutputWithPast, torch.Tensor, Tuple[torch.Tensor], Tuple[int, int]]]:
+                - CausalLMOutputWithPast if no special flags are set.
+                - Tuple (output, alignment_loss) if align_loss=True.
+                - Tuple (output, fused_labels, hidden_states, vis_indices) if output_layer_stats=True.
+                  Note: If align_loss is also True, alignment_loss is bundled within the CausalLMOutputWithPast `output`.
+        """
         
         # # Move input tensors to the correct device
         # device = next(self.parameters()).device
@@ -536,9 +553,16 @@ class PrismaticVLM(VLM):
                 labels=None,
                 use_cache=use_cache,
                 output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
+                output_hidden_states=output_hidden_states or output_layer_stats,
                 return_dict=return_dict,
             )
+            # Cannot return layer stats in this cached path easily, handle if necessary
+            if output_layer_stats:
+                 # For cached step, return dummy values for hidden_states and vis_indices
+                 # Or potentially find a way to retrieve them if needed for generation analysis
+                 dummy_hidden_states = tuple()
+                 vis_indices = (0, 0)
+                 return output, None, dummy_hidden_states, vis_indices
             if return_labels:
                 return output, None
             return output
@@ -562,12 +586,20 @@ class PrismaticVLM(VLM):
                 labels=labels,
                 use_cache=use_cache,
                 output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
+                output_hidden_states=output_hidden_states or output_layer_stats,
                 return_dict=return_dict,
             )
-            if return_labels:
+            if output_layer_stats:
+                hidden_states_to_return = output.hidden_states if hasattr(output, 'hidden_states') else None
+                vis_indices = (0, 0) # No visual tokens
+                # Return format: (output, labels, hidden_states, vis_indices)
+                return output, labels, hidden_states_to_return, vis_indices
+            elif align_loss: # align_loss is effectively 0 for unimodal, return None
+                return output, None
+            elif return_labels:
                 return output, labels
-            return output
+            else:
+                return output
 
         # Run Visual Feature Extraction
         with torch.set_grad_enabled(self.vision_backbone_requires_grad):
@@ -695,24 +727,63 @@ class PrismaticVLM(VLM):
             labels=fused_labels,
             use_cache=use_cache,
             output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
+            output_hidden_states=output_hidden_states or output_layer_stats,
             return_dict=return_dict,
         )
-        if return_labels:
-            return output, fused_labels
+
+        # === Handle Return Values based on Flags ===
+
+        # Initialize default return values
         alignment_loss_val = None
+        hidden_states_to_return = None
+        vis_indices = (0, 0) # Default/dummy indices
+
+        # Calculate Alignment Loss if requested
         if align_loss:
             alignment_loss_val = self.compute_alignment_loss(
-                projected_patch_embeddings,  # visual side
-                input_embeddings,           # text side
+                projected_patch_embeddings,
+                input_embeddings,
                 use_precomputed_covariance,
                 precomputed_covariance_path
             )
-            # Return a tuple so the caller can handle it
-            return (output, alignment_loss_val)
+            # Bundle alignment loss into the output object if possible (assuming it's a dataclass/dict)
+            if hasattr(output, 'loss') and output.loss is not None:
+                 # Add alignment loss to the main loss *before* returning
+                 output.loss = output.loss + self.align_weight * alignment_loss_val # Assuming align_weight is accessible
+            # Store it separately if needed, e.g., if output doesn't have a loss field or it's None
+            # We'll store it in the output object if return_dict is True, otherwise handle later
+            if return_dict and isinstance(output, dict):
+                 output['alignment_loss'] = alignment_loss_val
+            elif hasattr(output, 'alignment_loss'): # If the dataclass supports it
+                 output.alignment_loss = alignment_loss_val
 
-        return output
-        
+
+        # Handle Layer Stats Output
+        if output_layer_stats:
+            hidden_states_to_return = output.hidden_states if hasattr(output, 'hidden_states') else None
+            # Calculate visual token indices based on multimodal construction
+            vis_start_idx = 1  # Starts after BOS token
+            vis_end_idx = vis_start_idx + projected_patch_embeddings.shape[1]
+            vis_indices = (vis_start_idx, vis_end_idx)
+
+            # Return format: (output, fused_labels, hidden_states, vis_indices)
+            # Note: align_loss is implicitly included in output.loss if computed
+            return output, fused_labels, hidden_states_to_return, vis_indices
+
+        # Handle Alignment Loss Return (if not doing layer stats)
+        elif align_loss:
+            # Return format: (output_with_potentially_modified_loss, alignment_loss_val)
+            # The alignment_loss_val is returned separately mainly for metric tracking purposes
+            return output, alignment_loss_val
+
+        # Handle Return Labels (if not doing layer stats or align loss)
+        elif return_labels:
+            # Return format: (output, fused_labels)
+            return output, fused_labels
+
+        # Default case: just return the standard output
+        else:
+            return output
 
     #   => Note: The following methods override the functionality of `transformers.GenerationMixin`; these expect the
     #            contract in each of the function signatures, and also expect our `forward` function to roughly take

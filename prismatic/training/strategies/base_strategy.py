@@ -35,8 +35,6 @@ import os
 import numpy as np
 import wandb
 
-
-
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
 
@@ -135,6 +133,15 @@ class TrainingStrategy(ABC):
         # Assert that if track_ft_plasticity is True, mitigation is None
         assert not self.track_ft_plasticity or self.mitigation is None, "Fine-tuning plasticity tracking is only supported with no mitigation."
         
+        # <<< MODIFIED >>> Track Layer Stats Flag
+        self.track_layer_stats = cfg['track_layer_stats'] if isinstance(cfg, dict) else getattr(cfg, 'track_layer_stats', False)
+        
+        # <<< ADDED >>> Track Cosine Layer Stats Flag
+        self.track_cosine_layer_stats = cfg['track_cosine_layer_stats'] if isinstance(cfg, dict) else getattr(cfg, 'track_cosine_layer_stats', False)
+
+        # <<< ADDED >>> Random Image Flag
+        self.random_image = cfg['random_image'] if isinstance(cfg, dict) else getattr(cfg, 'random_image', False)
+
         ################
         # General Configs and Training related
 
@@ -489,6 +496,29 @@ class TrainingStrategy(ABC):
                         if stage == 'finetune':
                             sample_indices = batch.pop('idx')
 
+                        # <<< ADDED >>> Replace images with random noise if requested
+                        if self.random_image and 'pixel_values' in batch and batch['pixel_values'] is not None:
+                            pixel_values = batch['pixel_values'] # Assuming shape [B, C, H, W]
+                            if 'multimodal_indices' in batch and batch['multimodal_indices'] is not None:
+                                multimodal_indices = batch['multimodal_indices']
+                                if len(multimodal_indices) > 0:
+                                    # Get original images for multimodal samples
+                                    original_images = pixel_values[multimodal_indices]
+                                    # Calculate mean and std of original images
+                                    img_mean = torch.mean(original_images, dim=[0, 2, 3], keepdim=True)
+                                    img_std = torch.std(original_images, dim=[0, 2, 3], keepdim=True)
+                                    # Generate Gaussian noise with same shape, mean, std
+                                    noise = torch.randn_like(original_images) * img_std + img_mean
+                                    # Replace the pixel values for multimodal samples
+                                    # Ensure noise is same dtype as pixel_values
+                                    pixel_values[multimodal_indices] = noise.to(pixel_values.dtype)
+                                    batch['pixel_values'] = pixel_values # Update batch dictionary
+                            else:
+                                # If multimodal_indices is None, assume all are multimodal
+                                img_mean = torch.mean(pixel_values, dim=[0, 2, 3], keepdim=True)
+                                img_std = torch.std(pixel_values, dim=[0, 2, 3], keepdim=True)
+                                noise = torch.randn_like(pixel_values) * img_std + img_mean
+                                batch['pixel_values'] = noise.to(pixel_values.dtype)
 
                         # if self.save_logits:
                         #     # Inference mode: Disable gradient computations
@@ -535,15 +565,28 @@ class TrainingStrategy(ABC):
 
                         if (self.soft_alpha is not None) or (self.soft_alpha_masked_interpolation is not None or \
                         self.add_K is not None or self.set_to_one or self.max_logit or (self.label_smoothing > 0.0) or self.measure_rank_entropy):
-                            output, fused_labels = self.vlm(
+                            vlm_output = self.vlm(
                                 input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
                                 pixel_values=batch["pixel_values"],
                                 labels=batch["labels"],
                                 multimodal_indices=batch["multimodal_indices"],
                                 return_labels=True,
-                                align_loss=self.align_loss
+                                align_loss=self.align_loss,
+                                # <<< MODIFIED >>> Pass self.track_layer_stats to forward
+                                output_layer_stats=self.track_layer_stats,
                             )
+                            # If tracking layer stats, unpack the additional return values
+                            # <<< MODIFIED >>> Use self.track_layer_stats
+                            if self.track_layer_stats:
+                                output, fused_labels, hidden_states, vis_indices = vlm_output
+                                # hidden_states is a tuple: (embedding_layer_output, layer1_output, ..., layerN_output)
+                            else:
+                                output, fused_labels = vlm_output
+                                hidden_states = None
+                                vis_indices = (0,0) # Dummy indices
+
+                            # <<< RESTORED >>> Teacher forward pass block
                             if self.vlm.llm_teacher is not None:
                                 with torch.no_grad():
                                     teacher_output, teacher_fused_labels = self.vlm.teacher_forward(
@@ -556,7 +599,7 @@ class TrainingStrategy(ABC):
                                         align_loss=self.align_loss
                                     )
                         else:
-                            output: CausalLMOutputWithPast = self.vlm(
+                            vlm_output = self.vlm(
                                 input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
                                 pixel_values=batch["pixel_values"],
@@ -564,8 +607,28 @@ class TrainingStrategy(ABC):
                                 multimodal_indices=batch["multimodal_indices"],
                                 align_loss=self.align_loss,
                                 use_precomputed_covariance=self.use_precomputed_covariance,
-                                precomputed_covariance_path=self.precomputed_covariance_path
+                                precomputed_covariance_path=self.precomputed_covariance_path,
+                                # <<< MODIFIED >>> Pass self.track_layer_stats to forward
+                                output_layer_stats=self.track_layer_stats,  # <<< ADDED >>> Pass the flag
                             )
+
+                            # Unpack based on whether align_loss or layer_stats was requested
+                            # <<< MODIFIED >>> Use self.track_layer_stats
+                            if self.track_layer_stats:
+                                output, fused_labels, hidden_states, vis_indices = vlm_output
+                                # Note: align_loss (if computed) is now part of output.loss
+                                alignment_loss_val = output.alignment_loss if hasattr(output, 'alignment_loss') else None
+                            elif self.align_loss:
+                                output, alignment_loss_val = vlm_output
+                                hidden_states = None
+                                vis_indices = (0,0)
+                            else:
+                                output = vlm_output
+                                alignment_loss_val = None
+                                hidden_states = None
+                                vis_indices = (0,0)
+
+                            # <<< RESTORED >>> Get embeddings if tracking is enabled
                             if self.track_embeddings or self.track_embeddings_histogram or self.track_covariance:
                                 with torch.no_grad():
                                     vis_emb, txt_emb = self.vlm.get_embeddings(
@@ -575,9 +638,6 @@ class TrainingStrategy(ABC):
                                         labels=batch["labels"],
                                         multimodal_indices=batch["multimodal_indices"]
                                     )
-                                    
-                                    # The calculations for histograms and covariance matrices are now handled
-                                    # by the _compute_embedding_metrics helper method when needed
 
                     if self.soft_alpha is not None:
                         shift_logits = output.logits[:, :-1, :].contiguous()
@@ -1090,26 +1150,98 @@ class TrainingStrategy(ABC):
                             # Add to the main loss
                             loss = loss + self.norm_reg_weight * reg_loss
 
-                    # Compute and commit metrics
+                    # === Metric Calculation ===
+                    metrics_kwargs = {"loss": loss} # Start with the main loss
+
+                    # --- Layer-wise Stats --- (moved before other embedding metrics)
+                    if self.track_layer_stats and hidden_states:
+                        with torch.no_grad():
+                            # Check if vis_indices indicate a multimodal batch
+                            is_multimodal_batch = vis_indices != (0, 0)
+                            if is_multimodal_batch:
+                                vis_start_idx, vis_end_idx = vis_indices
+                            else:
+                                # For text-only batches, set indices such that slicing yields empty tensors
+                                vis_start_idx, vis_end_idx = 1, 1
+
+                            # Iterate through hidden states (skip embedding layer output at index 0)
+                            for layer_idx, layer_hidden_state in enumerate(hidden_states[1:]):
+                                # layer_hidden_state shape: [bsz, seq_len, hidden_dim]
+                                vis_layer_emb = None
+                                txt_layer_emb = None
+
+                                # Extract and compute visual embeddings stats only if it's a multimodal batch
+                                if is_multimodal_batch:
+                                    if "multimodal_indices" in batch and batch["multimodal_indices"] is not None and len(batch["multimodal_indices"]) > 0:
+                                        vis_layer_emb = layer_hidden_state[batch["multimodal_indices"], vis_start_idx:vis_end_idx, :]
+                                        if vis_layer_emb.numel() > 0:
+                                            vis_layer_stats = compute_embedding_stats(vis_layer_emb)
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisEmbedMean"] = vis_layer_stats["embed_mean"]
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisEmbedStd"] = vis_layer_stats["embed_std"]
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisL2Mean"] = vis_layer_stats["l2_mean"]
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisL2Std"] = vis_layer_stats["l2_std"]
+                                        else:
+                                            vis_layer_emb = None # Ensure it's None if empty
+
+                                # Extract text embeddings (all tokens *excluding* visual tokens if multimodal)
+                                txt_mask = torch.ones(layer_hidden_state.shape[1], dtype=torch.bool, device=layer_hidden_state.device)
+                                if is_multimodal_batch:
+                                    txt_mask[vis_start_idx:vis_end_idx] = False
+                                
+                                txt_layer_emb = layer_hidden_state[:, txt_mask, :]
+                                if txt_layer_emb.numel() > 0:
+                                    txt_layer_stats = compute_embedding_stats(txt_layer_emb)
+                                    metrics_kwargs[f"Layer_{layer_idx}/TxtEmbedMean"] = txt_layer_stats["embed_mean"]
+                                    metrics_kwargs[f"Layer_{layer_idx}/TxtEmbedStd"] = txt_layer_stats["embed_std"]
+                                    metrics_kwargs[f"Layer_{layer_idx}/TxtL2Mean"] = txt_layer_stats["l2_mean"]
+                                    metrics_kwargs[f"Layer_{layer_idx}/TxtL2Std"] = txt_layer_stats["l2_std"]
+                                else:
+                                     txt_layer_emb = None # Ensure it's None if empty
+
+                                # <<< ADDED >>> Compute layer-wise cosine similarity
+                                if vis_layer_emb is not None and txt_layer_emb is not None:
+                                    # <<< MODIFIED >>> Check the dedicated flag
+                                    if self.track_cosine_layer_stats:
+                                        # Flatten and cast
+                                        vis_flat = vis_layer_emb.reshape(-1, vis_layer_emb.shape[-1]).to(torch.float32)
+                                        txt_flat = txt_layer_emb.reshape(-1, txt_layer_emb.shape[-1]).to(torch.float32)
+
+                                        # Normalize each row so that dot product becomes cosine similarity
+                                        vis_norm = F.normalize(vis_flat, p=2, dim=-1)
+                                        txt_norm = F.normalize(txt_flat, p=2, dim=-1)
+
+                                        # Cosine similarity matrix: (vis_count, txt_count)
+                                        # Ensure matrix multiplication is possible
+                                        if vis_norm.shape[0] > 0 and txt_norm.shape[0] > 0:
+                                            cos_sim = torch.matmul(vis_norm, txt_norm.transpose(0, 1))
+
+                                            # Grab min, max, and mean over all pairwise cos-sims
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisTxtCosineMin"] = cos_sim.min().item()
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisTxtCosineMax"] = cos_sim.max().item()
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisTxtCosineMean"] = cos_sim.mean().item()
+                                        else:
+                                            # Default values if one set is empty after masking/slicing
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisTxtCosineMin"] = 0.0
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisTxtCosineMax"] = 0.0
+                                            metrics_kwargs[f"Layer_{layer_idx}/VisTxtCosineMean"] = 0.0
+
+
+                    # --- Other Embedding Metrics --- #
                     if self.track_embeddings or self.track_embeddings_histogram or self.track_covariance or self.norm_reg:
                         # Get alignment_loss_val if it's available
                         alignment_loss_val_for_metrics = alignment_loss_val if self.align_loss else None
                         reg_loss_for_metrics = reg_loss if self.norm_reg else None
-                        
-                        # Compute all necessary metrics
-                        metrics_kwargs = self._compute_embedding_metrics(vis_emb, txt_emb, alignment_loss_val_for_metrics, reg_loss_for_metrics)
-                        metrics_kwargs["loss"] = loss
-                        
-                        # Commit all metrics
-                        metrics.commit(**metrics_kwargs)
-                    else:
-                        if self.align_loss and alignment_loss_val is not None:
-                            if self.norm_reg:
-                                metrics.commit(loss=loss, alignment_loss=alignment_loss_val, reg_loss=reg_loss)
-                            else:
-                                metrics.commit(loss=loss, alignment_loss=alignment_loss_val)
-                        else:
-                            metrics.commit(loss=loss)
+
+                        # Compute other embedding metrics and update kwargs
+                        other_metrics = self._compute_embedding_metrics(vis_emb, txt_emb, alignment_loss_val_for_metrics, reg_loss_for_metrics)
+                        metrics_kwargs.update(other_metrics)
+
+                    # If align_loss computed but not tracked via other means, add it explicitly
+                    elif self.align_loss and alignment_loss_val is not None:
+                        metrics_kwargs["alignment_loss"] = alignment_loss_val
+
+                    # Commit all gathered metrics
+                    metrics.commit(**metrics_kwargs)
 
                     # Normalize Loss to account for Gradient Accumulation --> Backward!
                     # [IMPORTANT] Technically speaking, doing gradient accumulation in this way is "incorrect"; this is

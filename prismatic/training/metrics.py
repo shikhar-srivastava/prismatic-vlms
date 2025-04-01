@@ -186,6 +186,7 @@ class Metrics:
         window_size: int = 128,
     ) -> None:
         self.run_id, self.run_dir, self.hparams, self.stage = run_id, run_dir, hparams, stage
+        self.window_size = window_size
 
         # Initialize Trackers
         self.trackers = []
@@ -232,6 +233,7 @@ class Metrics:
             "reg_loss": deque(maxlen=window_size),
             "projected_embeddings_histogram": None,
             "covariance_matrix": None,
+            "layer_stats": {},
         }
 
     def log(self, global_step: int, metrics: Dict[str, Union[int, float, torch.Tensor]]) -> None:
@@ -345,7 +347,7 @@ class Metrics:
         if covariance_matrix is not None:
             self.state["covariance_matrix"] = covariance_matrix.detach()
 
-        # Handle additional kwargs, ensuring proper initialization for new keys
+        # Handle additional kwargs, including layer stats
         for key, value in kwargs.items():
             if key == "loss":
                 loss_val = value.detach()
@@ -353,10 +355,20 @@ class Metrics:
                 self.state["loss"].append(loss_val)
             elif key in ["projected_embeddings_histogram", "covariance_matrix", "projected_embeddings_values"]:
                 self.state[key] = value.detach()
+            elif key.startswith("Layer_"):
+                if key not in self.state["layer_stats"]:
+                    self.state["layer_stats"][key] = deque(maxlen=self.window_size)
+                if isinstance(value, torch.Tensor):
+                    self.state["layer_stats"][key].append(value.detach())
+                else:
+                    self.state["layer_stats"][key].append(torch.tensor(value))
             else:
                 if key not in self.state:
-                    self.state[key] = deque(maxlen=window_size)
-                self.state[key].append(value.detach())
+                    self.state[key] = deque(maxlen=self.window_size)
+                if isinstance(value, torch.Tensor):
+                    self.state[key].append(value.detach())
+                else:
+                    self.state[key].append(value)
 
     @overwatch.rank_zero_only
     def push(self) -> str:
@@ -425,7 +437,7 @@ class Metrics:
         def safe_mean_of_deque(dq):
             if len(dq) == 0:
                 return 0.0
-            vals = torch.stack(list(dq))
+            vals = torch.stack([v if isinstance(v, torch.Tensor) else torch.tensor(v) for v in dq])
             return vals.mean().item()
 
         vm = safe_mean_of_deque(self.state["vis_embed_mean"])
@@ -464,7 +476,13 @@ class Metrics:
             metrics[f"{prefix}/VisTxtCosineMean"] = safe_mean_of_deque(self.state["vis_txt_cosine_mean"])
             self.state["vis_txt_cosine_mean"].clear()
 
-        # Include histogram and covariance matrix in metrics if available
+        layer_stats_metrics = {}
+        for key, dq in self.state["layer_stats"].items():
+            if len(dq) > 0:
+                layer_stats_metrics[f"{prefix}/{key}"] = safe_mean_of_deque(dq)
+                dq.clear()
+        metrics.update(layer_stats_metrics)
+
         if "projected_embeddings_histogram" in self.state and self.state["projected_embeddings_histogram"] is not None:
             metrics["projected_embeddings_histogram"] = self.state["projected_embeddings_histogram"]
             self.state["projected_embeddings_histogram"] = None

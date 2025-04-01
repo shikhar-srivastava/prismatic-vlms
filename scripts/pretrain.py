@@ -169,6 +169,12 @@ class PretrainConfig:
     norm_reg: bool = False
     norm_reg_weight: float = 0.01
 
+    # <<< ADDED >>> Flag to control layer-wise statistics tracking
+    track_layer_stats: bool = False
+
+    # <<< ADDED >>> Flag to control layer-wise cosine similarity tracking
+    track_cosine_layer_stats: bool = False
+
     track_embeddings: bool = False
     track_embeddings_histogram: bool = False
     track_embeddings_values: bool = False
@@ -179,7 +185,9 @@ class PretrainConfig:
 
     # Mixed precision training
     disable_mixed_precision: bool = False
-    
+
+    # <<< ADDED >>> Flag to replace real images with random noise
+    random_image: bool = False
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
