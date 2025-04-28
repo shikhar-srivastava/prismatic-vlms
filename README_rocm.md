@@ -32,3 +32,7 @@ Let others install without version constraints.
 
 #### For installling using pip install -e . : use the following:
 pip install --no-cache-dir -e .
+
+wandb login
+pip install peft schedulefree
+conda install matplotlib
