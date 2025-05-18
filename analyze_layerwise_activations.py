@@ -63,6 +63,21 @@ MODELS: Dict[str, List[str]] = {
         "Qwen/Qwen3-8B-Base",
         #   "Qwen/Qwen3-14B-Base",  # uncomment if you have >48 GB or CPU offload
     ],
+    "qwen2": [
+        "Qwen/Qwen2-0.5B",
+        "Qwen/Qwen2-1.5B",
+        "Qwen/Qwen2-7B",
+    ],
+    "qwen2_5": [
+        "Qwen/Qwen2.5-0.5B",
+        "Qwen/Qwen2.5-1.5B",
+        "Qwen/Qwen2.5-3B",
+        "Qwen/Qwen2.5-7B",
+    ],
+    "meta_llama": [
+        "meta-llama/Meta-Llama-3-8B",
+        "meta-llama/Llama-2-7b",
+    ],
     "pythia": [  # Pythia scaling suite
         "EleutherAI/pythia-70m",
         "EleutherAI/pythia-160m",
@@ -225,7 +240,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
 
     def _plot(y_m, y_s, title, ylabel, tag):
         x = range(1, len(y_m) + 1)
-        plt.figure(figsize=(10, 4), dpi=140)
+        plt.figure(figsize=(10, 4), dpi=300)
         plt.fill_between(x, [m - s for m, s in zip(y_m, y_s)], [m + s for m, s in zip(y_m, y_s)], alpha=0.25)
         plt.plot(x, y_m, marker="o", lw=2)
         plt.title(title, weight="bold")
@@ -238,17 +253,26 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         plt.close()
         print("    Plot ", p)
 
-    def _plot_hist(matrix, edges):
+    def _plot_hist(matrix, edges, *, log_scale: bool = False):
         if matrix.ndim != 2:
             return
-        plt.figure(figsize=(10, 0.6 * matrix.shape[0] + 2), dpi=140)
-        plt.imshow(matrix, aspect="auto", origin="lower", extent=[edges[0], edges[-1], 1, matrix.shape[0]], cmap="magma")
-        plt.colorbar(label="Count")
+        plt.figure(figsize=(10, 0.6 * matrix.shape[0] + 2), dpi=300)
+        data = np.log1p(matrix) if log_scale else matrix
+        plt.imshow(
+            data,
+            aspect="auto",
+            origin="lower",
+            extent=[edges[0], edges[-1], 1, matrix.shape[0]],
+            cmap="magma",
+        )
+        plt.colorbar(label="Log Count" if log_scale else "Count")
         plt.xlabel("Activation value")
         plt.ylabel("Layer")
-        plt.title(f"{model_id} activation histogram", weight="bold")
+        suffix = "hist_log" if log_scale else "hist"
+        title = f"{model_id} activation histogram" + (" (log count)" if log_scale else "")
+        plt.title(title, weight="bold")
         plt.tight_layout()
-        p = OUT_DIR / f"{safe}_hist.png"
+        p = OUT_DIR / f"{safe}_{suffix}.png"
         plt.savefig(p)
         plt.close()
         print("    Plot ", p)
@@ -258,6 +282,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     _plot(p_l2_mean, p_l2_std, f"{model_id} ||theta||_2", "Parameter L2 norm", "param_l2")
     _plot(p_raw_mean, p_raw_std, f"{model_id} raw theta", "Parameter value", "param_raw")
     _plot_hist(hist_matrix, hist_edges)
+    _plot_hist(hist_matrix, hist_edges, log_scale=True)
     return stats
 
 
@@ -271,19 +296,26 @@ for _fam, mids in MODELS.items():
             print(f"[WARN] Skipped {mid}: {e}")
 
 if all_stats:
-    plt.figure(figsize=(12, 6), dpi=150)
-    for mid, s in all_stats.items():
-        plt.plot(range(1, len(s["l2_mean"]) + 1), s["l2_mean"], label=mid, lw=1.4)
-    plt.title("Layerwise activation L2 (mean)", weight="bold")
-    plt.xlabel("Layer")
-    plt.ylabel("L2 norm")
-    plt.grid(True, ls="--", lw=0.4)
-    plt.legend(fontsize="x-small", ncol=2)
-    plt.tight_layout()
-    combo = OUT_DIR / "combined_l2_raw.png"
-    plt.savefig(combo)
-    plt.close()
-    print("\nCombined plot ", combo)
+
+    def _combined_plot(metric: str, ylabel: str, fname: str, title: str) -> None:
+        plt.figure(figsize=(12, 6), dpi=300)
+        for mid, s in all_stats.items():
+            plt.plot(range(1, len(s[metric]) + 1), s[metric], label=mid, lw=1.4)
+        plt.title(title, weight="bold")
+        plt.xlabel("Layer")
+        plt.ylabel(ylabel)
+        plt.grid(True, ls="--", lw=0.4)
+        plt.legend(fontsize="x-small", ncol=2)
+        plt.tight_layout()
+        path = OUT_DIR / fname
+        plt.savefig(path)
+        plt.close()
+        print("\nCombined plot ", path)
+
+    _combined_plot("l2_mean", "L2 norm", "combined_l2.png", "Layerwise activation L2 (mean)")
+    _combined_plot("raw_mean", "Activation", "combined_raw.png", "Layerwise raw activation (mean)")
+    _combined_plot("param_l2_mean", "Parameter L2 norm", "combined_param_l2.png", "Layerwise parameter L2 (mean)")
+    _combined_plot("param_raw_mean", "Parameter value", "combined_param_raw.png", "Layerwise raw parameter (mean)")
 else:
     print("No successful runs; combined plot not generated.")
 
