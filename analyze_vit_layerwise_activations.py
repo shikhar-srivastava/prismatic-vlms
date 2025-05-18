@@ -21,6 +21,9 @@ Assumptions
 * A single image (`test.png` at repo root) is used for inference.  The default
   image transform for each model is applied via `timm.data.create_transform`.
 * Activations exiting each block have shape ``(1, num_patches, hidden_size)``.
+* Forward hooks capture the outputs returned by each block's ``forward``
+  method.  In timm models this is typically the tensor **after** residual
+  connections are applied, so activations represent the post-residual state.
 """
 
 from __future__ import annotations
@@ -53,6 +56,19 @@ MODELS: Dict[str, List[str]] = {
     ],
     "deit": [
         "deit_base_patch16_224",
+    ],
+    "swin": [
+        "swin_base_patch4_window7_224",
+        "swin_large_patch4_window12_224",
+    ],
+    "beit": [
+        "beit_base_patch16_224",
+    ],
+    "dinov2": [
+        "dinov2_vits14",
+        "dinov2_vits14_reg",
+        "dinov2_vitb14",
+        "dinov2_vitb14_reg",
     ],
 }
 
@@ -142,6 +158,10 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
             hist, _ = np.histogram(data, bins=hist_edges)
         act_hist.append(hist)
 
+    # Register forward hooks on each block to capture the tensor returned by
+    # ``forward``.  In ViT implementations from timm this output is the
+    # activation **after** residual additions, so hooks record post-residual
+    # activations.
     handles = [b.register_forward_hook(hook) for b in blocks]
 
     with torch.no_grad():
