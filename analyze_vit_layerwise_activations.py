@@ -70,6 +70,20 @@ MODELS: Dict[str, List[str]] = {
         "dinov2_vitb14",
         "dinov2_vitb14_reg",
     ],
+    # CLIP ViT models
+    "clip": [
+        "vit_base_patch16_clip_224.openai",
+        "vit_large_patch14_clip_224.openai",
+        "vit_large_patch14_clip_336.openai",
+    ],
+    # SigLIP ViT variants
+    "siglip": [
+        "vit_base_patch16_siglip_224",
+        "vit_base_patch16_siglip_256",
+        "vit_base_patch16_siglip_384",
+        "vit_so400m_patch14_siglip_224",
+        "vit_so400m_patch14_siglip_384",
+    ],
 }
 
 
