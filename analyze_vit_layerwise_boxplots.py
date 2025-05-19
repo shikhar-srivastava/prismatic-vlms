@@ -41,7 +41,7 @@ from PIL import Image
 
 #   CONFIG
 BASE_DIR = Path.cwd()
-OUT_DIR = BASE_DIR / "viz" / "plots" / "act_analysis_vit"
+OUT_DIR = BASE_DIR / "viz" / "plots" / "act_analysis_vit_box"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 DEVICE = "cuda:0"

@@ -37,7 +37,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 #   CONFIG
 BASE_DIR = Path.cwd()  # absolute project root
-OUT_DIR = BASE_DIR / "viz" / "plots" / "act_analysis"
+OUT_DIR = BASE_DIR / "viz" / "plots" / "act_analysis_box"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 DEVICE = "cuda:0"  # single-GPU env assumed
