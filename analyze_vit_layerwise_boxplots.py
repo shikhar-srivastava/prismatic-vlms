@@ -65,10 +65,14 @@ MODELS: Dict[str, List[str]] = {
         "beit_base_patch16_224",
     ],
     "dinov2": [
-        "dinov2_vits14",
-        "dinov2_vits14_reg",
-        "dinov2_vitb14",
-        "dinov2_vitb14_reg",
+        "vit_small_patch14_dinov2.lvd142m",
+        "vit_small_patch14_reg4_dinov2.lvd142m",
+        "vit_base_patch14_dinov2.lvd142m",
+        "vit_base_patch14_reg4_dinov2.lvd142m",
+        "vit_large_patch14_dinov2.lvd142m",
+        "vit_large_patch14_reg4_dinov2.lvd142m",
+        "vit_giant_patch14_dinov2.lvd142m",
+        "vit_giant_patch14_reg4_dinov2.lvd142m",
     ],
     # CLIP ViT models
     "clip": [
