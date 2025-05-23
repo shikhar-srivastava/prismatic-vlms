@@ -79,7 +79,7 @@ MODELS: Dict[str, List[str]] = {
     ],
     "meta_llama": [
         "meta-llama/Meta-Llama-3-8B",
-        "meta-llama/Llama-2-7b",
+        "meta-llama/Llama-2-7b-hf",
     ],
     "pythia": [  # Pythia scaling suite
         "EleutherAI/pythia-70m",
@@ -235,6 +235,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
             val = float(arr[i])
             outs.append((val, decoded_tokens[tok_idx]))
         layer_outliers.append(outs)
+
 
     safe = model_id.replace("/", "__")
     stats = {
