@@ -150,6 +150,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     transform = timm.data.create_transform(**data_cfg, is_training=False)
     image = Image.open(IMAGE_PATH).convert("RGB")
     pixel_values = transform(image).unsqueeze(0).to(DEVICE)
+    thumb = image.resize((32, 32))
 
     # Determine patch size from model if possible
     patch_size = getattr(getattr(model, "patch_embed", None), "patch_size", 16)
