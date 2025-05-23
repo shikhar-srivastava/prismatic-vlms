@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 import numpy as np
 import timm
 import torch
@@ -43,6 +44,8 @@ from PIL import Image
 BASE_DIR = Path.cwd()
 OUT_DIR = BASE_DIR / "viz" / "plots" / "act_analysis_vit_box"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+plt.style.use("seaborn-v0_8-whitegrid")
 
 DEVICE = "cuda:0"
 IMAGE_PATH = BASE_DIR / "test.png"
@@ -147,10 +150,12 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     transform = timm.data.create_transform(**data_cfg, is_training=False)
     image = Image.open(IMAGE_PATH).convert("RGB")
     pixel_values = transform(image).unsqueeze(0).to(DEVICE)
+    thumb = image.resize((32, 32))
 
     l2_mean, l2_std, raw_mean, raw_std = [], [], [], []
     p_l2_mean, p_l2_std, p_raw_mean, p_raw_std = [], [], [], []
     layer_acts: List[np.ndarray] = []
+    layer_outliers: List[List[float]] = []
 
     for b in blocks:
         l2s = [p.detach().float().norm(p=2).item() for p in b.parameters()]
@@ -185,6 +190,12 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     torch.cuda.empty_cache()
     gc.collect()
 
+    for arr in layer_acts:
+        mean = arr.mean()
+        std = arr.std()
+        mask = (arr > mean + 3 * std) | (arr < mean - 3 * std)
+        layer_outliers.append(list(arr[mask]))
+
     safe = model_id.replace("/", "__")
     stats = {
         "l2_mean": l2_mean,
@@ -216,10 +227,10 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         plt.close()
         print("    Plot ", p)
 
-    def _plot_box(data: List[np.ndarray]) -> None:
+    def _plot_box(data: List[np.ndarray], outliers: List[List[float]]) -> None:
         if not data:
             return
-        plt.figure(figsize=(12, 0.5 * len(data) + 3), dpi=300)
+        fig, ax = plt.subplots(figsize=(12, 0.5 * len(data) + 3), dpi=300)
         plt.boxplot(
             data,
             vert=True,
@@ -227,21 +238,25 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
             showfliers=True,
             flierprops={"marker": "o", "markersize": 2, "markerfacecolor": "r", "alpha": 0.6},
         )
-        plt.xlabel("Block")
-        plt.ylabel("Activation value")
-        plt.title(f"{model_id} activation distribution", weight="bold")
-        plt.grid(True, ls="--", lw=0.4, axis="y")
-        plt.tight_layout()
+        for i, outs in enumerate(outliers):
+            for y in outs:
+                ab = AnnotationBbox(OffsetImage(thumb, zoom=0.5), (i + 1.05, y), frameon=False)
+                ax.add_artist(ab)
+        ax.set_xlabel("Block")
+        ax.set_ylabel("Activation value")
+        ax.set_title(f"{model_id} activation distribution", weight="bold")
+        ax.grid(True, ls="--", lw=0.4, axis="y")
+        fig.tight_layout()
         p = OUT_DIR / f"{safe}_box.png"
-        plt.savefig(p)
-        plt.close()
+        fig.savefig(p)
+        plt.close(fig)
         print("    Plot ", p)
 
     _plot(l2_mean, l2_std, f"{model_id} ||act||_2", "L2 norm", "l2")
     _plot(raw_mean, raw_std, f"{model_id} raw act", "Activation", "raw")
     _plot(p_l2_mean, p_l2_std, f"{model_id} ||theta||_2", "Parameter L2 norm", "param_l2")
     _plot(p_raw_mean, p_raw_std, f"{model_id} raw theta", "Parameter value", "param_raw")
-    _plot_box(layer_acts)
+    _plot_box(layer_acts, layer_outliers)
     return stats
 
 
