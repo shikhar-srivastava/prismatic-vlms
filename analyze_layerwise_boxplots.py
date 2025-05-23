@@ -79,7 +79,7 @@ MODELS: Dict[str, List[str]] = {
     ],
     "meta_llama": [
         "meta-llama/Meta-Llama-3-8B",
-        "meta-llama/Llama-2-7b",
+        "meta-llama/Llama-2-7b-hf",
     ],
     "pythia": [  # Pythia scaling suite
         "EleutherAI/pythia-70m",
