@@ -229,13 +229,13 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         hid_size = arr.size // seq_len
         mask = (arr > mean + 3 * std) | (arr < mean - 3 * std)
         idxs = np.where(mask)[0]
-        outs: List[tuple] = []
+        best: Dict[int, float] = {}
         for i in idxs:
             tok_idx = int(i) // hid_size
             val = float(arr[i])
-            outs.append((val, decoded_tokens[tok_idx]))
-        layer_outliers.append(outs)
-
+            if tok_idx not in best or abs(val) > abs(best[tok_idx]):
+                best[tok_idx] = val
+        layer_outliers.append([(v, decoded_tokens[tok]) for tok, v in best.items()])
 
     safe = model_id.replace("/", "__")
     stats = {
