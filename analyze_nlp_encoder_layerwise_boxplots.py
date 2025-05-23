@@ -1,26 +1,26 @@
 """
-Activation & Parameter Distribution Study
-========================================
-Collects per-layer statistics for a suite of open-weight LLMs:
+Encoder Transformer Activation & Parameter Study
+================================================
+Collects per-layer statistics for common encoder-based NLP models using
+`transformers`.
+
+This mirrors `analyze_layerwise_boxplots.py`, replacing decoder-only LLMs with
+encoder-only architectures. Statistics computed per encoder block:
 
 * activation L2-norm / raw value
 * **parameter** L2-norm / raw value
-* box-and-whisker plot of activations per transformer block
+* box-and-whisker plot of activations per block
 
-The script writes `<model>.json` (persistent stats) and saves several
-`<model>_*.png` plots.  A combined plot across all successful models is
-generated as well.
+A JSON file with statistics and several plots are written to
+`viz/plots/act_analysis_encoder_box/`. A combined plot across all successful
+models is generated at the end.
 
 Assumptions
 -----------
-The analysis is run in a single-GPU environment.  For inference with a single
-token (position id of 1), the hidden states at each transformer block have
-shape ``(1, 1, hidden_size)`` throughout the forward pass.  The box plot uses
-all activations of the generated prompt; it checks for spikes along the
-position dimension by aggregating activations for every position.
-
-This revision adds parameter statistics and activation box plots, and clarifies
-the expected tensor shapes during inference.
+* A single-GPU environment is used.
+* Models are loaded via `AutoModel` with pretrained weights.
+* A single text prompt is used for inference.
+* Activations exiting each block have shape ``(1, seq_len, hidden_size)``.
 """
 
 from __future__ import annotations
@@ -31,72 +31,32 @@ from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
-from matplotlib.offsetbox import AnnotationBbox, OffsetImage  # for optional image/text annotations
 import numpy as np
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModel, AutoTokenizer
 
 #   CONFIG
-BASE_DIR = Path.cwd()  # absolute project root
-OUT_DIR = BASE_DIR / "viz" / "plots" / "act_analysis_box"
+BASE_DIR = Path.cwd()
+OUT_DIR = BASE_DIR / "viz" / "plots" / "act_analysis_encoder_box"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 plt.style.use("seaborn-v0_8-whitegrid")
 
-DEVICE = "cuda:0"  # single-GPU env assumed
-PROMPT = "Give me a short introduction to large language models."
-AUTO_INT8 = (
-    False  # quantization disabled - load models in default precision                     # quantise >=6.9B checkpoints
-)
-CPU_OFFLOAD = True  # offload if GPU OOM
+DEVICE = "cuda:0"
+PROMPT = "Transformers are powerful models for natural language understanding."
 
-# Model families -> HF IDs <=~14B params
 MODELS: Dict[str, List[str]] = {
-    "deepseek_v2_lite": [
-        "deepseek-ai/DeepSeek-V2-Lite",  # 2 B
-    ],
-    "gemma3": [  # Google Gemma3 family
-        "google/gemma-3-1b-it",
-        "google/gemma-3-4b-it",
-    ],  # 12 B skipped by default (OOM)
-    "qwen3": [  # Qwen3 Base checkpoints
-        "Qwen/Qwen3-0.6B-Base",
-        "Qwen/Qwen3-1.7B-Base",
-        "Qwen/Qwen3-4B-Base",
-        "Qwen/Qwen3-8B-Base",
-        #   "Qwen/Qwen3-14B-Base",  # uncomment if you have >48 GB or CPU offload
-    ],
-    "qwen2": [
-        "Qwen/Qwen2-0.5B",
-        "Qwen/Qwen2-1.5B",
-        "Qwen/Qwen2-7B",
-    ],
-    "qwen2_5": [
-        "Qwen/Qwen2.5-0.5B",
-        "Qwen/Qwen2.5-1.5B",
-        "Qwen/Qwen2.5-3B",
-        "Qwen/Qwen2.5-7B",
-    ],
-    "meta_llama": [
-        "meta-llama/Meta-Llama-3-8B",
-        "meta-llama/Llama-2-7b-hf",
-    ],
-    "pythia": [  # Pythia scaling suite
-        "EleutherAI/pythia-70m",
-        "EleutherAI/pythia-160m",
-        "EleutherAI/pythia-410m",
-        "EleutherAI/pythia-1b",
-        "EleutherAI/pythia-1.4b",
-        "EleutherAI/pythia-2.8b",
-        "EleutherAI/pythia-6.9b",
-        "EleutherAI/pythia-12b",
-    ],
+    "bert": ["bert-base-uncased"],
+    "roberta": ["roberta-base"],
+    "deberta": ["microsoft/deberta-v3-base"],
+    "electra": ["google/electra-base-discriminator"],
 }
+
 
 #   UTILITIES
 
 
-def _get_hidden(out):
+def _get_hidden(out: torch.Tensor) -> torch.Tensor:
     """Return tensor regardless of model-specific output wrappers."""
     if isinstance(out, torch.Tensor):
         return out
@@ -107,16 +67,16 @@ def _get_hidden(out):
     raise TypeError(f"Unknown output type: {type(out)}")
 
 
-def _find_transformer_blocks(model: torch.nn.Module):
-    """Return a list of per-layer transformer blocks for *any* decoder-only LLM."""
-    # common attribute names by family
+def _find_transformer_blocks(model: torch.nn.Module) -> List[torch.nn.Module]:
+    """Locate per-layer transformer blocks for BERT-like models."""
     for path in [
-        "model.layers",
-        "transformer.h",
-        "transformer.layers",
-        "gpt_neox.layers",
-        "layers",
-        "decoder.layers",
+        "encoder.layer",
+        "bert.encoder.layer",
+        "roberta.encoder.layer",
+        "deberta.encoder.layer",
+        "electra.encoder.layer",
+        "model.encoder.layer",
+        "transformer.encoder.layer",
     ]:
         cur = model
         found = True
@@ -128,8 +88,8 @@ def _find_transformer_blocks(model: torch.nn.Module):
                 break
         if found and isinstance(cur, (torch.nn.ModuleList, list)) and len(cur):
             return list(cur)
-    # fallback: heuristic  modules with a selfattn attribute
-    blocks = [m for m in model.modules() if hasattr(m, "self_attn") or hasattr(m, "self_attention")]
+    # fallback: modules with self-attention attribute
+    blocks = [m for m in model.modules() if hasattr(m, "attention")]
     return blocks if blocks else []
 
 
@@ -139,50 +99,23 @@ def _find_transformer_blocks(model: torch.nn.Module):
 def analyse_model(model_id: str) -> Dict[str, List[float]]:
     print(f"\n=== Analysing {model_id} ===")
 
-    # decide quantisation / offload strategy
-    big_checkpoint = any(k in model_id.lower() for k in ["14b", "12b", "8b", "6.9b"])
-    use_int8 = AUTO_INT8 and big_checkpoint
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModel.from_pretrained(model_id).to(DEVICE).eval()
 
-    load_kwargs = {
-        "trust_remote_code": True,
-        "torch_dtype": torch.float16,
-        "low_cpu_mem_usage": True,
-    }
-    if use_int8:
-        load_kwargs.update(
-            {
-                "load_in_8bit": True,
-                "quantization_config": BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True),
-            }
-        )
-        load_kwargs["device_map"] = "auto" if CPU_OFFLOAD else {"": 0}
-    else:
-        load_kwargs["device_map"] = {"": 0}
-
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs).eval()
-    except RuntimeError as oom:
-        if CPU_OFFLOAD and "out of memory" in str(oom):
-            print("  > GPU OOM  retrying with full CPU offload ...")
-            load_kwargs["device_map"] = "cpu"
-            load_kwargs.pop("load_in_8bit", None)
-            model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs).eval()
-        else:
-            raise
-
-    # locate blocks generically
     blocks = _find_transformer_blocks(model)
     if not blocks:
         print("  ! Could not locate transformer blocks  skipping")
         raise ValueError("no_blocks")
 
+    inputs = tokenizer(PROMPT, return_tensors="pt").to(DEVICE)
+    token_ids = inputs["input_ids"][0].tolist()
+    decoded_tokens = [tokenizer.decode(tid) for tid in token_ids]
+
     l2_mean, l2_std, raw_mean, raw_std = [], [], [], []
     p_l2_mean, p_l2_std, p_raw_mean, p_raw_std = [], [], [], []
     layer_acts: List[np.ndarray] = []
-    layer_outliers: List[List[tuple]] = []  # (value, token)
+    layer_outliers: List[List[tuple]] = []
 
-    # parameter statistics per transformer block
     for b in blocks:
         l2s = [p.detach().float().norm(p=2).item() for p in b.parameters()]
         p_l2_mean.append(float(np.mean(l2s)))
@@ -191,12 +124,6 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         p_raw_mean.append(vals.mean().item())
         p_raw_std.append(vals.std().item())
 
-    # During inference with a single position id (seq_len=1), the activations
-    # entering and exiting each transformer block have shape:
-    #   (batch=1, seq_len=1, hidden_size)
-    # Box plots are created from the flattened activations of each block; this
-    # aggregates all positions so spikes along the position dimension become
-    # visible as outliers in the distribution.
     def hook(_, __, output):
         h = _get_hidden(output).float()
         l2 = h.norm(p=2, dim=-1).flatten()
@@ -207,14 +134,10 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         raw_std.append(flat.std().item())
         layer_acts.append(flat.cpu().numpy())
 
-    inputs = tokenizer(PROMPT, return_tensors="pt").to(model.device)
-    token_ids = inputs["input_ids"][0].tolist()
-    decoded_tokens = [tokenizer.decode(tid) for tid in token_ids]
-
     handles = [b.register_forward_hook(hook) for b in blocks]
 
     with torch.no_grad():
-        _ = model(**inputs, use_cache=False)
+        _ = model(**inputs)
 
     for h in handles:
         h.remove()
@@ -271,7 +194,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         if not data:
             return
         plt.figure(figsize=(12, 0.5 * len(data) + 3), dpi=300)
-        bp = plt.boxplot(
+        plt.boxplot(
             data,
             vert=True,
             patch_artist=True,
