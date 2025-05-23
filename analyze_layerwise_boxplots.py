@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage  # for optional image/text annotations
 import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -39,6 +40,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 BASE_DIR = Path.cwd()  # absolute project root
 OUT_DIR = BASE_DIR / "viz" / "plots" / "act_analysis_box"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+plt.style.use("seaborn-v0_8-whitegrid")
 
 DEVICE = "cuda:0"  # single-GPU env assumed
 PROMPT = "Give me a short introduction to large language models."
@@ -177,6 +180,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     l2_mean, l2_std, raw_mean, raw_std = [], [], [], []
     p_l2_mean, p_l2_std, p_raw_mean, p_raw_std = [], [], [], []
     layer_acts: List[np.ndarray] = []
+    layer_outliers: List[List[tuple]] = []  # (value, token)
 
     # parameter statistics per transformer block
     for b in blocks:
@@ -203,16 +207,35 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         raw_std.append(flat.std().item())
         layer_acts.append(flat.cpu().numpy())
 
+    inputs = tokenizer(PROMPT, return_tensors="pt").to(model.device)
+    token_ids = inputs["input_ids"][0].tolist()
+    decoded_tokens = [tokenizer.decode(tid) for tid in token_ids]
+
     handles = [b.register_forward_hook(hook) for b in blocks]
 
     with torch.no_grad():
-        _ = model(**tokenizer(PROMPT, return_tensors="pt").to(model.device), use_cache=False)
+        _ = model(**inputs, use_cache=False)
 
     for h in handles:
         h.remove()
     del model
     torch.cuda.empty_cache()
     gc.collect()
+
+    seq_len = len(token_ids)
+    for arr in layer_acts:
+        mean = arr.mean()
+        std = arr.std()
+        hid_size = arr.size // seq_len
+        mask = (arr > mean + 3 * std) | (arr < mean - 3 * std)
+        idxs = np.where(mask)[0]
+        best: Dict[int, float] = {}
+        for i in idxs:
+            tok_idx = int(i) // hid_size
+            val = float(arr[i])
+            if tok_idx not in best or abs(val) > abs(best[tok_idx]):
+                best[tok_idx] = val
+        layer_outliers.append([(v, decoded_tokens[tok]) for tok, v in best.items()])
 
     safe = model_id.replace("/", "__")
     stats = {
@@ -245,17 +268,25 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         plt.close()
         print("    Plot ", p)
 
-    def _plot_box(data: List[np.ndarray]) -> None:
+    def _plot_box(data: List[np.ndarray], outliers: List[List[tuple]]) -> None:
         if not data:
             return
         plt.figure(figsize=(12, 0.5 * len(data) + 3), dpi=300)
-        plt.boxplot(
+        bp = plt.boxplot(
             data,
             vert=True,
             patch_artist=True,
             showfliers=True,
             flierprops={"marker": "o", "markersize": 2, "markerfacecolor": "r", "alpha": 0.6},
         )
+        for i, outs in enumerate(outliers):
+            if not outs:
+                continue
+            xs = np.full(len(outs), i + 1)
+            ys = [v for v, _ in outs]
+            plt.scatter(xs, ys, c="red", marker="x", zorder=3)
+            for x, y, tok in zip(xs, ys, [t for _, t in outs]):
+                plt.text(x + 0.1, y, tok, fontsize=6, ha="left", va="center")
         plt.xlabel("Layer")
         plt.ylabel("Activation value")
         plt.title(f"{model_id} activation distribution", weight="bold")
@@ -270,7 +301,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     _plot(raw_mean, raw_std, f"{model_id} raw act", "Activation", "raw")
     _plot(p_l2_mean, p_l2_std, f"{model_id} ||theta||_2", "Parameter L2 norm", "param_l2")
     _plot(p_raw_mean, p_raw_std, f"{model_id} raw theta", "Parameter value", "param_raw")
-    _plot_box(layer_acts)
+    _plot_box(layer_acts, layer_outliers)
     return stats
 
 
