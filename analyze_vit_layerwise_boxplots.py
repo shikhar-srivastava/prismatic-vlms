@@ -150,22 +150,33 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     transform = timm.data.create_transform(**data_cfg, is_training=False)
     image = Image.open(IMAGE_PATH).convert("RGB")
     pixel_values = transform(image).unsqueeze(0).to(DEVICE)
-    thumb = image.resize((32, 32))
-
-    # Determine patch size from model if possible
-    patch_size = getattr(getattr(model, "patch_embed", None), "patch_size", 16)
-    if isinstance(patch_size, int):
-        patch_size = (patch_size, patch_size)
-    elif isinstance(patch_size, (list, tuple)):
-        patch_size = tuple(patch_size)
+    img_h, img_w = pixel_values.shape[-2:]
+    resized_img = image.resize((img_w, img_h))
+    ps = getattr(model, "patch_size", None)
+    if ps is None and hasattr(model, "patch_embed"):
+        ps = getattr(model.patch_embed, "patch_size", None)
+    if isinstance(ps, (tuple, list)):
+        patch_h, patch_w = int(ps[0]), int(ps[1] if len(ps) > 1 else ps[0])
     else:
-        patch_size = (16, 16)
-
+        patch_h = patch_w = int(ps) if ps is not None else 16
+    grid_w = img_w // patch_w
+    def patch_thumb(idx: int) -> Image.Image:
+        if idx < 0:
+            return resized_img.resize((32, 32))
+        r = idx // grid_w
+        c = idx % grid_w
+        box = (
+            c * patch_w,
+            r * patch_h,
+            c * patch_w + patch_w,
+            r * patch_h + patch_h,
+        )
+        return resized_img.crop(box).resize((32, 32))
 
     l2_mean, l2_std, raw_mean, raw_std = [], [], [], []
     p_l2_mean, p_l2_std, p_raw_mean, p_raw_std = [], [], [], []
-    layer_acts: List[np.ndarray] = []  # per-layer activations (num_tokens x hid)
-    layer_outliers: List[List[tuple]] = []  # (value, patch_idx)
+    layer_acts: List[np.ndarray] = []  # (num_tokens, hidden_size) per block
+    layer_outliers: List[List[tuple]] = []  # (value, patch image)
 
     for b in blocks:
         l2s = [p.detach().float().norm(p=2).item() for p in b.parameters()]
@@ -183,7 +194,6 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         flat = h.flatten()
         raw_mean.append(flat.mean().item())
         raw_std.append(flat.std().item())
-        # store activations per token (num_tokens x hidden_size)
         layer_acts.append(h.squeeze(0).cpu().numpy())
 
     # Register forward hooks on each block to capture the tensor returned by
@@ -205,34 +215,13 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         mean = arr.mean()
         std = arr.std()
         mask = (arr > mean + 3 * std) | (arr < mean - 3 * std)
-        rows, cols = np.where(mask)
-        best: Dict[int, float] = {}
-        for r, c in zip(rows, cols):
-            val = float(arr[r, c])
-            if r not in best or abs(val) > abs(best[r]):
-                best[r] = val
-        layer_outliers.append([(v, r) for r, v in best.items()])
-
-    # Build small patch thumbnails aligned with token indices
-    num_tokens = layer_acts[0].shape[0] if layer_acts else 0
-    proc_h, proc_w = pixel_values.shape[2:]
-    grid_h, grid_w = proc_h // patch_size[0], proc_w // patch_size[1]
-    patch_tokens = grid_h * grid_w
-    extra_tokens = max(num_tokens - patch_tokens, 0)
-    resized = image.resize((proc_w, proc_h))
-    patch_thumbs = []
-    for i in range(grid_h):
-        for j in range(grid_w):
-            crop = resized.crop(
-                (
-                    j * patch_size[1],
-                    i * patch_size[0],
-                    (j + 1) * patch_size[1],
-                    (i + 1) * patch_size[0],
-                )
-            )
-            patch_thumbs.append(crop.resize((32, 32)))
-    patch_thumbs = [None] * extra_tokens + patch_thumbs
+        idxs = np.argwhere(mask)
+        outs: List[tuple] = []
+        for tok_idx, hid_idx in idxs:
+            val = float(arr[tok_idx, hid_idx])
+            patch = patch_thumb(tok_idx - 1) if tok_idx > 0 else patch_thumb(-1)
+            outs.append((val, patch))
+        layer_outliers.append(outs)
 
     safe = model_id.replace("/", "__")
     stats = {
@@ -265,21 +254,26 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         plt.close()
         print("    Plot ", p)
 
-    def _plot_box(data: List[np.ndarray], outliers: List[List[tuple]], thumbs: List[Image.Image]) -> None:
+    def _plot_box(data: List[np.ndarray], outliers: List[List[tuple]]) -> None:
         if not data:
             return
         fig, ax = plt.subplots(figsize=(12, 0.5 * len(data) + 3), dpi=300)
         plt.boxplot(
-            data,
+            [d.flatten() for d in data],
             vert=True,
             patch_artist=True,
             showfliers=True,
             flierprops={"marker": "o", "markersize": 2, "markerfacecolor": "r", "alpha": 0.6},
         )
         for i, outs in enumerate(outliers):
-            for val, idx in outs:
-                if idx < len(thumbs) and thumbs[idx] is not None:
-                    ab = AnnotationBbox(OffsetImage(thumbs[idx], zoom=0.5), (i + 1.05, val), frameon=False)
+            if not outs:
+                continue
+            xs = np.full(len(outs), i + 1)
+            ys = [v for v, _ in outs]
+            plt.scatter(xs, ys, c="red", marker="x", zorder=3)
+            for (val, img), x in zip(outs, xs):
+                if img is not None:
+                    ab = AnnotationBbox(OffsetImage(img, zoom=0.5), (x + 0.05, val), frameon=False)
                     ax.add_artist(ab)
         ax.set_xlabel("Block")
         ax.set_ylabel("Activation value")
@@ -295,7 +289,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     _plot(raw_mean, raw_std, f"{model_id} raw act", "Activation", "raw")
     _plot(p_l2_mean, p_l2_std, f"{model_id} ||theta||_2", "Parameter L2 norm", "param_l2")
     _plot(p_raw_mean, p_raw_std, f"{model_id} raw theta", "Parameter value", "param_raw")
-    _plot_box(layer_acts, layer_outliers, patch_thumbs)
+    _plot_box(layer_acts, layer_outliers)
     return stats
 
 
