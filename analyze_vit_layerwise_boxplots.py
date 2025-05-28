@@ -164,7 +164,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
             )
             thumb = resized_img.crop(box).resize((32, 32))
         # add small black border around thumbnail
-        return ImageOps.expand(thumb, border=1, fill='black')
+        return ImageOps.expand(thumb, border=1, fill="black")
 
     # initialize statistics lists
     l2_mean, l2_std, raw_mean, raw_std = [], [], [], []
@@ -196,21 +196,30 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
     for h in handles:
         h.remove()
 
-    # detect outliers per layer
+    # detect extremes per layer
     for act in layer_acts:
-        m, s = act.mean(), act.std()
-        mask = (act > m + 4*s) | (act < m - 4*s)
-        idxs = np.argwhere(mask)
+        seq_len, hid_size = act.shape
+        flat = act.flatten()
+        idxs = np.argsort(flat)
+        sel = np.concatenate([idxs[:20], idxs[-20:]]) if idxs.size > 40 else idxs
         outs = []
-        for tok, hid in idxs:
+        for i in sel:
+            tok, hid = divmod(int(i), hid_size)
             val = float(act[tok, hid])
             outs.append((val, int(tok), int(hid)))
         layer_outliers.append(outs)
 
-    safe = model_id.replace('/', '__')
-    stats = {"l2_mean":l2_mean, "l2_std":l2_std, "raw_mean":raw_mean, "raw_std":raw_std,
-             "param_l2_mean":p_l2_mean, "param_l2_std":p_l2_std,
-             "param_raw_mean":p_raw_mean, "param_raw_std":p_raw_std}
+    safe = model_id.replace("/", "__")
+    stats = {
+        "l2_mean": l2_mean,
+        "l2_std": l2_std,
+        "raw_mean": raw_mean,
+        "raw_std": raw_std,
+        "param_l2_mean": p_l2_mean,
+        "param_l2_std": p_l2_std,
+        "param_raw_mean": p_raw_mean,
+        "param_raw_std": p_raw_std,
+    }
     json_path = OUT_DIR / f"{safe}.json"
     with open(json_path, "w") as f:
         json.dump(stats, f)

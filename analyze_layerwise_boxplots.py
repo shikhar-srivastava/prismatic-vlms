@@ -223,13 +223,11 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
 
     seq_len = len(token_ids)
     for arr in layer_acts:
-        mean = arr.mean()
-        std = arr.std()
         hid_size = arr.size // seq_len
-        mask = (arr > mean + 4 * std) | (arr < mean - 4 * std)
-        idxs = np.where(mask)[0]
+        idxs = np.argsort(arr)
+        sel = np.concatenate([idxs[:20], idxs[-20:]]) if idxs.size > 40 else idxs
         outs: List[tuple] = []
-        for i in idxs:
+        for i in sel:
             tok_idx = int(i) // hid_size
             hid_idx = int(i) % hid_size
             val = float(arr[i])
