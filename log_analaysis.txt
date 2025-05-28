@@ -1,0 +1,34 @@
+
+=== Analysing deepseek-ai/DeepSeek-V2-Lite ===
+    Stats JSON  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/deepseek-ai__DeepSeek-V2-Lite.json
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/deepseek-ai__DeepSeek-V2-Lite_l2.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/deepseek-ai__DeepSeek-V2-Lite_raw.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/deepseek-ai__DeepSeek-V2-Lite_param_l2.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/deepseek-ai__DeepSeek-V2-Lite_param_raw.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/deepseek-ai__DeepSeek-V2-Lite_box.png
+
+=== Analysing google/gemma-3-1b-it ===
+    Stats JSON  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-1b-it.json
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-1b-it_l2.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-1b-it_raw.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-1b-it_param_l2.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-1b-it_param_raw.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-1b-it_box.png
+
+=== Analysing google/gemma-3-4b-it ===
+    Stats JSON  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-4b-it.json
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-4b-it_l2.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-4b-it_raw.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-4b-it_param_l2.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-4b-it_param_raw.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/google__gemma-3-4b-it_box.png
+
+=== Analysing Qwen/Qwen3-0.6B-Base ===
+    Stats JSON  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/Qwen__Qwen3-0.6B-Base.json
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/Qwen__Qwen3-0.6B-Base_l2.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/Qwen__Qwen3-0.6B-Base_raw.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/Qwen__Qwen3-0.6B-Base_param_l2.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/Qwen__Qwen3-0.6B-Base_param_raw.png
+    Plot  /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_box/Qwen__Qwen3-0.6B-Base_box.png
+
+=== Analysing Qwen/Qwen3-1.7B-Base ===

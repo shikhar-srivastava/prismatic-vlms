@@ -227,7 +227,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         mean = arr.mean()
         std = arr.std()
         hid_size = arr.size // seq_len
-        mask = (arr > mean + 3 * std) | (arr < mean - 3 * std)
+        mask = (arr > mean + 4 * std) | (arr < mean - 4 * std)
         idxs = np.where(mask)[0]
         outs: List[tuple] = []
         for i in idxs:

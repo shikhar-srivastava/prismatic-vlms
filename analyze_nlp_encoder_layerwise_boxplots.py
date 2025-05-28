@@ -43,7 +43,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 plt.style.use("seaborn-v0_8-whitegrid")
 
 DEVICE = "cuda:0"
-PROMPT = "Transformers are powerful models for natural language understanding."
+PROMPT = "Give me a short introduction to large language models."
 
 MODELS: Dict[str, List[str]] = {
     "bert": ["bert-base-uncased"],
