@@ -31,7 +31,6 @@ from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
-from matplotlib.offsetbox import AnnotationBbox, OffsetImage  # for optional image/text annotations
 import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -232,8 +231,9 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         outs: List[tuple] = []
         for i in idxs:
             tok_idx = int(i) // hid_size
+            hid_idx = int(i) % hid_size
             val = float(arr[i])
-            outs.append((val, decoded_tokens[tok_idx]))
+            outs.append((val, decoded_tokens[tok_idx], hid_idx))
         layer_outliers.append(outs)
 
     safe = model_id.replace("/", "__")
@@ -271,7 +271,7 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
         if not data:
             return
         plt.figure(figsize=(12, 0.5 * len(data) + 3), dpi=300)
-        bp = plt.boxplot(
+        plt.boxplot(
             data,
             vert=True,
             patch_artist=True,
@@ -282,10 +282,10 @@ def analyse_model(model_id: str) -> Dict[str, List[float]]:
             if not outs:
                 continue
             xs = np.full(len(outs), i + 1)
-            ys = [v for v, _ in outs]
+            ys = [v for v, _, _ in outs]
             plt.scatter(xs, ys, c="red", marker="x", zorder=3)
-            for x, y, tok in zip(xs, ys, [t for _, t in outs]):
-                plt.text(x + 0.1, y, tok, fontsize=6, ha="left", va="center")
+            for x, y, tok, dim in zip(xs, ys, [t for _, t, _ in outs], [d for _, _, d in outs]):
+                plt.text(x + 0.1, y, f"{tok} [d{dim}]", fontsize=6, ha="left", va="center")
         plt.xlabel("Layer")
         plt.ylabel("Activation value")
         plt.title(f"{model_id} activation distribution", weight="bold")
