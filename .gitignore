@@ -289,3 +289,5 @@ batch_align.pt
 batch_finetune.pt
 text_covariance_186K.pt
 X_covariance_matrix.pt
+*.pth
+datasets/*
