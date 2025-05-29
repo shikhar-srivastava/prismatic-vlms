@@ -291,3 +291,5 @@ text_covariance_186K.pt
 X_covariance_matrix.pt
 *.pth
 datasets/*
+viz_v3/*
+viz_v4/*
