@@ -1,0 +1,137 @@
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:594: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.tight_layout()
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:596: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.savefig(out_png)
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:594: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.tight_layout()
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:596: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.savefig(out_png)
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:594: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.tight_layout()
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:596: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.savefig(out_png)
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:389: UserWarning: std(): degrees of freedom is <= 0. Correction should be strictly less than the reduction factor (input numel divided by output numel). (Triggered internally at ../aten/src/ATen/native/ReduceOps.cpp:1823.)
+  return (l2s.mean().item(), l2s.std().item(), flat.mean().item(), flat.std().item())
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:594: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.tight_layout()
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:596: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.savefig(out_png)
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:389: UserWarning: std(): degrees of freedom is <= 0. Correction should be strictly less than the reduction factor (input numel divided by output numel). (Triggered internally at ../aten/src/ATen/native/ReduceOps.cpp:1823.)
+  return (l2s.mean().item(), l2s.std().item(), flat.mean().item(), flat.std().item())
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:594: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.tight_layout()
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:596: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.savefig(out_png)
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+Locator attempting to generate 1981 ticks ([-17.0, ..., 379.0]), which exceeds Locator.MAXTICKS (1000).
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:594: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.tight_layout()
+/localdisk/ssrivas9/prismatic-vlms/analyze_cnn_whisker_box.py:596: UserWarning: Glyph 8322 (\N{SUBSCRIPT TWO}) missing from font(s) Liberation Sans.
+  plt.savefig(out_png)
+
+=== Depth mode: full ===
+
+=== Analyzing resnet18_full ===
+  [INFO] Found 8 blocks
+  [OK] Stats saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_full.json
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_full_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_full_raw.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_full_param_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_full_param_raw.png
+  [OK] Box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_full_box.png
+  [OK] Top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_full_top.png
+
+=== Analyzing densenet121_full ===
+  [INFO] Found 58 blocks
+  [OK] Stats saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_full.json
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_full_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_full_raw.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_full_param_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_full_param_raw.png
+  [OK] Box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_full_box.png
+  [OK] Top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_full_top.png
+
+=== Analyzing vgg16_bn_full ===
+  [INFO] Found 13 blocks
+  [OK] Stats saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_full.json
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_full_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_full_raw.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_full_param_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_full_param_raw.png
+  [OK] Box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_full_box.png
+  [OK] Top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_full_top.png
+  [OK] Professional combined L2 plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/combined_l2_professional_full.png
+  [OK] Combined raw_activation plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/combined_raw_activation_full.png
+  [OK] Combined param_l2 plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/combined_param_l2_full.png
+  [OK] Combined param_raw plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/combined_param_raw_full.png
+
+============================================================
+STARTING LAYER-WISE ANALYSIS
+============================================================
+
+=== Layer-wise Analysis Mode ===
+
+[INFO] Running layer-wise analysis for resnet18
+
+=== Analyzing resnet18_layers ===
+  [INFO] Found 52 individual layers
+  [OK] Stats saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers.json
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers_raw.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers_param_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers_param_raw.png
+  [OK] Box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers_box.png
+  [OK] Top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers_top.png
+  [OK] Layer-wise box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers_box_layers.png
+  [OK] Layer-wise top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/resnet18_layers_top_layers.png
+
+[INFO] Running layer-wise analysis for densenet121
+
+=== Analyzing densenet121_layers ===
+  [INFO] Found 361 individual layers
+  [OK] Stats saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers.json
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers_raw.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers_param_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers_param_raw.png
+  [OK] Box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers_box.png
+  [OK] Top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers_top.png
+  [OK] Layer-wise box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers_box_layers.png
+  [OK] Layer-wise top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/densenet121_layers_top_layers.png
+
+[INFO] Running layer-wise analysis for vgg16_bn
+
+=== Analyzing vgg16_bn_layers ===
+  [INFO] Found 44 individual layers
+  [OK] Stats saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers.json
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers_raw.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers_param_l2.png
+  [OK] Plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers_param_raw.png
+  [OK] Box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers_box.png
+  [OK] Top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers_top.png
+  [OK] Layer-wise box plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers_box_layers.png
+  [OK] Layer-wise top activations plot saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/vgg16_bn_layers_top_layers.png
+
+[INFO] Successfully analyzed 3 models at layer level
+  [OK] Combined layer-wise l2_layers comparison saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/combined_l2_layers_comparison.png
+  [OK] Combined layer-wise raw_layers comparison saved to /localdisk/ssrivas9/prismatic-vlms/viz/plots/act_analysis_cnn_box/combined_raw_layers_comparison.png
+
+Analysis complete.
