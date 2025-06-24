@@ -45,7 +45,7 @@ CHK_DIR.mkdir(exist_ok=True)
 CURVE_DIR = BASE / "viz"
 CURVE_DIR.mkdir(exist_ok=True)
 
-PLOT_DIR = BASE / "viz" / "plots" / "act_analysis_rvd"  # ResNet vs Dense
+PLOT_DIR = BASE / "viz" / "plots" / "act_analysis_rvd_retry"  # ResNet vs Dense
 PLOT_DIR.mkdir(parents=True, exist_ok=True)
 
 DATA_DIR = BASE / "datasets"
