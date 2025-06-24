@@ -294,3 +294,4 @@ datasets/*
 viz_v3/*
 viz_v4/*
 viz_correct_init/*
+test_images/*
