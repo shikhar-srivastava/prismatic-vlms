@@ -45,6 +45,9 @@ except ModuleNotFoundError:
 class ReLU2(nn.Module):
     def forward(self, x): 
         zero = torch.tensor(0.0, device=x.device, dtype=x.dtype)
+        # Add numerical stability for FP16
+        if x.dtype == torch.float16:
+            x = torch.clamp(x, min=-10.0, max=10.0)  # Prevent overflow
         return torch.square(torch.clamp_min(x, zero)).to(x.dtype)
 
 class Lap4PWC1(nn.Module):
@@ -76,8 +79,13 @@ class Rational4(nn.Module):
     def forward(self, x): 
         # Ensure constant has the same dtype and device as input
         A = torch.tensor(self.A, device=x.device, dtype=x.dtype)
+        # Add numerical stability for FP16
+        if x.dtype == torch.float16:
+            x = torch.clamp(x, min=-10.0, max=10.0)  # Prevent overflow
         x_sq = torch.square(x).to(x.dtype)
-        return (A * x_sq / (x_sq + A)).to(x.dtype)
+        # Add epsilon to prevent division by zero
+        eps = torch.tensor(1e-6, device=x.device, dtype=x.dtype)
+        return (A * x_sq / (x_sq + A + eps)).to(x.dtype)
 
 class LaplaceActivation(nn.Module):
     """Pure Laplace activation function based on error function.
@@ -99,6 +107,10 @@ class LaplaceActivation(nn.Module):
         sqrt2 = torch.tensor(self.sqrt2, device=device, dtype=dtype)
         half = torch.tensor(0.5, device=device, dtype=dtype)
         one = torch.tensor(1.0, device=device, dtype=dtype)
+        
+        # Add numerical stability for FP16
+        if x.dtype == torch.float16:
+            x = torch.clamp(x, min=-5.0, max=5.0)  # Prevent overflow in erf
         
         # Compute z = (x - μ) / (σ√2)
         z = (x - mu) / (sigma * sqrt2)
@@ -237,6 +249,16 @@ DEPTH_CFG = {14:(100,0.1,[50,75])}        # epochs, baseLR, milestones
 CHK_DIR = Path.cwd()/ "checkpoints_lap"; CHK_DIR.mkdir(exist_ok=True)
 LOG_DIR = Path.cwd()/ "viz"/"laplace_r14"; LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+# FP16-specific configurations
+FP16_CONFIG = {
+    "lr_scale": 0.1,  # Reduce learning rate by 10x for FP16
+    "grad_clip": 1.0,  # Gradient clipping threshold
+    "scaler_init_scale": 2**16,  # Higher initial scale for better stability
+    "scaler_growth_factor": 2.0,
+    "scaler_backoff_factor": 0.5,
+    "scaler_growth_interval": 2000
+}
+
 def train(model, act_name, prec_name, tr_loader, te_loader):
     tag = f"{act_name}_{prec_name}"
     ck  = CHK_DIR / f"cifar100_r14_{tag}.pth"
@@ -245,10 +267,27 @@ def train(model, act_name, prec_name, tr_loader, te_loader):
         return
 
     epochs, base_lr, milestones = DEPTH_CFG[14]
+    
+    # FP16-specific learning rate adjustment
+    if prec_name == "fp16":
+        base_lr *= FP16_CONFIG["lr_scale"]
+        print(f"[INFO] FP16 detected - scaling LR from {DEPTH_CFG[14][1]} to {base_lr:.4f}")
+    
     model.to(DEVICE, memory_format=torch.channels_last)
     if prec_name.startswith("fp8"): model = convert_to_te(model)
 
-    scaler = torch.cuda.amp.GradScaler(enabled=(prec_name!="fp32"))
+    # Enhanced scaler configuration for FP16
+    if prec_name == "fp16":
+        scaler = torch.cuda.amp.GradScaler(
+            enabled=True,
+            init_scale=FP16_CONFIG["scaler_init_scale"],
+            growth_factor=FP16_CONFIG["scaler_growth_factor"],
+            backoff_factor=FP16_CONFIG["scaler_backoff_factor"],
+            growth_interval=FP16_CONFIG["scaler_growth_interval"]
+        )
+    else:
+        scaler = torch.cuda.amp.GradScaler(enabled=(prec_name!="fp32"))
+    
     opt = optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
     sch = optim.lr_scheduler.MultiStepLR(opt, milestones, gamma=0.1)
     crit = nn.CrossEntropyLoss()
@@ -263,10 +302,33 @@ def train(model, act_name, prec_name, tr_loader, te_loader):
                 opt.zero_grad(set_to_none=True)
                 with PrecisionCtx(prec_name):
                     out = model(xb); loss = crit(out,yb)
-                scaler.scale(loss).backward()
-                scaler.step(opt); scaler.update()
+                
+                # Enhanced gradient handling for FP16
+                if prec_name == "fp16":
+                    scaler.scale(loss).backward()
+                    # Gradient clipping for FP16 stability
+                    scaler.unscale_(opt)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), FP16_CONFIG["grad_clip"])
+                    scaler.step(opt)
+                    scaler.update()
+                else:
+                    scaler.scale(loss).backward()
+                    scaler.step(opt)
+                    scaler.update()
+                
+                # NaN detection for FP16 stability
+                if prec_name == "fp16" and (torch.isnan(loss) or torch.isinf(loss)):
+                    print(f"[WARN] {tag} - NaN/Inf detected in loss at epoch {ep}, stopping training")
+                    return
+                
                 tl += loss.item()*xb.size(0)
                 correct += (out.argmax(1)==yb).sum().item()
+        
+        # Check for NaN in accumulated loss
+        if prec_name == "fp16" and (np.isnan(tl) or np.isinf(tl)):
+            print(f"[WARN] {tag} - NaN/Inf detected in accumulated loss at epoch {ep}, stopping training")
+            return
+            
         tr_loss.append(tl/len(tr_loader.dataset))
         tr_acc.append(correct/len(tr_loader.dataset))
 
@@ -314,24 +376,153 @@ def parse_depth_from_tag(tag:str)->int:
     m=re.search(r"(\d+)",tag)
     return int(m.group(1)) if m else 14
 
+def create_performance_heatmap(all_metrics: Dict[str,dict]):
+    """Create a professional heatmap showing best validation accuracy for each activation/precision combo."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.colors import LinearSegmentedColormap
+    
+    # Extract unique activations and precisions
+    activations = sorted(set(tag.split("_")[0] for tag in all_metrics.keys()))
+    precisions = sorted(set(tag.split("_",1)[1] for tag in all_metrics.keys()))
+    
+    # Create performance matrix
+    perf_matrix = np.zeros((len(activations), len(precisions)))
+    
+    for i, act in enumerate(activations):
+        for j, prec in enumerate(precisions):
+            tag = f"{act}_{prec}"
+            if tag in all_metrics:
+                perf_matrix[i, j] = all_metrics[tag]['best_val_acc'] * 100
+    
+    # Create beautiful heatmap
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=300)
+    
+    # Custom colormap (white to dark blue)
+    colors_map = ['#ffffff', '#e8f4f8', '#d1e7f0', '#85c1e5', '#3498db', '#2874a6']
+    n_bins = 256
+    cmap = LinearSegmentedColormap.from_list('custom', colors_map, N=n_bins)
+    
+    im = ax.imshow(perf_matrix, cmap=cmap, aspect='auto', vmin=perf_matrix.min(), vmax=perf_matrix.max())
+    
+    # Add text annotations
+    for i in range(len(activations)):
+        for j in range(len(precisions)):
+            text = ax.text(j, i, f'{perf_matrix[i, j]:.1f}%',
+                          ha="center", va="center", color="black" if perf_matrix[i, j] < perf_matrix.max()*0.7 else "white",
+                          fontsize=11, weight='bold')
+    
+    # Customize axes
+    ax.set_xticks(np.arange(len(precisions)))
+    ax.set_yticks(np.arange(len(activations)))
+    ax.set_xticklabels([p.upper().replace('_', '-') for p in precisions], fontsize=12)
+    ax.set_yticklabels([a.upper() for a in activations], fontsize=12)
+    
+    # Rotate the tick labels and set their alignment
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    
+    ax.set_title("Best Validation Accuracy Heatmap (%)\nResNet-14 on CIFAR-100", 
+                fontsize=16, weight='bold', pad=20)
+    ax.set_xlabel("Precision", fontsize=14, weight='bold')
+    ax.set_ylabel("Activation Function", fontsize=14, weight='bold')
+    
+    # Add colorbar
+    cbar = ax.figure.colorbar(im, ax=ax, shrink=0.8)
+    cbar.ax.set_ylabel("Validation Accuracy (%)", rotation=-90, va="bottom", fontsize=12, weight='bold')
+    
+    plt.tight_layout()
+    out_heatmap = LOG_DIR / "performance_heatmap_cifar100.png"
+    plt.savefig(out_heatmap, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
+    plt.close()
+    print(f"[INFO] Performance heatmap saved → {out_heatmap}")
+
 def create_training_summary_table(all_metrics: Dict[str,dict]):
     rows=[]
     for name,m in all_metrics.items():
-        rows.append({"Model":name.upper(),
-                     "Best Val Acc (%)":f"{m['best_val_acc']*100:.2f}",
-                     "Best Epoch":m['best_val_acc_epoch'],
-                     "Final Val Acc (%)":f"{m['final_val_acc']*100:.2f}"})
-    rows.sort(key=lambda r:r['Model'])
+        act, prec = name.split('_', 1)
+        rows.append({
+            "Activation": act.upper(),
+            "Precision": prec.upper().replace('_', '-'),
+            "Best Val Acc (%)": f"{m['best_val_acc']*100:.2f}",
+            "Best Epoch": m['best_val_acc_epoch'],
+            "Final Val Acc (%)": f"{m['final_val_acc']*100:.2f}",
+            "Improvement (%)": f"{(m['best_val_acc'] - m['val_acc'][0])*100:.2f}" if len(m['val_acc']) > 0 else "N/A"
+        })
+    
+    # Sort by best validation accuracy (descending)
+    rows.sort(key=lambda r: float(r['Best Val Acc (%)'].rstrip('%')), reverse=True)
+    
     headers=list(rows[0].keys())
-    fig,ax=plt.subplots(figsize=(12,0.6*len(rows)+2), dpi=300)
+    
+    # Create professional table
+    fig, ax = plt.subplots(figsize=(16, 0.7*len(rows)+3), dpi=300)
     ax.axis('off')
-    tbl=ax.table(cellText=[list(r.values()) for r in rows],
+    
+    # Create table with enhanced styling
+    tbl = ax.table(cellText=[list(r.values()) for r in rows],
                  colLabels=headers, cellLoc='center', loc='center')
-    tbl.auto_set_font_size(False); tbl.set_fontsize(9); tbl.scale(1.2,1.8)
-    plt.title('ResNet-14 Activation/Precision Sweep – CIFAR-100', pad=20, fontsize=14, weight='bold')
-    out=LOG_DIR/"summary_table_cifar100.png"; plt.savefig(out, dpi=300, bbox_inches='tight'); plt.close()
-    json.dump(rows, open(LOG_DIR/"summary_cifar100.json","w"), indent=2)
-    print(f"[INFO] Summary table saved → {out}")
+    
+    # Enhanced table styling
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(10)
+    tbl.scale(1.2, 2.0)
+    
+    # Color coding - best performers get highlighted
+    best_acc = max(float(r['Best Val Acc (%)'].rstrip('%')) for r in rows)
+    
+    for i, row in enumerate(rows):
+        acc = float(row['Best Val Acc (%)'].rstrip('%'))
+        
+        # Header styling
+        for j in range(len(headers)):
+            cell = tbl[(0, j)]
+            cell.set_facecolor('#34495E')
+            cell.set_text_props(weight='bold', color='white')
+            cell.set_height(0.1)
+        
+        # Data row styling
+        for j in range(len(headers)):
+            cell = tbl[(i+1, j)]
+            
+            # Highlight top performers
+            if acc >= best_acc - 1.0:  # Within 1% of best
+                cell.set_facecolor('#E8F8F5')
+            elif acc >= best_acc - 2.0:  # Within 2% of best
+                cell.set_facecolor('#F8F9FA')
+            else:
+                cell.set_facecolor('white')
+            
+            cell.set_height(0.08)
+            
+            # Bold the best accuracy values
+            if j == 2 and acc == best_acc:  # Best Val Acc column
+                cell.set_text_props(weight='bold', color='#27AE60')
+    
+    plt.title('ResNet-14 Activation Function & Precision Performance Summary\nCIFAR-100 Classification Results', 
+              pad=25, fontsize=16, weight='bold')
+    
+    # Add subtitle with key insights
+    plt.figtext(0.5, 0.02, f'Best Performance: {best_acc:.2f}% | Total Configurations: {len(rows)}', 
+                ha='center', fontsize=11, style='italic', color='#666666')
+    
+    out = LOG_DIR / "summary_table_cifar100.png"
+    plt.savefig(out, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
+    plt.close()
+    
+    # Enhanced JSON output
+    summary_data = {
+        "experiment_info": {
+            "model": "ResNet-14",
+            "dataset": "CIFAR-100",
+            "total_configurations": len(rows),
+            "best_accuracy": best_acc
+        },
+        "results": rows,
+        "top_3_performers": rows[:3]
+    }
+    
+    json.dump(summary_data, open(LOG_DIR/"summary_cifar100.json","w"), indent=2)
+    print(f"[INFO] Enhanced summary table saved → {out}")
 
 def create_comparative_training_plots():
     metrics_files=list(LOG_DIR.glob("*_metrics.json"))
@@ -342,24 +533,96 @@ def create_comparative_training_plots():
     for j in metrics_files:
         tag=j.stem.replace("_metrics","")
         all_metrics[tag]=json.load(open(j))
-    # Validation accuracy comparison
-    colors={'relu':'#1f77b4','relu2':'#ff7f0e',
-            'lap4pw':'#2ca02c','rat4':'#d62728'}
-    linestyles={'fp32':'-','fp16':'--','fp8_e4m3fn':'-.','fp8_e5m2':':'}
-    plt.figure(figsize=(14,8), dpi=300)
+    
+    # Enhanced color palette and styling
+    colors={'relu':'#2E86C1','relu2':'#E67E22',
+            'lap4pw':'#27AE60','rat4':'#E74C3C','laplace':'#8E44AD'}
+    linestyles={'fp32':'-','fp16':'--','fp8_e4m3':'-.','fp8_e5m2':':'}
+    
+    # Set matplotlib style for professional appearance
+    plt.style.use('seaborn-v0_8-whitegrid')
+    plt.rcParams.update({
+        'font.size': 11,
+        'font.family': 'serif',
+        'axes.linewidth': 1.2,
+        'axes.spines.top': False,
+        'axes.spines.right': False,
+        'grid.alpha': 0.3,
+        'legend.frameon': True,
+        'legend.fancybox': True,
+        'legend.shadow': True
+    })
+    
+    # 1. Combined plot with all activation functions and precisions
+    fig, ax = plt.subplots(figsize=(16,10), dpi=300)
     for tag,m in all_metrics.items():
         act,prec=tag.split("_",1)
         ep=m['epochs']; acc=np.array(m['val_acc'])*100
-        plt.plot(ep, acc,
+        ax.plot(ep, acc,
                  color=colors[act], linestyle=linestyles.get(prec,'-'),
-                 linewidth=2, label=f"{act.upper()} /{prec.upper()}",
-                 alpha=0.85)
-    plt.title("Validation Accuracy – ResNet-14 (CIFAR-100)", fontsize=16, weight='bold', pad=20)
-    plt.xlabel("Epoch"); plt.ylabel("Accuracy (%)")
-    plt.grid(alpha=.3); plt.legend(ncol=2, fontsize=9)
+                linewidth=2.5, label=f"{act.upper()} / {prec.upper()}",
+                alpha=0.9, marker='o' if len(ep) <= 20 else None, markersize=3)
+    
+    ax.set_title("Validation Accuracy Comparison – ResNet-14 on CIFAR-100", 
+                fontsize=18, weight='bold', pad=25)
+    ax.set_xlabel("Epoch", fontsize=14, weight='bold')
+    ax.set_ylabel("Validation Accuracy (%)", fontsize=14, weight='bold')
+    ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax.legend(ncol=4, fontsize=10, loc='lower right', 
+              bbox_to_anchor=(1.0, 0.02), framealpha=0.95)
+    ax.set_ylim(bottom=0)
+    
+    plt.tight_layout()
     out=LOG_DIR/"comparative_val_acc_cifar100.png"
-    plt.tight_layout(); plt.savefig(out, dpi=300, bbox_inches='tight'); plt.close()
-    print(f"[INFO] Comparative plot saved → {out}")
+    plt.savefig(out, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
+    plt.close()
+    print(f"[INFO] Combined comparative plot saved → {out}")
+    
+    # 2. Separate plots for each precision
+    precisions = list(set(tag.split("_",1)[1] for tag in all_metrics.keys()))
+    
+    for prec in sorted(precisions):
+        fig, ax = plt.subplots(figsize=(12,8), dpi=300)
+        
+        prec_metrics = {tag: m for tag, m in all_metrics.items() if tag.endswith(f"_{prec}")}
+        
+        for tag, m in prec_metrics.items():
+            act = tag.split("_")[0]
+            ep = m['epochs']
+            acc = np.array(m['val_acc']) * 100
+            
+            ax.plot(ep, acc, color=colors[act], linewidth=3.0, 
+                   label=f"{act.upper()}", alpha=0.9,
+                   marker='o', markersize=4, markevery=max(1, len(ep)//10))
+        
+        # Beautify the precision-specific plot
+        prec_title = {
+            'fp32': 'FP32 (Single Precision)',
+            'fp16': 'FP16 (Half Precision)', 
+            'fp8_e4m3': 'FP8-E4M3 (8-bit Floating Point)',
+            'fp8_e5m2': 'FP8-E5M2 (8-bit Floating Point)'
+        }.get(prec, prec.upper())
+        
+        ax.set_title(f"Activation Function Comparison – {prec_title}\nResNet-14 on CIFAR-100", 
+                    fontsize=16, weight='bold', pad=20)
+        ax.set_xlabel("Epoch", fontsize=13, weight='bold')
+        ax.set_ylabel("Validation Accuracy (%)", fontsize=13, weight='bold')
+        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+        ax.legend(fontsize=12, loc='lower right', framealpha=0.95)
+        ax.set_ylim(bottom=0)
+        
+        # Add subtle background color
+        ax.set_facecolor('#fafafa')
+        
+        plt.tight_layout()
+        out_prec = LOG_DIR / f"activation_comparison_{prec}_cifar100.png"
+        plt.savefig(out_prec, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
+        plt.close()
+        print(f"[INFO] {prec.upper()} precision plot saved → {out_prec}")
+    
+    # 3. Enhanced summary heatmap
+    create_performance_heatmap(all_metrics)
+    
     # summary table
     create_training_summary_table(all_metrics)
 
