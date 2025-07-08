@@ -85,12 +85,12 @@ class PretrainConfig:
     wandb_entity: str = "klab-shikhar"
 
     # Mitigation method. Default is None
-    mitigation: Optional[str] = None
-    soft_alpha: Optional[float] = None
-    soft_alpha_masked_interpolation: Optional[float] = None
+    mitigation: str = None
+    soft_alpha: float = None
+    soft_alpha_masked_interpolation: float = None
     soft_output_logits: bool = True
     
-    add_K: Optional[float] = None
+    add_K: float = None
     add_K_percentage: bool = False
     set_to_one: bool = False
     max_logit: bool = False
@@ -143,19 +143,19 @@ class PretrainConfig:
 
     # Save logits only
     save_logits: bool = False
-    save_logits_dir: Optional[str] = None
+    save_logits_dir: str = None
     load_logits: bool = False
-    load_logits_dir: Optional[str] = None
+    load_logits_dir: str = None
 
     # Teacher LLM
-    llm_teacher_checkpoint: Optional[str] = None
+    llm_teacher_checkpoint: str = None
     stableadam: bool = False
     # Projector Type
-    projector_type: Optional[str] = None
+    projector_type: str = None
 
     # Init Projector 
-    init_projector: Optional[str] = None  # "ledoitwolf", "ledoitwolf-mlp"
-    init_projector_path: Optional[str] = None
+    init_projector: str = None # "ledoitwolf", "ledoitwolf-mlp"
+    init_projector_path: str = None
 
     # Visual embedding scaling 
     scale_patch_embeddings: bool = False # If true, then scale by 1/sqrt(d_model) before projecting 
@@ -169,20 +169,24 @@ class PretrainConfig:
     norm_reg: bool = False
     norm_reg_weight: float = 0.01
 
-    # Layer-wise Statistics Tracking
-    track_layer_stats: bool = False  # Log layer-wise activation statistics (mean, std).
-    track_cosine_layer_stats: bool = False  # Log cosine similarity between layer representations.
+    # <<< ADDED >>> Flag to control layer-wise statistics tracking
+    track_layer_stats: bool = False
 
-    # Embedding-level Statistics Tracking (can be used in combination with `track_layer_stats`)
-    track_embeddings: bool = False  # Master switch for all embedding-level tracking below.
-    track_embeddings_histogram: bool = False  # If `track_embeddings`, log embedding value histograms.
-    track_embeddings_values: bool = False  # If `track_embeddings`, log raw embedding values (large logs!).
-    track_covariance: bool = False  # If `track_embeddings`, compute & log embedding covariance.
-    use_precomputed_covariance: bool = False  # Alternative to `track_covariance`; loads a static covariance matrix.
-    precomputed_covariance_path: str = (
-        "/home/aac/ssrivas9/prismatic-vlms/text_covariance_186K.pt"  # Path for `use_precomputed_covariance`.
-    )
-    track_avg_rank: bool = False  # If `track_covariance`, also log the effective rank of the covariance matrix.
+    # <<< ADDED >>> Flag to control layer-wise cosine similarity tracking
+    track_cosine_layer_stats: bool = False
+
+    track_embeddings: bool = False
+    track_embeddings_histogram: bool = False
+    track_embeddings_values: bool = False
+    track_covariance: bool = False
+    use_precomputed_covariance: bool = False
+    precomputed_covariance_path: str = "/home/aac/ssrivas9/prismatic-vlms/text_covariance_186K.pt"
+    track_avg_rank: bool = False
+
+    # <<< ADDED >>> Validation Pipeline Parameters
+    enable_validation_tracking: bool = False                    # Enable new multi-batch validation pipeline
+    validation_set_dir: Optional[Path] = None                   # Directory containing pre-created validation sets
+    validation_frequency: int = 100                             # How often (in steps) to run validation
 
     # Mixed precision training
     disable_mixed_precision: bool = False

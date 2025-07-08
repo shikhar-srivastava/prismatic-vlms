@@ -278,3 +278,4 @@ X_covariance_matrix.pt
 datasets/*
 */test_images/*
 imgs/*
+validation_sets/*

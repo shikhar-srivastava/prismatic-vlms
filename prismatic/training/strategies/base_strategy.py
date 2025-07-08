@@ -9,7 +9,7 @@ heavy lifting.
 """
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 
 import torch
 import torch.nn.functional as F
@@ -25,6 +25,7 @@ from prismatic.training.metrics import Metrics
 from prismatic.util import check_bloat16_supported
 from prismatic.util.batching_utils import SplitModalitySampler
 from prismatic.util.data_utils import PaddedCollatorForLanguageModeling
+from prismatic.preprocessing.validation import load_validation_manager
 from prismatic.util.relora import get_cosine_schedule_with_multiple_warmups, optimizer_reset
 from prismatic.models.backbones.mitigation import apply_mitigation
 
@@ -91,6 +92,12 @@ class TrainingStrategy(ABC):
         self.llm_teacher_checkpoint = cfg['llm_teacher_checkpoint'] if isinstance(cfg, dict) else getattr(cfg, 'llm_teacher_checkpoint', None)
         self.scale_patch_embeddings = cfg['scale_patch_embeddings'] if isinstance(cfg, dict) else getattr(cfg, 'scale_patch_embeddings', False)
         self.stableadam = cfg['stableadam'] if isinstance(cfg, dict) else getattr(cfg, 'stableadam', False)
+        
+        # Validation Set Management
+        self.enable_validation_tracking = cfg['enable_validation_tracking'] if isinstance(cfg, dict) else getattr(cfg, 'enable_validation_tracking', False)
+        self.validation_set_dir = cfg['validation_set_dir'] if isinstance(cfg, dict) else getattr(cfg, 'validation_set_dir', None)
+        self.validation_frequency = cfg['validation_frequency'] if isinstance(cfg, dict) else getattr(cfg, 'validation_frequency', 100)
+        self.validation_manager = None
 
         # Saving/Loading Logits Utilities
         self.save_logits = cfg['save_logits'] if isinstance(cfg, dict) else getattr(cfg, 'save_logits', False)
@@ -225,6 +232,71 @@ class TrainingStrategy(ABC):
         
         if self.lr_scheduler_type == 'schedule-free':
             self.optimizer.train()
+
+    def _compute_validation_metrics(self) -> Optional[Dict[str, float]]:
+        """
+        Compute validation metrics on the validation sets for both align and finetune stages.
+        
+        Returns:
+            Dictionary of validation metrics or None if computation fails
+        """
+        if not self.validation_manager:
+            return None
+        
+        validation_metrics = {}
+        
+        with torch.no_grad():
+            for validation_stage in ["align", "finetune"]:
+                if not self.validation_manager.has_validation_set(validation_stage):
+                    continue
+                
+                # Get all validation batches for this stage
+                validation_batches = self.validation_manager.get_all_validation_batches(validation_stage)
+                if not validation_batches:
+                    continue
+                
+                stage_ranks = []
+                stage_min_ranks = []
+                stage_max_ranks = []
+                
+                # Process each validation batch
+                for batch in validation_batches:
+                    try:
+                        # Forward pass
+                        output, fused_labels = self.vlm(
+                            input_ids=batch["input_ids"],
+                            attention_mask=batch["attention_mask"],
+                            pixel_values=batch["pixel_values"],
+                            labels=batch["labels"],
+                            multimodal_indices=batch["multimodal_indices"],
+                            return_labels=True,
+                        )
+                        
+                        # Calculate ranks for this batch
+                        avg_rank, min_rank, max_rank = calculate_average_rank(output, fused_labels)
+                        
+                        if avg_rank > 0:  # Valid rank computation
+                            stage_ranks.append(avg_rank)
+                            stage_min_ranks.append(min_rank)
+                            stage_max_ranks.append(max_rank)
+                    
+                    except Exception as e:
+                        overwatch.error(f"Error computing validation metrics for {validation_stage}: {e}")
+                        continue
+                
+                # Aggregate metrics for this stage
+                if stage_ranks:
+                    validation_metrics[f"avg_rank_{validation_stage}"] = sum(stage_ranks) / len(stage_ranks)
+                    validation_metrics[f"min_rank_{validation_stage}"] = min(stage_min_ranks)
+                    validation_metrics[f"max_rank_{validation_stage}"] = max(stage_max_ranks)
+                    validation_metrics[f"avg_min_rank_{validation_stage}"] = sum(stage_min_ranks) / len(stage_min_ranks)
+                    validation_metrics[f"avg_max_rank_{validation_stage}"] = sum(stage_max_ranks) / len(stage_max_ranks)
+                    
+                    # overwatch.info(f"Validation {validation_stage}: avg_rank={validation_metrics[f'avg_rank_{validation_stage}']:.2f}, "
+                    #              f"min_rank={validation_metrics[f'min_rank_{validation_stage}']:.1f}, "
+                    #              f"max_rank={validation_metrics[f'max_rank_{validation_stage}']:.1f}")
+        
+        return validation_metrics if validation_metrics else None
 
     def _compute_embedding_metrics(self, vis_emb, txt_emb, alignment_loss_val=None, reg_loss=None):
         """Helper method to compute embedding metrics and prepare kwargs for metrics.commit."""
@@ -403,8 +475,25 @@ class TrainingStrategy(ABC):
             #pin_memory=True,
         )
 
-        # Load both saved batches if tracking top_n_coverage is enabled
-        if self.track_avg_rank:
+        # Initialize validation manager if validation tracking is enabled
+        if self.enable_validation_tracking and self.validation_set_dir:
+            overwatch.info(f"Loading validation sets from {self.validation_set_dir}")
+            self.validation_manager = load_validation_manager(self.validation_set_dir, self.device_id)
+            if self.validation_manager is None:
+                overwatch.error("Failed to load validation manager, disabling validation tracking")
+                self.enable_validation_tracking = False
+            else:
+                overwatch.info(f"Validation manager loaded successfully")
+                # Log validation set info
+                for stage in ["align", "finetune"]:
+                    if self.validation_manager.has_validation_set(stage):
+                        val_info = self.validation_manager.get_validation_info(stage)
+                        overwatch.info(f"{stage.capitalize()} validation: {val_info['num_samples']} samples, "
+                                     f"{val_info['num_batches']} batches")
+        
+        # Fallback to old batch loading for backward compatibility
+        if self.track_avg_rank and not self.enable_validation_tracking:
+            overwatch.info("Using legacy single-batch validation (consider upgrading to validation sets)")
             batch_align = torch.load('batch_align.pt')
             batch_align = {k: v.to(self.device_id) if isinstance(v, torch.Tensor) else v for k, v in batch_align.items()}
             batch_finetune = torch.load('batch_finetune.pt')
@@ -493,8 +582,10 @@ class TrainingStrategy(ABC):
                         enabled=self.enable_mixed_precision_training,
                     ):  
                         # Extract sample indices
-                        if stage == 'finetune':
+                        if stage == 'finetune' and 'idx' in batch:
                             sample_indices = batch.pop('idx')
+                        else:
+                            sample_indices = None
 
                         # <<< ADDED >>> Replace images with random noise if requested
                         if self.random_image and 'pixel_values' in batch and batch['pixel_values'] is not None:
@@ -1274,37 +1365,49 @@ class TrainingStrategy(ABC):
                         # Clip Gradients --> this is custom, per-strategy because of DDP vs. FSDP locality-assumptions
                         self.clip_grad_norm()
 
-                        # Track top-n coverage every 100 steps for both stages
-                        if self.track_avg_rank:
-                            with torch.no_grad():
-                                # Compute for align batch
-                                output_align, fused_labels_align = self.vlm(
-                                    input_ids=batch_align["input_ids"],
-                                    attention_mask=batch_align["attention_mask"],
-                                    pixel_values=batch_align["pixel_values"],
-                                    labels=batch_align["labels"],
-                                    multimodal_indices=batch_align["multimodal_indices"],
-                                    return_labels=True,
-                                )
-                                avg_rank_align, min_rank_align, max_rank_align = calculate_average_rank(output_align, fused_labels_align)
-                                # Compute for finetune batch
-                                output_finetune, fused_labels_finetune = self.vlm(
-                                    input_ids=batch_finetune["input_ids"],
-                                    attention_mask=batch_finetune["attention_mask"],
-                                    pixel_values=batch_finetune["pixel_values"],
-                                    labels=batch_finetune["labels"],
-                                    multimodal_indices=batch_finetune["multimodal_indices"],
-                                    return_labels=True,
-                                )
-                                avg_rank_finetune, min_rank_finetune, max_rank_finetune = calculate_average_rank(output_finetune, fused_labels_finetune)
+                        # Track validation metrics 
+                        should_validate = (
+                            (self.enable_validation_tracking and metrics.global_step % self.validation_frequency == 0) or
+                            (self.track_avg_rank and not self.enable_validation_tracking)
+                        )
+                        
+                        if should_validate:
+                            if self.enable_validation_tracking and self.validation_manager:
+                                # Use new validation set approach
+                                validation_metrics = self._compute_validation_metrics()
+                                if validation_metrics:
+                                    metrics.log(metrics.global_step, validation_metrics)
+                            elif self.track_avg_rank:
+                                # Legacy single-batch approach
+                                with torch.no_grad():
+                                    # Compute for align batch
+                                    output_align, fused_labels_align = self.vlm(
+                                        input_ids=batch_align["input_ids"],
+                                        attention_mask=batch_align["attention_mask"],
+                                        pixel_values=batch_align["pixel_values"],
+                                        labels=batch_align["labels"],
+                                        multimodal_indices=batch_align["multimodal_indices"],
+                                        return_labels=True,
+                                    )
+                                    avg_rank_align, min_rank_align, max_rank_align = calculate_average_rank(output_align, fused_labels_align)
+                                    # Compute for finetune batch
+                                    output_finetune, fused_labels_finetune = self.vlm(
+                                        input_ids=batch_finetune["input_ids"],
+                                        attention_mask=batch_finetune["attention_mask"],
+                                        pixel_values=batch_finetune["pixel_values"],
+                                        labels=batch_finetune["labels"],
+                                        multimodal_indices=batch_finetune["multimodal_indices"],
+                                        return_labels=True,
+                                    )
+                                    avg_rank_finetune, min_rank_finetune, max_rank_finetune = calculate_average_rank(output_finetune, fused_labels_finetune)
 
-                                # Log metrics with specific names
-                                metrics.log(metrics.global_step, {"avg_rank_align": avg_rank_align})
-                                metrics.log(metrics.global_step, {"avg_rank_finetune": avg_rank_finetune})
-                                metrics.log(metrics.global_step, {"min_rank_align": min_rank_align})
-                                metrics.log(metrics.global_step, {"min_rank_finetune": min_rank_finetune})
-                                metrics.log(metrics.global_step, {"max_rank_align": max_rank_align})
-                                metrics.log(metrics.global_step, {"max_rank_finetune": max_rank_finetune})
+                                    # Log metrics with specific names
+                                    metrics.log(metrics.global_step, {"avg_rank_align": avg_rank_align})
+                                    metrics.log(metrics.global_step, {"avg_rank_finetune": avg_rank_finetune})
+                                    metrics.log(metrics.global_step, {"min_rank_align": min_rank_align})
+                                    metrics.log(metrics.global_step, {"min_rank_finetune": min_rank_finetune})
+                                    metrics.log(metrics.global_step, {"max_rank_align": max_rank_align})
+                                    metrics.log(metrics.global_step, {"max_rank_finetune": max_rank_finetune})
 
                         # Optimizer & LR Scheduler Step
                         if self.lr_scheduler_type == 'schedule-free':
