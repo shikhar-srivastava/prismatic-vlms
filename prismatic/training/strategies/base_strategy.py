@@ -1782,6 +1782,9 @@ def compute_activation_distribution(tensor: torch.Tensor) -> Dict[str, float]:
     q05 = float(np.percentile(flat, 5))
     q95 = float(np.percentile(flat, 95))
 
+    # Histogram (for WandB) – 50 bins
+    hist, bin_edges = np.histogram(flat, bins=50, density=True)
+
     # Higher-order statistics
     if std == 0:
         skewness, kurtosis = 0.0, 0.0
