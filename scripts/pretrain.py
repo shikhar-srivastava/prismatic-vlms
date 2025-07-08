@@ -85,12 +85,12 @@ class PretrainConfig:
     wandb_entity: str = "klab-shikhar"
 
     # Mitigation method. Default is None
-    mitigation: str = None
-    soft_alpha: float = None
-    soft_alpha_masked_interpolation: float = None
+    mitigation: Optional[str] = None
+    soft_alpha: Optional[float] = None
+    soft_alpha_masked_interpolation: Optional[float] = None
     soft_output_logits: bool = True
     
-    add_K: float = None
+    add_K: Optional[float] = None
     add_K_percentage: bool = False
     set_to_one: bool = False
     max_logit: bool = False
@@ -143,19 +143,19 @@ class PretrainConfig:
 
     # Save logits only
     save_logits: bool = False
-    save_logits_dir: str = None
+    save_logits_dir: Optional[str] = None
     load_logits: bool = False
-    load_logits_dir: str = None
+    load_logits_dir: Optional[str] = None
 
     # Teacher LLM
-    llm_teacher_checkpoint: str = None
+    llm_teacher_checkpoint: Optional[str] = None
     stableadam: bool = False
     # Projector Type
-    projector_type: str = None
+    projector_type: Optional[str] = None
 
     # Init Projector 
-    init_projector: str = None # "ledoitwolf", "ledoitwolf-mlp"
-    init_projector_path: str = None
+    init_projector: Optional[str] = None  # "ledoitwolf", "ledoitwolf-mlp"
+    init_projector_path: Optional[str] = None
 
     # Visual embedding scaling 
     scale_patch_embeddings: bool = False # If true, then scale by 1/sqrt(d_model) before projecting 
@@ -169,25 +169,29 @@ class PretrainConfig:
     norm_reg: bool = False
     norm_reg_weight: float = 0.01
 
-    # <<< ADDED >>> Flag to control layer-wise statistics tracking
-    track_layer_stats: bool = False
+    # Layer-wise Statistics Tracking
+    track_layer_stats: bool = False  # Log layer-wise activation statistics (mean, std).
+    track_cosine_layer_stats: bool = False  # Log cosine similarity between layer representations.
 
-    # <<< ADDED >>> Flag to control layer-wise cosine similarity tracking
-    track_cosine_layer_stats: bool = False
-
-    track_embeddings: bool = False
-    track_embeddings_histogram: bool = False
-    track_embeddings_values: bool = False
-    track_covariance: bool = False
-    use_precomputed_covariance: bool = False
-    precomputed_covariance_path: str = "/home/aac/ssrivas9/prismatic-vlms/text_covariance_186K.pt"
-    track_avg_rank: bool = False
+    # Embedding-level Statistics Tracking (can be used in combination with `track_layer_stats`)
+    track_embeddings: bool = False  # Master switch for all embedding-level tracking below.
+    track_embeddings_histogram: bool = False  # If `track_embeddings`, log embedding value histograms.
+    track_embeddings_values: bool = False  # If `track_embeddings`, log raw embedding values (large logs!).
+    track_covariance: bool = False  # If `track_embeddings`, compute & log embedding covariance.
+    use_precomputed_covariance: bool = False  # Alternative to `track_covariance`; loads a static covariance matrix.
+    precomputed_covariance_path: str = (
+        "/home/aac/ssrivas9/prismatic-vlms/text_covariance_186K.pt"  # Path for `use_precomputed_covariance`.
+    )
+    track_avg_rank: bool = False  # If `track_covariance`, also log the effective rank of the covariance matrix.
 
     # Mixed precision training
     disable_mixed_precision: bool = False
 
     # <<< ADDED >>> Flag to replace real images with random noise
     random_image: bool = False
+
+    # === Enable LNS (Layer Norm Scaling) variant for LLaMA/Vicuna backbones ===
+    use_lns: bool = False  # If True, activates the local LNS implementation in `prismatic.models.llama_custom`.
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
@@ -217,6 +221,13 @@ class PretrainConfig:
             overwatch.critical("Scaling Patch Embeddings by 1/sqrt(d_model)")
         if self.pre_projection_layer_norm:
             overwatch.critical("Using Layer Norm before projection")
+
+        # ------------------------------------------------------------------
+        # LNS activation – propagates via environment variable so that the
+        # patch can check it at import-time.
+        # ------------------------------------------------------------------
+        if self.use_lns:
+            os.environ["NORM_TYPE"] = "lns"
         # STAGES 
         if self.stage == "align":
             self.epochs = self.model.align_epochs
@@ -337,6 +348,13 @@ def pretrain(cfg: PretrainConfig) -> None:
     # torch.cuda.set_device(device_id := (overwatch.rank() % torch.cuda.device_count()))
     torch.cuda.set_device(device_id := (overwatch.local_rank()))
     torch.cuda.empty_cache()
+
+    # ------------------------------------------------------------------
+    # If LNS is enabled, import the patch module now (after torch / dist are
+    # initialised but **before** any Transformers Llama model is loaded).
+    # ------------------------------------------------------------------
+    if cfg.use_lns:
+        overwatch.info("Enabling LNS variant for Llama/Vicuna backbones (local custom implementation)", ctx_level=1)
 
     if cfg.disable_mixed_precision:
         overwatch.critical("Disabling Mixed Precision Training")

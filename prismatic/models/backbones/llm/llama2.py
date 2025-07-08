@@ -7,8 +7,15 @@ from typing import Optional, Type
 
 import torch
 from torch import nn as nn
-from transformers import LlamaForCausalLM
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer
+# Select custom LNS-aware implementation when requested
+import os
+
+if os.getenv("NORM_TYPE", "pre").lower() == "lns":
+    from prismatic.models.llama_custom import LlamaForCausalLM  # type: ignore
+    from prismatic.models.llama_custom import LlamaDecoderLayer  # type: ignore
+else:
+    from transformers import LlamaForCausalLM  # type: ignore
+    from transformers.models.llama.modeling_llama import LlamaDecoderLayer  # type: ignore
 
 from prismatic.models.backbones.llm.base_llm import HFCausalLLMBackbone
 from prismatic.models.backbones.llm.prompting import (
