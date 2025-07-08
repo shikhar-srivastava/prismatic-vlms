@@ -85,12 +85,12 @@ class PretrainConfig:
     wandb_entity: str = "klab-shikhar"
 
     # Mitigation method. Default is None
-    mitigation: str = None
-    soft_alpha: float = None
-    soft_alpha_masked_interpolation: float = None
+    mitigation: Optional[str] = None
+    soft_alpha: Optional[float] = None
+    soft_alpha_masked_interpolation: Optional[float] = None
     soft_output_logits: bool = True
     
-    add_K: float = None
+    add_K: Optional[float] = None
     add_K_percentage: bool = False
     set_to_one: bool = False
     max_logit: bool = False
@@ -143,19 +143,19 @@ class PretrainConfig:
 
     # Save logits only
     save_logits: bool = False
-    save_logits_dir: str = None
+    save_logits_dir: Optional[str] = None
     load_logits: bool = False
-    load_logits_dir: str = None
+    load_logits_dir: Optional[str] = None
 
     # Teacher LLM
-    llm_teacher_checkpoint: str = None
+    llm_teacher_checkpoint: Optional[str] = None
     stableadam: bool = False
     # Projector Type
-    projector_type: str = None
+    projector_type: Optional[str] = None
 
     # Init Projector 
-    init_projector: str = None # "ledoitwolf", "ledoitwolf-mlp"
-    init_projector_path: str = None
+    init_projector: Optional[str] = None # "ledoitwolf", "ledoitwolf-mlp"
+    init_projector_path: Optional[str] = None
 
     # Visual embedding scaling 
     scale_patch_embeddings: bool = False # If true, then scale by 1/sqrt(d_model) before projecting 
@@ -175,8 +175,10 @@ class PretrainConfig:
     # <<< ADDED >>> Flag to control layer-wise cosine similarity tracking
     track_cosine_layer_stats: bool = False
 
+    # <<< ADDED >>> Flag to control per-layer activation distribution + histogram logging
+    track_activation_distributions: bool = False
+
     track_embeddings: bool = False
-    track_embeddings_histogram: bool = False
     track_embeddings_values: bool = False
     track_covariance: bool = False
     use_precomputed_covariance: bool = False
@@ -343,7 +345,6 @@ class PretrainConfig:
 @draccus.wrap()
 def pretrain(cfg: PretrainConfig) -> None:
     overwatch.info("Prismatic VLM Training :: Gathering Light")
-    overwatch.info(f"track_embeddings_histogram: {cfg.track_embeddings_histogram}")
     overwatch.info(f"track_covariance: {cfg.track_covariance}")
     overwatch.info(f"align_loss: {cfg.align_loss}")
     overwatch.info(f"norm_reg: {cfg.norm_reg}")

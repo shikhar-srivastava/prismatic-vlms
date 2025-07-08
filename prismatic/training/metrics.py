@@ -49,6 +49,10 @@ class JSONLinesTracker:
                     serializable_metrics[f"{key}_mean"] = float(value.mean().item())
                     serializable_metrics[f"{key}_std"] = float(value.std().item())
             else:
+                # Skip WandB histogram objects for JSON serialization
+                import wandb
+                if isinstance(value, wandb.Histogram):
+                    continue
                 serializable_metrics[key] = value
         
         with jsonlines.open(self.run_dir / f"{self.run_id}.jsonl", mode="a", sort_keys=True) as js_tracker:
@@ -160,6 +164,10 @@ class WeightsBiasesTracker:
                         except Exception as e:
                             overwatch.warning(f"Failed to process tensor {key}: {e}")
             else:
+                # Skip WandB Histogram objects (handled separately by wandb)
+                import wandb
+                if isinstance(value, wandb.Histogram):
+                    continue
                 processed_metrics[key] = value
         
         wandb.log(processed_metrics, step=global_step)

@@ -78,7 +78,6 @@ class TrainingStrategy(ABC):
 
 
         self.track_embeddings = cfg['track_embeddings'] if isinstance(cfg, dict) else getattr(cfg, 'track_embeddings', False)
-        self.track_embeddings_histogram = cfg['track_embeddings_histogram'] if isinstance(cfg, dict) else getattr(cfg, 'track_embeddings_histogram', False)
         self.track_embeddings_values = cfg['track_embeddings_values'] if isinstance(cfg, dict) else getattr(cfg, 'track_embeddings_values', False)
         self.track_covariance = cfg['track_covariance'] if isinstance(cfg, dict) else getattr(cfg, 'track_covariance', False)
         self.use_precomputed_covariance = cfg['use_precomputed_covariance'] if isinstance(cfg, dict) else getattr(cfg, 'use_precomputed_covariance', False)
@@ -148,6 +147,9 @@ class TrainingStrategy(ABC):
 
         # <<< ADDED >>> Random Image Flag
         self.random_image = cfg['random_image'] if isinstance(cfg, dict) else getattr(cfg, 'random_image', False)
+
+        # <<< ADDED >>> Activation Distribution Stats Flag
+        self.track_activation_distributions = cfg['track_activation_distributions'] if isinstance(cfg, dict) else getattr(cfg, 'track_activation_distributions', False)
 
         ################
         # General Configs and Training related
@@ -371,29 +373,6 @@ class TrainingStrategy(ABC):
                     metrics_kwargs["vis_txt_cosine_max"] = 0.0
                     metrics_kwargs["vis_txt_cosine_mean"] = 0.0
 
-        # ----- Compute histogram if tracking it -----
-        if self.track_embeddings_histogram:
-            with torch.no_grad():
-                # Only compute histogram if vis_emb has data
-                if (vis_emb is not None) and (vis_emb.numel() > 0):
-                    # Flatten the batch and patch dimensions
-                    vis_emb_flat = vis_emb.reshape(-1, vis_emb.shape[-1])  # [batch_size * n_patches, hidden_dim]
-                    vis_emb_flat = vis_emb_flat.to(torch.float32)
-                    
-                    # Sample a subset of the embedding values to keep size manageable
-                    sample_dims = torch.arange(0, vis_emb_flat.shape[1], 10)
-                    sample_points = min(1000, vis_emb_flat.shape[0])
-                    if vis_emb_flat.shape[0] > sample_points:
-                        indices = torch.randperm(vis_emb_flat.shape[0])[:sample_points]
-                        sampled_data = vis_emb_flat[indices][:, sample_dims]
-                    else:
-                        sampled_data = vis_emb_flat[:, sample_dims]
-                    
-                    # Store the raw sampled data for WandB to process
-                    metrics_kwargs["projected_embeddings_histogram"] = sampled_data
-                else:
-                    # If there's no vis_emb, skip or store an empty tensor
-                    metrics_kwargs["projected_embeddings_histogram"] = torch.empty(0)
 
         # ----- Compute covariance if tracking it -----
         if self.track_covariance and self.align_loss:
@@ -720,7 +699,7 @@ class TrainingStrategy(ABC):
                                 vis_indices = (0,0)
 
                             # <<< RESTORED >>> Get embeddings if tracking is enabled
-                            if self.track_embeddings or self.track_embeddings_histogram or self.track_covariance:
+                            if self.track_embeddings or self.track_covariance:
                                 with torch.no_grad():
                                     vis_emb, txt_emb = self.vlm.get_embeddings(
                                         input_ids=batch["input_ids"],
@@ -1316,9 +1295,33 @@ class TrainingStrategy(ABC):
                                             metrics_kwargs[f"Layer_{layer_idx}/VisTxtCosineMax"] = 0.0
                                             metrics_kwargs[f"Layer_{layer_idx}/VisTxtCosineMean"] = 0.0
 
+                                # <<< ADDED >>> Activation Distribution Stats Flag
+                                if self.track_activation_distributions:
+                                    # Visual token activations
+                                    if vis_layer_emb is not None:
+                                        vis_dist_stats = compute_activation_distribution(vis_layer_emb)
+                                        for stat_k, stat_v in vis_dist_stats.items():
+                                            # Separate histogram to avoid commit deque handling
+                                            if stat_k == "histogram":
+                                                metrics.log(metrics.global_step, {
+                                                    f"Layer_{layer_idx}/VisDist/histogram": stat_v
+                                                })
+                                            else:
+                                                metrics_kwargs[f"Layer_{layer_idx}/VisDist/{stat_k}"] = stat_v
+
+                                    # Text token activations
+                                    if txt_layer_emb is not None:
+                                        txt_dist_stats = compute_activation_distribution(txt_layer_emb)
+                                        for stat_k, stat_v in txt_dist_stats.items():
+                                            if stat_k == "histogram":
+                                                metrics.log(metrics.global_step, {
+                                                    f"Layer_{layer_idx}/TxtDist/histogram": stat_v
+                                                })
+                                            else:
+                                                metrics_kwargs[f"Layer_{layer_idx}/TxtDist/{stat_k}"] = stat_v
 
                     # --- Other Embedding Metrics --- #
-                    if self.track_embeddings or self.track_embeddings_histogram or self.track_covariance or self.norm_reg:
+                    if self.track_embeddings or self.track_covariance or self.norm_reg:
                         # Get alignment_loss_val if it's available
                         alignment_loss_val_for_metrics = alignment_loss_val if self.align_loss else None
                         reg_loss_for_metrics = reg_loss if self.norm_reg else None
@@ -1751,3 +1754,55 @@ def calculate_average_rank(output, fused_labels):
     min_rank = ranks.float().min().item()
     max_rank = ranks.float().max().item()
     return avg_rank, min_rank, max_rank
+
+# *** UTILITY to compute detailed activation distribution stats (mean/std/min/max/percentiles/skew/kurtosis)
+#     This mirrors the statistics computed in the reference ActivationDistributionTracker but omits the histogram for
+#     JSON-friendly logging. Tensor is expected to be 2-D or 3-D; it will be flattened prior to processing.
+def compute_activation_distribution(tensor: torch.Tensor) -> Dict[str, float]:
+    """Return rich distribution statistics for the given tensor (flattened)."""
+    if tensor.numel() == 0:
+        return {}
+
+    # Convert to float32 for numerical stability & numpy compatibility
+    if tensor.dtype == torch.bfloat16:
+        tensor = tensor.float()
+
+    flat = tensor.view(-1).detach().cpu().numpy()
+
+    # Basic moments
+    mean = float(np.mean(flat))
+    std = float(np.std(flat))
+    data_min = float(np.min(flat))
+    data_max = float(np.max(flat))
+    median = float(np.median(flat))
+
+    # Percentiles
+    q25 = float(np.percentile(flat, 25))
+    q75 = float(np.percentile(flat, 75))
+    q05 = float(np.percentile(flat, 5))
+    q95 = float(np.percentile(flat, 95))
+
+    # Higher-order statistics
+    if std == 0:
+        skewness, kurtosis = 0.0, 0.0
+    else:
+        normed = (flat - mean) / std
+        skewness = float(np.mean(normed ** 3))
+        kurtosis = float(np.mean(normed ** 4) - 3.0)
+
+    return {
+        "mean": mean,
+        "std": std,
+        "min": data_min,
+        "max": data_max,
+        "median": median,
+        "q25": q25,
+        "q75": q75,
+        "q05": q05,
+        "q95": q95,
+        "skewness": skewness,
+        "kurtosis": kurtosis,
+        "num_samples": len(flat),
+        # Add histogram for WandB visualization
+        "histogram": wandb.Histogram(np_histogram=(hist, bin_edges)),
+    }
