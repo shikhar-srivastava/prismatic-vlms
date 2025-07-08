@@ -5,7 +5,7 @@
 # This mirrors the command that was run interactively in the previous session.
 #
 # Validation set sizes:
-#   - Align   : 100 samples  (≈13 batches @ 8)
+#   - Align   : 200 samples  (≈13 batches @ 8)
 #   - Finetune: 200 samples  (≈25 batches @ 8)
 #
 # NOTE: Run this ONCE before launching training so that the validation sets
@@ -14,6 +14,6 @@
 python scripts/create_validation_sets.py \
   --model reproduction-llava-v15+7b \
   --dataset llava-v15 \
-  --align_val_size 100 \
+  --align_val_size 200 \
   --finetune_val_size 200 \
   --output_dir validation_sets/reproduction-llava-v15+7b 
