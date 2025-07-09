@@ -150,6 +150,9 @@ class PretrainConfig:
     # Teacher LLM
     llm_teacher_checkpoint: Optional[str] = None
     stableadam: bool = False
+    
+    # LLM Checkpoint Path Override
+    llm_checkpoint_path: Optional[str] = None                       # Override path for loading LLM backbone weights
     # Projector Type
     projector_type: Optional[str] = None
 
@@ -201,12 +204,18 @@ class PretrainConfig:
 
     # === Enable LNS (Layer Norm Scaling) variant for LLaMA/Vicuna backbones ===
     use_lns: bool = False  # If True, activates the local LNS implementation in `prismatic.models.llama_custom`.
+    
+    # === Enable PRE (Pre-Normalization) variant for LLaMA/Vicuna backbones ===
+    use_pre: bool = False  # If True, activates the local PRE implementation in `prismatic.models.llama_custom`.
 
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         # assert that load_logits and save_logits are not both true
         assert not (self.load_logits and self.save_logits), "Both load_logits and save_logits cannot be true"
         assert not (self.lora_use_2r_heuristic and self.use_rslora), "Both use_rslora and self.lora_use_2r_heuristic cannot be true"
+        
+        # === Validate normalization type flags ===
+        assert not (self.use_lns and self.use_pre), "Cannot use both --use_lns and --use_pre simultaneously"
 
         # Assert that self.init_projector must be None or 'ledoitwolf' 
         assert self.init_projector is None or self.init_projector == 'ledoitwolf' or self.init_projector == 'ledoitwolf-mlp', "init_projector must be None or 'ledoitwolf' or 'ledoitwolf-mlp'"
@@ -232,11 +241,18 @@ class PretrainConfig:
             overwatch.critical("Using Layer Norm before projection")
 
         # ------------------------------------------------------------------
-        # LNS activation – propagates via environment variable so that the
-        # patch can check it at import-time.
+        # Normalization type activation – propagates via environment variable so that the
+        # model can check it at import-time and runtime.
         # ------------------------------------------------------------------
         if self.use_lns:
             os.environ["NORM_TYPE"] = "lns"
+            overwatch.critical("Setting normalization type to LNS (Layer Norm Scaling)")
+        elif self.use_pre:
+            os.environ["NORM_TYPE"] = "pre"
+            overwatch.critical("Setting normalization type to PRE (Pre-Normalization)")
+        else:
+            # Default to PRE if no explicit flag is set (maintains backward compatibility)
+            os.environ["NORM_TYPE"] = "pre"
         # STAGES 
         if self.stage == "align":
             self.epochs = self.model.align_epochs
@@ -358,11 +374,10 @@ def pretrain(cfg: PretrainConfig) -> None:
     torch.cuda.empty_cache()
 
     # ------------------------------------------------------------------
-    # If LNS is enabled, import the patch module now (after torch / dist are
-    # initialised but **before** any Transformers Llama model is loaded).
+    # Log the normalization type being used for this training run
     # ------------------------------------------------------------------
-    if cfg.use_lns:
-        overwatch.info("Enabling LNS variant for Llama/Vicuna backbones (local custom implementation)", ctx_level=1)
+    norm_type = os.environ.get("NORM_TYPE", "pre").upper()
+    overwatch.info(f"Using {norm_type} normalization for Llama models (set via command line flags)", ctx_level=1)
 
     if cfg.disable_mixed_precision:
         overwatch.critical("Disabling Mixed Precision Training")

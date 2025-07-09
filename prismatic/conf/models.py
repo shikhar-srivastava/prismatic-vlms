@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Optional
 
-from draccus import ChoiceRegistry
+from draccus.choice_types import ChoiceRegistry
 
 
 @dataclass
@@ -211,6 +211,30 @@ class Stage0_phi_2(LLaVa_v15_Reproduction_7B):
 class Stage0_phi_1_5(LLaVa_v15_Reproduction_7B):
     model_id: str = "stage0-phi-1_5+1b"
     llm_backbone_id: str = "phi-1_5-1b"
+
+@dataclass
+class Stage0_llama_130m_lns(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+130m-lns"
+    llm_backbone_id: str = "llama-130m-lns"
+    # Smaller batch sizes for 130m model
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_130m_pre(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+130m-pre"
+    llm_backbone_id: str = "llama-130m-pre"
+    # Smaller batch sizes for 130m model
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_130m(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+130m"
+    llm_backbone_id: str = "llama-130m"
+    # Smaller batch sizes for 130m model
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
 
 @dataclass
 class LLaVa_v15_Reproduction_13B(LLaVa_v15_Reproduction_7B):
@@ -574,6 +598,9 @@ class ModelRegistry(Enum):
     STAGE0_AFTER_LLAVA = Stage0_after_llava
     STAGE0_AFTER_LLAVA_LLAMA = Stage0_after_llava_llama
     STAGE0_AFTER_LLAVA_LLAMA_CHAT = Stage0_after_llava_llama_chat
+    STAGE0_LLAMA_130M = Stage0_llama_130m
+    STAGE0_LLAMA_130M_LNS = Stage0_llama_130m_lns
+    STAGE0_LLAMA_130M_PRE = Stage0_llama_130m_pre
     
     # === LLaVa v1.5 Base Reproductions ===
     REPRODUCTION_7B = LLaVa_v15_Reproduction_7B
