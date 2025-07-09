@@ -178,6 +178,9 @@ class PretrainConfig:
     # <<< ADDED >>> Flag to control per-layer activation distribution + histogram logging
     track_activation_distributions: bool = False
 
+    # <<< ADDED >>> Flag to control histogram logging specifically
+    track_activation_histograms: bool = False
+
     track_embeddings: bool = False
     track_embeddings_values: bool = False
     track_covariance: bool = False

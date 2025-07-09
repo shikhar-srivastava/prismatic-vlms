@@ -151,6 +151,9 @@ class TrainingStrategy(ABC):
         # <<< ADDED >>> Activation Distribution Stats Flag
         self.track_activation_distributions = cfg['track_activation_distributions'] if isinstance(cfg, dict) else getattr(cfg, 'track_activation_distributions', False)
 
+        # <<< ADDED >>> Activation Histogram Flag
+        self.track_activation_histograms = cfg['track_activation_histograms'] if isinstance(cfg, dict) else getattr(cfg, 'track_activation_histograms', False)
+
         ################
         # General Configs and Training related
 
@@ -1299,7 +1302,7 @@ class TrainingStrategy(ABC):
                                 if self.track_activation_distributions:
                                     # Visual token activations
                                     if vis_layer_emb is not None:
-                                        vis_dist_stats = compute_activation_distribution(vis_layer_emb)
+                                        vis_dist_stats = compute_activation_distribution(vis_layer_emb, include_histogram=self.track_activation_histograms)
                                         for stat_k, stat_v in vis_dist_stats.items():
                                             # Separate histogram to avoid commit deque handling
                                             if stat_k == "histogram":
@@ -1311,7 +1314,7 @@ class TrainingStrategy(ABC):
 
                                     # Text token activations
                                     if txt_layer_emb is not None:
-                                        txt_dist_stats = compute_activation_distribution(txt_layer_emb)
+                                        txt_dist_stats = compute_activation_distribution(txt_layer_emb, include_histogram=self.track_activation_histograms)
                                         for stat_k, stat_v in txt_dist_stats.items():
                                             if stat_k == "histogram":
                                                 metrics.log(metrics.global_step, {
@@ -1758,7 +1761,7 @@ def calculate_average_rank(output, fused_labels):
 # *** UTILITY to compute detailed activation distribution stats (mean/std/min/max/percentiles/skew/kurtosis)
 #     This mirrors the statistics computed in the reference ActivationDistributionTracker but omits the histogram for
 #     JSON-friendly logging. Tensor is expected to be 2-D or 3-D; it will be flattened prior to processing.
-def compute_activation_distribution(tensor: torch.Tensor) -> Dict[str, float]:
+def compute_activation_distribution(tensor: torch.Tensor, include_histogram: bool = True) -> Dict[str, float]:
     """Return rich distribution statistics for the given tensor (flattened)."""
     if tensor.numel() == 0:
         return {}
@@ -1774,7 +1777,6 @@ def compute_activation_distribution(tensor: torch.Tensor) -> Dict[str, float]:
     std = float(np.std(flat))
     data_min = float(np.min(flat))
     data_max = float(np.max(flat))
-    median = float(np.median(flat))
 
     # Percentiles
     q25 = float(np.percentile(flat, 25))
@@ -1782,30 +1784,20 @@ def compute_activation_distribution(tensor: torch.Tensor) -> Dict[str, float]:
     q05 = float(np.percentile(flat, 5))
     q95 = float(np.percentile(flat, 95))
 
-    # Histogram (for WandB) – 50 bins
-    hist, bin_edges = np.histogram(flat, bins=50, density=True)
-
-    # Higher-order statistics
-    if std == 0:
-        skewness, kurtosis = 0.0, 0.0
-    else:
-        normed = (flat - mean) / std
-        skewness = float(np.mean(normed ** 3))
-        kurtosis = float(np.mean(normed ** 4) - 3.0)
-
-    return {
+    result = {
         "mean": mean,
         "std": std,
         "min": data_min,
         "max": data_max,
-        "median": median,
         "q25": q25,
         "q75": q75,
         "q05": q05,
         "q95": q95,
-        "skewness": skewness,
-        "kurtosis": kurtosis,
-        "num_samples": len(flat),
-        # Add histogram for WandB visualization
-        "histogram": wandb.Histogram(np_histogram=(hist, bin_edges)),
     }
+
+    # Conditionally add histogram for WandB visualization
+    if include_histogram:
+        hist, bin_edges = np.histogram(flat, bins=50, density=True)
+        result["histogram"] = wandb.Histogram(np_histogram=(hist, bin_edges))
+
+    return result
