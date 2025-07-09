@@ -161,6 +161,12 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
             self.tokenizer.add_special_tokens({"pad_token": "<PAD>"})
             self.tokenizer.pad_token_id = self.tokenizer.pad_token_id
         
+        # Ensure the model's generation config matches the tokenizer settings
+        if hasattr(self.llm, 'generation_config') and self.llm.generation_config is not None:
+            self.llm.generation_config.pad_token_id = self.tokenizer.pad_token_id
+            self.llm.generation_config.bos_token_id = self.tokenizer.bos_token_id
+            self.llm.generation_config.eos_token_id = self.tokenizer.eos_token_id
+        
         # Apply any mitigations
         self.llm = apply_mitigation(self.llm, cfg=cfg)
 
