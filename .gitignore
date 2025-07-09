@@ -279,3 +279,4 @@ datasets/*
 */test_images/*
 imgs/*
 validation_sets/*
+checkpoints/*
