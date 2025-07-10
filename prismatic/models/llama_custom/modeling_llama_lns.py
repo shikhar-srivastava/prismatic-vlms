@@ -106,20 +106,54 @@ class LlamaModel(hf.LlamaModel):  # type: ignore[misc]
         self.post_init()
 
 
+class LlamaPreTrainedModel(hf.LlamaPreTrainedModel):  # type: ignore[misc]
+    """Extend HF's LlamaPreTrainedModel to support gradient checkpointing with use_reentrant=False."""
+    
+    def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs=None):
+        """Enable gradient checkpointing with proper use_reentrant parameter."""
+        if gradient_checkpointing_kwargs is None:
+            gradient_checkpointing_kwargs = {"use_reentrant": False}
+        # Store the checkpointing kwargs for use in forward pass
+        self._gradient_checkpointing_kwargs = gradient_checkpointing_kwargs
+        # Enable gradient checkpointing using the standard HF method
+        super().gradient_checkpointing_enable()
+    
+    def enable_input_require_grads(self):
+        """Enable gradients on input embeddings for gradient checkpointing compatibility."""
+        def _enable_input_require_grads(module):
+            """Helper function to enable input require grads on embedding layers."""
+            if hasattr(module, "require_grad_"):
+                module.require_grad_(True)
+        
+        # Enable gradients on embedding layer
+        if hasattr(self, 'model') and hasattr(self.model, 'embed_tokens'):
+            self.model.embed_tokens.require_grad_(True)
+            # Register forward hook to enable gradients on input embeddings
+            def _hook(module, input, output):
+                if output.requires_grad:
+                    return output
+                else:
+                    return output.requires_grad_(True)
+            
+            self.model.embed_tokens.register_forward_hook(_hook)
+
+
 # ---------------------------------------------------------------------------
 # 4.  Heads that rely on `LlamaModel`
 # ---------------------------------------------------------------------------
-class LlamaForCausalLM(hf.LlamaForCausalLM):  # type: ignore[misc]
+class LlamaForCausalLM(LlamaPreTrainedModel, hf.LlamaForCausalLM):  # type: ignore[misc]
     def __init__(self, config):
-        super(hf.LlamaForCausalLM, self).__init__(config)  # initialise PreTrainedModel part
+        LlamaPreTrainedModel.__init__(self, config)  # Get our gradient checkpointing support
+        # super(hf.LlamaForCausalLM, self).__init__(config)  # initialise PreTrainedModel part
         self.model = LlamaModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.post_init()
 
 
-class LlamaForSequenceClassification(hf.LlamaForSequenceClassification):  # type: ignore[misc]
+class LlamaForSequenceClassification(LlamaPreTrainedModel, hf.LlamaForSequenceClassification):  # type: ignore[misc]
     def __init__(self, config):
-        super(hf.LlamaForSequenceClassification, self).__init__(config)
+        LlamaPreTrainedModel.__init__(self, config)  # Get our gradient checkpointing support
+        # super(hf.LlamaForSequenceClassification, self).__init__(config)
         self.model = LlamaModel(config)
         self.score = nn.Linear(config.hidden_size, config.num_labels, bias=False)
         self.post_init()
@@ -131,8 +165,9 @@ class LlamaForSequenceClassification(hf.LlamaForSequenceClassification):  # type
 LlamaConfig = hf.LlamaConfig  # Re-export unchanged
 
 __all__ = [
-    "LlamaConfig",
+    "LlamaConfig", 
     "LlamaModel",
+    "LlamaPreTrainedModel",
     "LlamaForCausalLM",
     "LlamaForSequenceClassification",
 ] 

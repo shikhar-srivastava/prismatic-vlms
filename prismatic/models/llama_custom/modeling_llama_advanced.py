@@ -540,6 +540,38 @@ class LlamaPreTrainedModel(PreTrainedModel):
     def _set_gradient_checkpointing(self, module, value=False):
         if isinstance(module, LlamaModel):
             module.gradient_checkpointing = value
+    
+    def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs=None):
+        """Enable gradient checkpointing with proper use_reentrant parameter."""
+        if gradient_checkpointing_kwargs is None:
+            gradient_checkpointing_kwargs = {"use_reentrant": False}
+        # Store the checkpointing kwargs for use in forward pass
+        self._gradient_checkpointing_kwargs = gradient_checkpointing_kwargs
+        self.apply(self._set_gradient_checkpointing_enable)
+    
+    def _set_gradient_checkpointing_enable(self, module):
+        """Helper to enable gradient checkpointing on modules."""
+        if hasattr(module, "gradient_checkpointing"):
+            module.gradient_checkpointing = True
+    
+    def enable_input_require_grads(self):
+        """Enable gradients on input embeddings for gradient checkpointing compatibility."""
+        def _enable_input_require_grads(module):
+            """Helper function to enable input require grads on embedding layers."""
+            if hasattr(module, "require_grad_"):
+                module.require_grad_(True)
+        
+        # Enable gradients on embedding layer
+        if hasattr(self, 'model') and hasattr(self.model, 'embed_tokens'):
+            self.model.embed_tokens.require_grad_(True)
+            # Register forward hook to enable gradients on input embeddings
+            def _hook(module, input, output):
+                if output.requires_grad:
+                    return output
+                else:
+                    return output.requires_grad_(True)
+            
+            self.model.embed_tokens.register_forward_hook(_hook)
 
 
 @add_start_docstrings(
@@ -678,6 +710,7 @@ class LlamaModel(LlamaPreTrainedModel):
                     attention_mask,
                     position_ids,
                     None,
+                    use_reentrant=False,
                 )
             else:
                 layer_outputs = decoder_layer(

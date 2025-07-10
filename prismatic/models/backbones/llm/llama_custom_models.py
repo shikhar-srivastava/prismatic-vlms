@@ -169,14 +169,19 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         # Set up special tokens to match the config from checkpoint
         self.tokenizer.bos_token_id = config.bos_token_id
         self.tokenizer.eos_token_id = config.eos_token_id  
+        self.tokenizer.pad_token_id = config.pad_token_id if config.pad_token_id != -1 else self.tokenizer.eos_token_id
+        
         # Add pad token if needed (following LLaMa2LLMBackbone pattern)
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({"pad_token": "<PAD>"})
-            self.llm.config.pad_token_id = self.tokenizer.pad_token_id
-            self.llm.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=64)
-        else:
-            self.llm.config.pad_token_id = self.tokenizer.pad_token_id
-            
+            self.tokenizer.pad_token_id = self.tokenizer.pad_token_id
+        
+        # [CRITICAL FIX] Resize token embeddings to match tokenizer vocabulary size
+        # This was missing and is essential after adding special tokens
+        # All other LLM backbones call this method after modifying tokenizer tokens
+        self.llm.config.pad_token_id = self.tokenizer.pad_token_id
+        self.llm.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=64)
+        
         # Ensure the model's generation config matches the tokenizer settings
         if hasattr(self.llm, 'generation_config') and self.llm.generation_config is not None:
             self.llm.generation_config.pad_token_id = self.tokenizer.pad_token_id
@@ -190,9 +195,10 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         """
         Enable gradient checkpointing with proper configuration.
         This was missing because we bypassed HFCausalLLMBackbone initialization.
+        The custom models now default to use_reentrant=False.
         """
-        # Enable gradient checkpointing with use_reentrant=False (recommended)
-        self.llm.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        # Enable gradient checkpointing - our custom models default to use_reentrant=False
+        self.llm.gradient_checkpointing_enable()
 
     def get_fsdp_wrapping_policy(self) -> Callable:
         """
