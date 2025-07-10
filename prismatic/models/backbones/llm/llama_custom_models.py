@@ -3,7 +3,7 @@ llama_custom_models.py
 
 Class definition for custom LLMs with LNS and PRE norm support, derived from LlamaForCausalLM.
 """
-from typing import Optional, Type
+from typing import Optional, Type, Callable, List
 import os
 import torch
 from torch import nn as nn
@@ -11,6 +11,7 @@ from torch import nn as nn
 # Import custom advanced modeling when NORM_TYPE is set to lns or pre
 from prismatic.models.llama_custom.modeling_llama_advanced import LlamaForCausalLM, LlamaDecoderLayer
 from transformers.models.llama.configuration_llama import LlamaConfig
+from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from prismatic.models.backbones.llm.base_llm import HFCausalLLMBackbone
 from prismatic.models.backbones.llm.prompting import (
@@ -18,6 +19,10 @@ from prismatic.models.backbones.llm.prompting import (
     PurePromptBuilder,
 )
 from prismatic.models.backbones.mitigation import apply_mitigation
+from prismatic.overwatch import initialize_overwatch
+
+# Initialize Overwatch =>> Wraps `logging.Logger`  
+overwatch = initialize_overwatch(__name__)
 
 # Registry =>> Support Custom LLaMa Models with dynamic LNS/PRE norm support
 # fmt: off
@@ -147,6 +152,16 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         else:
             print(f"No checkpoint found at {state_dict_path}, using randomly initialized weights")
         
+        # [CRITICAL FIX] Set use_cache = False for training (inherited from HFCausalLLMBackbone)
+        # Reference: https://discuss.huggingface.co/t/what-is-the-purpose-of-use-cache-in-decoder/958
+        self.llm.config.use_cache = False if not self.inference_mode else True
+
+        # [CRITICAL FIX] Enable input require grads for gradient checkpointing compatibility
+        # This was missing because we bypassed HFCausalLLMBackbone initialization
+        # Without this, gradient checkpointing fails when LLM has no trainable parameters
+        if not self.inference_mode:
+            self.llm.enable_input_require_grads()
+        
         # Load tokenizer from LLaMa-2 (compatible with our models and supports required single tokens)
         from transformers import AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf", model_max_length=llm_max_length)
@@ -154,13 +169,14 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         # Set up special tokens to match the config from checkpoint
         self.tokenizer.bos_token_id = config.bos_token_id
         self.tokenizer.eos_token_id = config.eos_token_id  
-        self.tokenizer.pad_token_id = config.pad_token_id if config.pad_token_id != -1 else self.tokenizer.eos_token_id
-        
         # Add pad token if needed (following LLaMa2LLMBackbone pattern)
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({"pad_token": "<PAD>"})
-            self.tokenizer.pad_token_id = self.tokenizer.pad_token_id
-        
+            self.llm.config.pad_token_id = self.tokenizer.pad_token_id
+            self.llm.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=64)
+        else:
+            self.llm.config.pad_token_id = self.tokenizer.pad_token_id
+            
         # Ensure the model's generation config matches the tokenizer settings
         if hasattr(self.llm, 'generation_config') and self.llm.generation_config is not None:
             self.llm.generation_config.pad_token_id = self.tokenizer.pad_token_id
@@ -169,6 +185,66 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         
         # Apply any mitigations
         self.llm = apply_mitigation(self.llm, cfg=cfg)
+
+    def enable_gradient_checkpointing(self) -> None:
+        """
+        Enable gradient checkpointing with proper configuration.
+        This was missing because we bypassed HFCausalLLMBackbone initialization.
+        """
+        # Enable gradient checkpointing with use_reentrant=False (recommended)
+        self.llm.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+
+    def get_fsdp_wrapping_policy(self) -> Callable:
+        """
+        Return FSDP wrapping policy for the custom LLaMa model.
+        This was missing because we bypassed HFCausalLLMBackbone initialization.
+        """
+        from functools import partial
+        from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+        from peft.utils.other import fsdp_auto_wrap_policy
+        
+        if self.mitigation is None:
+            overwatch.info(f"CustomLlamaLLMBackbone's FSDP Wrap Policy: [bold]STANDARD[/]", ctx_level=1)
+            transformer_block_policy = partial(
+                transformer_auto_wrap_policy, transformer_layer_cls={self.transformer_layer_cls}
+            )
+        else:
+            overwatch.info(f"CustomLlamaLLMBackbone's FSDP Wrap Policy: [bold]PEFT[/]", ctx_level=1)
+            transformer_block_policy = fsdp_auto_wrap_policy(self.llm)
+        return transformer_block_policy
+
+    def embed_input_ids(self, input_ids: torch.LongTensor) -> torch.Tensor:
+        """Embed input token IDs using the LLM's embedding layer."""
+        return self.llm.get_input_embeddings()(input_ids)
+
+    def forward(
+        self,
+        input_ids: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> CausalLMOutputWithPast:
+        """Forward pass through the custom LLaMa model."""
+        
+        output: CausalLMOutputWithPast = self.llm(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            labels=labels,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        return output
 
     @property
     def prompt_builder_fn(self) -> Type[PromptBuilder]:
