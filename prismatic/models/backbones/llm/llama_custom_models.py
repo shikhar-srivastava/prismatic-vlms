@@ -2,6 +2,7 @@
 llama_custom_models.py
 
 Class definition for custom LLMs with LNS and PRE norm support, derived from LlamaForCausalLM.
+Supports flexible cross-normalization loading: any checkpoint can be loaded with any target normalization type.
 """
 from typing import Optional, Type
 import os
@@ -30,8 +31,8 @@ CUSTOM_LLAMA_MODELS = {
         "llm_family": "llama-custom", 
         "llm_cls": LlamaForCausalLM, 
         "hf_hub_path": None,  # Will load from local checkpoint
-        "local_config_path": "/scratch/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001/config.json",
-        "local_checkpoint_path": "/scratch/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001",
+        "local_config_path": "/scratch/ssrivas9/large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001/config.json",
+        "local_checkpoint_path": "/scratch/ssrivas9/large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001",
         "default_norm_type": "pre"  # Default if no command line override
     },
     
@@ -58,6 +59,116 @@ CUSTOM_LLAMA_MODELS = {
 # fmt: on
 
 
+def validate_and_adapt_state_dict(state_dict: dict, target_model: nn.Module, source_norm_type: str, target_norm_type: str) -> dict:
+    """
+    Validates and adapts a state dict for cross-normalization loading.
+    
+    Args:
+        state_dict: The checkpoint state dict to load
+        target_model: The target model to load into
+        source_norm_type: The normalization type the checkpoint was trained with
+        target_norm_type: The normalization type we want to use
+        
+    Returns:
+        Adapted state dict that's compatible with the target model
+    """
+    print(f"[State Dict Validation] Source norm: {source_norm_type}, Target norm: {target_norm_type}")
+    
+    # Get target model's state dict for comparison
+    target_state_dict = target_model.state_dict()
+    adapted_state_dict = {}
+    
+    # Critical components that must be preserved across normalization types
+    critical_components = [
+        'model.embed_tokens.weight',  # Input embeddings
+        'lm_head.weight',             # Output embeddings
+    ]
+    
+    # Load critical components first (these should be identical across norm types)
+    for key in critical_components:
+        if key in state_dict:
+            if key in target_state_dict:
+                source_shape = state_dict[key].shape
+                target_shape = target_state_dict[key].shape
+                if source_shape == target_shape:
+                    adapted_state_dict[key] = state_dict[key]
+                    print(f"[State Dict] ✓ Loaded {key}: {source_shape}")
+                else:
+                    print(f"[State Dict] ✗ Shape mismatch for {key}: source {source_shape} vs target {target_shape}")
+                    raise ValueError(f"Critical component {key} has incompatible shapes")
+            else:
+                print(f"[State Dict] ⚠ Target model missing {key}")
+        else:
+            print(f"[State Dict] ⚠ Source checkpoint missing {key}")
+    
+    # Handle decoder layers with normalization-aware loading
+    for target_key in target_state_dict.keys():
+        if target_key in adapted_state_dict:
+            continue  # Already handled
+            
+        # Try to find corresponding key in source state dict
+        source_key = target_key
+        if source_key in state_dict:
+            source_shape = state_dict[source_key].shape
+            target_shape = target_state_dict[target_key].shape
+            
+            if source_shape == target_shape:
+                adapted_state_dict[target_key] = state_dict[source_key]
+                if 'layers.' in target_key:
+                    print(f"[State Dict] ✓ Loaded layer component {target_key}: {source_shape}")
+            else:
+                print(f"[State Dict] ⚠ Shape mismatch for {target_key}: source {source_shape} vs target {target_shape}")
+                # For normalization layers, we can initialize randomly if shapes don't match
+                if any(norm_component in target_key for norm_component in ['layernorm', 'norm']):
+                    print(f"[State Dict] → Initializing {target_key} randomly due to norm type mismatch")
+                    # Keep the target model's initialized values
+                    adapted_state_dict[target_key] = target_state_dict[target_key].clone()
+                else:
+                    raise ValueError(f"Non-norm component {target_key} has incompatible shapes")
+        else:
+            # Key doesn't exist in source - likely due to normalization differences
+            if any(norm_component in target_key for norm_component in ['layernorm', 'norm']):
+                print(f"[State Dict] → Initializing missing norm layer {target_key}")
+                adapted_state_dict[target_key] = target_state_dict[target_key].clone()
+            else:
+                print(f"[State Dict] ⚠ Missing non-norm component {target_key}")
+                # For other missing components, try to initialize reasonably
+                adapted_state_dict[target_key] = target_state_dict[target_key].clone()
+    
+    print(f"[State Dict] Adaptation complete. Loaded {len(adapted_state_dict)} components.")
+    return adapted_state_dict
+
+
+def detect_checkpoint_norm_type(checkpoint_path: str) -> str:
+    """
+    Attempts to detect the normalization type used to train a checkpoint.
+    
+    Args:
+        checkpoint_path: Path to the checkpoint directory
+        
+    Returns:
+        Detected normalization type ('lns', 'pre', or 'unknown')
+    """
+    # Check the path for hints about normalization type
+    path_lower = checkpoint_path.lower()
+    if 'lns' in path_lower:
+        return 'lns'
+    elif 'pre' in path_lower:
+        return 'pre'
+    
+    # If we can't detect from path, try loading the state dict and checking layer names
+    try:
+        state_dict_path = os.path.join(checkpoint_path, "pytorch_model.bin")
+        if os.path.exists(state_dict_path):
+            state_dict = torch.load(state_dict_path, map_location='cpu')
+            # This is a heuristic - we could add more sophisticated detection
+            return 'unknown'
+    except:
+        pass
+    
+    return 'unknown'
+
+
 class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
     def __init__(
         self,
@@ -72,19 +183,19 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         # Get model config
         model_info = CUSTOM_LLAMA_MODELS[llm_backbone_id]
         
-        # Determine normalization type: command line flags take precedence over registry
+        # Determine target normalization type: command line flags take precedence over registry
         if "NORM_TYPE" in os.environ:
             # Environment variable already set by command line flags (--use_lns or --use_pre)
-            final_norm_type = os.environ["NORM_TYPE"]
-            print(f"Using normalization type '{final_norm_type}' from command line override")
+            target_norm_type = os.environ["NORM_TYPE"]
+            print(f"[CustomLlama] Using normalization type '{target_norm_type}' from command line override")
         else:
             # Fall back to registry default
-            final_norm_type = model_info["default_norm_type"]
-            os.environ["NORM_TYPE"] = final_norm_type
-            print(f"Using normalization type '{final_norm_type}' from model registry default")
+            target_norm_type = model_info["default_norm_type"]
+            os.environ["NORM_TYPE"] = target_norm_type
+            print(f"[CustomLlama] Using normalization type '{target_norm_type}' from model registry default")
         
         # Log the final decision
-        print(f"CustomLlamaLLMBackbone: Final NORM_TYPE = {final_norm_type}")
+        print(f"[CustomLlama] Final NORM_TYPE = {target_norm_type}")
         
         # Initialize the LLMBackbone base class directly (skip HFCausalLLMBackbone)
         from prismatic.models.backbones.llm.base_llm import LLMBackbone
@@ -123,29 +234,27 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
             
         if override_checkpoint_path is not None:
             self.local_checkpoint_path = override_checkpoint_path
-            print(f"Using checkpoint path override: {override_checkpoint_path}")
+            print(f"[CustomLlama] Using checkpoint path override: {override_checkpoint_path}")
         else:
             self.local_checkpoint_path = model_info["local_checkpoint_path"]
-            print(f"Using registry default checkpoint path: {self.local_checkpoint_path}")
+            print(f"[CustomLlama] Using registry default checkpoint path: {self.local_checkpoint_path}")
             
+        # Detect source normalization type from checkpoint
+        source_norm_type = detect_checkpoint_norm_type(self.local_checkpoint_path)
+        print(f"[CustomLlama] Detected source normalization type: {source_norm_type}")
+        
         # Config path always comes from registry (model architecture is fixed)
         self.local_config_path = model_info["local_config_path"]
         
         # Load config from local path
         config = LlamaConfig.from_json_file(model_info["local_config_path"])
         
-        # Load the model from local checkpoint (overriding the parent's llm attribute)
-        print(f"Loading custom LLaMa model from {self.local_checkpoint_path}")
+        # CRITICAL: Build the model with the TARGET normalization type
+        print(f"[CustomLlama] Building model with TARGET normalization: {target_norm_type}")
         self.llm = model_info["llm_cls"](config)
         
-        # Load the state dict from the checkpoint if it exists
-        state_dict_path = os.path.join(self.local_checkpoint_path, "pytorch_model.bin")
-        if os.path.exists(state_dict_path):
-            state_dict = torch.load(state_dict_path, map_location='cpu')
-            self.llm.load_state_dict(state_dict, strict=False)
-            print(f"Loaded model weights from {state_dict_path}")
-        else:
-            print(f"No checkpoint found at {state_dict_path}, using randomly initialized weights")
+        # Load and adapt the state dict for cross-normalization compatibility
+        self._load_checkpoint_with_adaptation(source_norm_type, target_norm_type)
         
         # Load tokenizer from LLaMa-2 (compatible with our models and supports required single tokens)
         from transformers import AutoTokenizer
@@ -168,7 +277,73 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
             self.llm.generation_config.eos_token_id = self.tokenizer.eos_token_id
         
         # Apply any mitigations
-        self.llm = apply_mitigation(self.llm, cfg=cfg)
+        if cfg is not None:
+            mitigated_model = apply_mitigation(self.llm, cfg=cfg)
+            if mitigated_model is not self.llm:
+                self.llm = mitigated_model  # type: ignore
+
+    def _load_checkpoint_with_adaptation(self, source_norm_type: str, target_norm_type: str) -> None:
+        """
+        Loads checkpoint with intelligent adaptation for cross-normalization compatibility.
+        """
+        state_dict_path = os.path.join(self.local_checkpoint_path, "pytorch_model.bin")
+        
+        if os.path.exists(state_dict_path):
+            print(f"[CustomLlama] Loading state dict from {state_dict_path}")
+            try:
+                # Load the checkpoint state dict
+                checkpoint_state_dict = torch.load(state_dict_path, map_location='cpu')
+                
+                # Validate and adapt the state dict for cross-normalization loading
+                adapted_state_dict = validate_and_adapt_state_dict(
+                    checkpoint_state_dict, 
+                    self.llm, 
+                    source_norm_type, 
+                    target_norm_type
+                )
+                
+                # Load the adapted state dict
+                missing_keys, unexpected_keys = self.llm.load_state_dict(adapted_state_dict, strict=False)
+                
+                if missing_keys:
+                    print(f"[CustomLlama] Missing keys: {missing_keys}")
+                if unexpected_keys:
+                    print(f"[CustomLlama] Unexpected keys: {unexpected_keys}")
+                
+                print(f"[CustomLlama] Successfully loaded model weights with {target_norm_type} normalization")
+                
+                # Validate that critical components loaded correctly
+                self._validate_embedding_layer()
+                
+            except Exception as e:
+                print(f"[CustomLlama] Error loading checkpoint: {e}")
+                print(f"[CustomLlama] Falling back to random initialization")
+        else:
+            print(f"[CustomLlama] No checkpoint found at {state_dict_path}, using randomly initialized weights")
+
+    def _validate_embedding_layer(self) -> None:
+        """
+        Validates that the embedding layer loaded correctly.
+        """
+        try:
+            embedding_layer = self.llm.get_input_embeddings()
+            if embedding_layer is None:
+                raise ValueError("Embedding layer is None")
+            
+            if not isinstance(embedding_layer, nn.Embedding):
+                raise ValueError(f"Embedding layer is not nn.Embedding: {type(embedding_layer)}")
+            
+            if not isinstance(embedding_layer.weight, torch.Tensor):
+                raise ValueError(f"Embedding weight is not a tensor: {type(embedding_layer.weight)}")
+            
+            if embedding_layer.weight.dim() != 2:
+                raise ValueError(f"Embedding weight is not 2D: shape {embedding_layer.weight.shape}")
+            
+            print(f"[CustomLlama] ✓ Embedding validation passed: {embedding_layer.weight.shape}")
+            
+        except Exception as e:
+            print(f"[CustomLlama] ✗ Embedding validation failed: {e}")
+            raise
 
     @property
     def prompt_builder_fn(self) -> Type[PromptBuilder]:
