@@ -120,14 +120,9 @@ class LlamaPreTrainedModel(hf.LlamaPreTrainedModel):  # type: ignore[misc]
     
     def enable_input_require_grads(self):
         """Enable gradients on input embeddings for gradient checkpointing compatibility."""
-        def _enable_input_require_grads(module):
-            """Helper function to enable input require grads on embedding layers."""
-            if hasattr(module, "require_grad_"):
-                module.require_grad_(True)
-        
-        # Enable gradients on embedding layer
+        # Enable gradients on embedding layer parameters  
         if hasattr(self, 'model') and hasattr(self.model, 'embed_tokens'):
-            self.model.embed_tokens.require_grad_(True)
+            self.model.embed_tokens.weight.requires_grad_(True)
             # Register forward hook to enable gradients on input embeddings
             def _hook(module, input, output):
                 if output.requires_grad:
