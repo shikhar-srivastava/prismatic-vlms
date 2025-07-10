@@ -30,8 +30,8 @@ CUSTOM_LLAMA_MODELS = {
         "llm_family": "llama-custom", 
         "llm_cls": LlamaForCausalLM, 
         "hf_hub_path": None,  # Will load from local checkpoint
-        "local_config_path": "/scratch/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001/config.json",
-        "local_checkpoint_path": "/scratch/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001",
+        "local_config_path": "/localdisk/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001/config.json",
+        "local_checkpoint_path": "/localdisk/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001",
         "default_norm_type": "pre"  # Default if no command line override
     },
     
@@ -41,8 +41,8 @@ CUSTOM_LLAMA_MODELS = {
         "llm_family": "llama-custom", 
         "llm_cls": LlamaForCausalLM, 
         "hf_hub_path": None,  # Will load from local checkpoint
-        "local_config_path": "/scratch/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001/config.json",
-        "local_checkpoint_path": "/scratch/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001",
+        "local_config_path": "/localdisk/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001/config.json",
+        "local_checkpoint_path": "/localdisk/ssrivas9/large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001",
         "default_norm_type": "lns"
     },
     
@@ -50,8 +50,8 @@ CUSTOM_LLAMA_MODELS = {
         "llm_family": "llama-custom", 
         "llm_cls": LlamaForCausalLM, 
         "hf_hub_path": None,  # Will load from local checkpoint
-        "local_config_path": "/scratch/ssrivas9/large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001/config.json",
-        "local_checkpoint_path": "/scratch/ssrivas9/large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001",
+        "local_config_path": "/localdisk/ssrivas9/large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001/config.json",
+        "local_checkpoint_path": "/localdisk/ssrivas9/large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001",
         "default_norm_type": "pre"
     },
 }

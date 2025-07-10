@@ -2,7 +2,7 @@
 
 Re-exports Llama classes. When `NORM_TYPE=lns` (case-insensitive) the custom
 implementation with Layer-Norm Scaling is provided; otherwise we fall back to
-HuggingFace’s original implementation, so that upstream code can keep using the
+HuggingFace's original implementation, so that upstream code can keep using the
 same import path.
 """
 from __future__ import annotations
@@ -17,13 +17,18 @@ if _norm_type == "lns":
         LlamaModel,
         LlamaForCausalLM,
         LlamaForSequenceClassification,
+        LlamaDecoderLayer,
     )
-else:  # Defer to HuggingFace originals
+else:  # Defer to HuggingFace originals for most classes
     from transformers.models.llama.modeling_llama import (  # type: ignore
         LlamaConfig,  # noqa: F401
-        LlamaModel,  # noqa: F401
-        LlamaForCausalLM,  # noqa: F401
         LlamaForSequenceClassification,  # noqa: F401
+    )
+    # Use advanced custom implementation for model and decoder layer
+    from .modeling_llama_advanced import (
+        LlamaModel,
+        LlamaForCausalLM,
+        LlamaDecoderLayer,
     )
 
 __all__ = [
@@ -31,4 +36,5 @@ __all__ = [
     "LlamaModel",
     "LlamaForCausalLM",
     "LlamaForSequenceClassification",
+    "LlamaDecoderLayer",
 ] 
