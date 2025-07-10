@@ -442,19 +442,31 @@ class PrismaticVLM(VLM):
         multimodal_indices: Optional[torch.LongTensor] = None,
         return_labels: Optional[bool] = False,):
             
-            # Run Visual Feature Extraction
-            with torch.set_grad_enabled(self.vision_backbone_requires_grad):
-                # Get the data type from the vision_backbone's parameters
-                param_dtype = next(self.vision_backbone.parameters()).dtype
-                if isinstance(pixel_values, dict):
-                    # Cast each tensor in the dictionary to the parameter's dtype
-                    pixel_values_cast = {k: v.to(param_dtype) for k, v in pixel_values.items()}
-                    patch_features = self.vision_backbone(
-                        {k: pixel_values_cast[k][multimodal_indices] for k in pixel_values_cast}
-                    )
-                else:
-                    # Cast the tensor to the parameter's dtype
-                    patch_features = self.vision_backbone(pixel_values[multimodal_indices].to(param_dtype))
+        # Handle Multimodal Indices is None --> pretend like the batch is fully multimodal (always image + text)!
+        if multimodal_indices is None:
+            multimodal_indices = torch.arange(len(input_ids), dtype=torch.long, device=input_ids.device)
+
+        # Handle Multimodal Indices is Empty (len == 0) --> return None for visual embeddings
+        elif len(multimodal_indices) == 0:
+            # Get Input Embeddings from LLM Backbone for text-only batch
+            llm_backbone = self.llm_backbone.module if isinstance(self.llm_backbone, DDP) else self.llm_backbone
+            input_embeddings = llm_backbone.embed_input_ids(input_ids)
+            # Return None for visual embeddings since this is a text-only batch
+            return None, input_embeddings
+            
+        # Run Visual Feature Extraction
+        with torch.set_grad_enabled(self.vision_backbone_requires_grad):
+            # Get the data type from the vision_backbone's parameters
+            param_dtype = next(self.vision_backbone.parameters()).dtype
+            if isinstance(pixel_values, dict):
+                # Cast each tensor in the dictionary to the parameter's dtype
+                pixel_values_cast = {k: v.to(param_dtype) for k, v in pixel_values.items()}
+                patch_features = self.vision_backbone(
+                    {k: pixel_values_cast[k][multimodal_indices] for k in pixel_values_cast}
+                )
+            else:
+                # Cast the tensor to the parameter's dtype
+                patch_features = self.vision_backbone(pixel_values[multimodal_indices].to(param_dtype))
     
             
             # @TODO: Risky one incase stacks multiple images. Which doesn't occur in this case, does it?

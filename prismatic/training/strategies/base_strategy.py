@@ -1216,12 +1216,14 @@ class TrainingStrategy(ABC):
                                 labels=batch["labels"],
                                 multimodal_indices=batch["multimodal_indices"],
                             )
-                            # Compute L2 norm of projected visual embeddings
-                            vis_emb_norm = torch.norm(vis_emb_for_norm, p=2, dim=-1)  # Shape: [bsz, num_patches]
-                            # Regularization loss: mean of squared L2 norms
-                            reg_loss = (vis_emb_norm ** 2).mean()
-                            # Add to the main loss
-                            loss = loss + self.norm_reg_weight * reg_loss
+                            # Only compute norm regularization if we have visual embeddings (not text-only batch)
+                            if vis_emb_for_norm is not None:
+                                # Compute L2 norm of projected visual embeddings
+                                vis_emb_norm = torch.norm(vis_emb_for_norm, p=2, dim=-1)  # Shape: [bsz, num_patches]
+                                # Regularization loss: mean of squared L2 norms
+                                reg_loss = (vis_emb_norm ** 2).mean()
+                                # Add to the main loss
+                                loss = loss + self.norm_reg_weight * reg_loss
 
                     # === Metric Calculation ===
                     metrics_kwargs = {"loss": loss} # Start with the main loss

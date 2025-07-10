@@ -195,6 +195,9 @@ class FSDPStrategy(TrainingStrategy):
                 cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True) #
             )
         else:
+            # [CRITICAL FIX] Disable CPU offloading for custom LlamaDecoderLayer
+            # CPU offloading causes device mismatch and weight tensor corruption 
+            # with the custom LNS implementation, leading to 'weight' must be 2-D errors
             self.vlm = FSDP(
                 self.vlm,
                 auto_wrap_policy=vlm_fsdp_wrapping_policy,
@@ -203,7 +206,7 @@ class FSDPStrategy(TrainingStrategy):
                 device_id=torch.cuda.current_device(),
                 limit_all_gathers=True,
                 use_orig_params=True,
-                cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True)
+                # cpu_offload=torch.distributed.fsdp.CPUOffload(offload_params=True)  # DISABLED
             )
 
         # Gradient Checkpoint Setup
