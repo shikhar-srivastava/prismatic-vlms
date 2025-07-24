@@ -19,6 +19,15 @@ if _norm_type == "lns":
         LlamaForSequenceClassification,
         LlamaDecoderLayer,
     )
+elif _norm_type == "vision_lns":
+    # Local fork with Vision-LNS behaviour.
+    from .modeling_llama_vision_lns import (
+        LlamaConfig,
+        LlamaModel,
+        LlamaForCausalLM,
+        LlamaForSequenceClassification,
+        LlamaDecoderLayer,
+    )
 else:  # Defer to HuggingFace originals for most classes
     from transformers.models.llama.modeling_llama import (  # type: ignore
         LlamaConfig,  # noqa: F401

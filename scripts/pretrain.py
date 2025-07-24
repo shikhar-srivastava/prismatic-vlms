@@ -31,6 +31,16 @@ import torch
 import torch.distributed as dist
 import yaml
 
+# === Fix draccus PosixPath serialization issue ===
+from pathlib import PosixPath
+
+@draccus.encode.register
+def encode_posix_path(path: PosixPath, _) -> str:
+    """Encode PosixPath objects as strings for draccus serialization."""
+    return str(path)
+
+# ===================================================
+
 from prismatic.conf import DatasetConfig, DatasetRegistry, ModelConfig, ModelRegistry
 from prismatic.models import get_llm_backbone_and_tokenizer, get_vision_backbone_and_transform, get_vlm
 from prismatic.overwatch import initialize_overwatch
@@ -208,6 +218,9 @@ class PretrainConfig:
     # === Enable PRE (Pre-Normalization) variant for LLaMA/Vicuna backbones ===
     use_pre: bool = False  # If True, activates the local PRE implementation in `prismatic.models.llama_custom`.
 
+    # === Enable Vision LNS (Layer Norm Scaling) variant for Vision Backbone ===
+    use_vision_lns: bool = False  # If True, activates the local Vision LNS implementation in `prismatic.models.llama_custom`.
+
     def __post_init__(self) -> None:
         """Set optimization parameters based on `stage` in {"align", "finetune"}."""
         # assert that load_logits and save_logits are not both true
@@ -216,6 +229,8 @@ class PretrainConfig:
         
         # === Validate normalization type flags ===
         assert not (self.use_lns and self.use_pre), "Cannot use both --use_lns and --use_pre simultaneously"
+        assert not (self.use_vision_lns and self.use_lns), "Cannot use both --use_vision_lns and --use_lns simultaneously"
+        assert not (self.use_vision_lns and self.use_pre), "Cannot use both --use_vision_lns and --use_pre simultaneously"
 
         # Assert that self.init_projector must be None or 'ledoitwolf' 
         assert self.init_projector is None or self.init_projector == 'ledoitwolf' or self.init_projector == 'ledoitwolf-mlp', "init_projector must be None or 'ledoitwolf' or 'ledoitwolf-mlp'"
@@ -250,6 +265,9 @@ class PretrainConfig:
         elif self.use_pre:
             os.environ["NORM_TYPE"] = "pre"
             overwatch.critical("Setting normalization type to PRE (Pre-Normalization)")
+        elif self.use_vision_lns:
+            os.environ["NORM_TYPE"] = "vision_lns"
+            overwatch.critical("Setting normalization type to Vision-LNS (Layer Norm Scaling applied only to visual tokens)")
         else:
             # Default to PRE if no explicit flag is set (maintains backward compatibility)
             os.environ["NORM_TYPE"] = "pre"

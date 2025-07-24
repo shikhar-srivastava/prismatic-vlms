@@ -70,6 +70,8 @@ class LLMBackbone(nn.Module, ABC):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        # === Vision-LNS Support ===
+        vis_token_indices: Optional[tuple[int, int]] = None,  # (start_idx, end_idx) for visual tokens
     ) -> CausalLMOutputWithPast:
         """Run a forward pass through the LLM given targets (labels), returning the scalar Cross-Entropy Loss"""
         raise NotImplementedError
@@ -336,6 +338,8 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        # === Vision-LNS Support ===
+        vis_token_indices: Optional[tuple[int, int]] = None,  # (start_idx, end_idx) for visual tokens
     ) -> CausalLMOutputWithPast:
         output: CausalLMOutputWithPast = self.llm(
             input_ids=input_ids,
@@ -348,5 +352,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            # Pass visual token indices to the underlying LLM if it supports it
+            vis_token_indices=vis_token_indices,
         )
         return output

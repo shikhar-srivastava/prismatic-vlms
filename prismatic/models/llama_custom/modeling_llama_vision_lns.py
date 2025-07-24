@@ -1,7 +1,10 @@
-"""modeling_llama_lns.py
+"""modeling_llama_vision_lns.py
 
-Local custom implementation of HuggingFace Llama that activates the *Layer-Norm
-Scaling* (LNS) variant when `NORM_TYPE=lns`.
+Local custom implementation of HuggingFace Llama that activates the *Vision Layer-Norm
+Scaling* (Vision-LNS) variant when `NORM_TYPE=vision_lns`.
+
+This implementation applies LNS scaling only to visual token positions, leaving
+text tokens with standard pre-normalization.
 
 The philosophy is to keep a **thin diff** against upstream: we inherit from HF
 classes and override only the pieces that differ.
@@ -32,9 +35,13 @@ class LlamaRMSNorm(hf.LlamaRMSNorm):  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
-# 2.  Decoder layer with LNS branch
+# 2.  Decoder layer with Vision-LNS branch
 # ---------------------------------------------------------------------------
 class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
+    def __init__(self, config, layer_idx: int):
+        super().__init__(config, layer_idx)
+        self.layer_index = layer_idx  # Store for LNS scaling calculation (using consistent naming)
+    
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -43,11 +50,11 @@ class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
-        vis_token_indices: Optional[Tuple[int, int]] = None,  # Vision-LNS support (ignored in LNS mode)
+        vis_token_indices: Optional[Tuple[int, int]] = None,  # (start_idx, end_idx)
         **kwargs: Any,
     ):
         norm_type = os.getenv("NORM_TYPE", "pre").lower()
-        if norm_type != "lns":
+        if norm_type != "vision_lns":
             # Defer to upstream implementation for all other modes.
             return super().forward(
                 hidden_states,
@@ -59,13 +66,35 @@ class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
                 **kwargs,
             )
 
-        # ======= LNS path =======
+        # ======= Vision-LNS path =======
+        
+        # If vis_token_indices not passed directly, try to get from parent model
+        if vis_token_indices is None:
+            # Try to find the root model that has _current_vis_indices
+            current_module = self
+            while current_module is not None:
+                if hasattr(current_module, '_current_vis_indices'):
+                    vis_token_indices = current_module._current_vis_indices
+                    break
+                # Go up one level to try to find the parent model
+                current_module = getattr(current_module, '_parent', None)
+                break  # For now, just try once
+        
         scale = 1.0 / math.sqrt(self.layer_index + 1)
 
-        # Self-attention (pre-norm + scaling)
+        # Self-attention with selective Vision-LNS scaling
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
-        hidden_states = hidden_states * scale
+        
+        # Apply LNS scaling ONLY to visual token positions if they exist
+        if vis_token_indices is not None:
+            vis_start, vis_end = vis_token_indices
+            # Clone to avoid in-place operations that might affect gradients
+            scaled_hidden_states = hidden_states.clone()
+            # Apply LNS scaling only to visual tokens [batch, vis_start:vis_end, dim]
+            scaled_hidden_states[:, vis_start:vis_end, :] = scale * hidden_states[:, vis_start:vis_end, :]
+            hidden_states = scaled_hidden_states
+        
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
@@ -76,10 +105,19 @@ class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
         )
         hidden_states = residual + hidden_states
 
-        # Feed-forward (post-norm + scaling)
+        # Feed-forward with selective Vision-LNS scaling
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = hidden_states * scale
+        
+        # Apply LNS scaling ONLY to visual token positions if they exist
+        if vis_token_indices is not None:
+            vis_start, vis_end = vis_token_indices
+            # Clone to avoid in-place operations that might affect gradients
+            scaled_hidden_states = hidden_states.clone()
+            # Apply LNS scaling only to visual tokens [batch, vis_start:vis_end, dim]
+            scaled_hidden_states[:, vis_start:vis_end, :] = scale * hidden_states[:, vis_start:vis_end, :]
+            hidden_states = scaled_hidden_states
+            
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
@@ -117,47 +155,33 @@ class LlamaModel(hf.LlamaModel):  # type: ignore[misc]
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        vis_token_indices: Optional[Tuple[int, int]] = None,  # Vision-LNS support (ignored in LNS mode)
+        vis_token_indices: Optional[Tuple[int, int]] = None,  # Vision-LNS support
     ):
-        # Just call the parent implementation - vis_token_indices is ignored
-        return super().forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-
-
-class LlamaPreTrainedModel(hf.LlamaPreTrainedModel):  # type: ignore[misc]
-    """Extend HF's LlamaPreTrainedModel to support gradient checkpointing with use_reentrant=False."""
-    
-    def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs=None):
-        """Enable gradient checkpointing with proper use_reentrant parameter."""
-        if gradient_checkpointing_kwargs is None:
-            gradient_checkpointing_kwargs = {"use_reentrant": False}
-        # Store the checkpointing kwargs for use in forward pass
-        self._gradient_checkpointing_kwargs = gradient_checkpointing_kwargs
-        # Enable gradient checkpointing using the standard HF method
-        super().gradient_checkpointing_enable()
-    
-    def enable_input_require_grads(self):
-        """Enable gradients on input embeddings for gradient checkpointing compatibility."""
-        # Enable gradients on embedding layer parameters  
-        if hasattr(self, 'model') and hasattr(self.model, 'embed_tokens'):
-            self.model.embed_tokens.weight.requires_grad_(True)
-            # Register forward hook to enable gradients on input embeddings
-            def _hook(module, input, output):
-                if output.requires_grad:
-                    return output
-                else:
-                    return output.requires_grad_(True)
-            
-            self.model.embed_tokens.register_forward_hook(_hook)
+        # Store vis_token_indices in a way that layers can access it
+        # We'll temporarily store it as an attribute on the model
+        old_vis_indices = getattr(self, '_current_vis_indices', None)
+        self._current_vis_indices = vis_token_indices
+        
+        try:
+            # Call the parent forward method
+            result = super().forward(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+            return result
+        finally:
+            # Restore the previous value
+            if old_vis_indices is not None:
+                self._current_vis_indices = old_vis_indices
+            else:
+                delattr(self, '_current_vis_indices')
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +190,7 @@ class LlamaPreTrainedModel(hf.LlamaPreTrainedModel):  # type: ignore[misc]
 class LlamaForCausalLM(hf.LlamaForCausalLM):  # type: ignore[misc]
     def __init__(self, config):  # noqa: D401 — matching HF signature
         super().__init__(config)
-        # Replace the model with our LNS-aware version
+        # Replace the model with our vision-LNS aware version
         self.model = LlamaModel(config)
         # Re-run weight initialization
         self.post_init()
@@ -183,41 +207,54 @@ class LlamaForCausalLM(hf.LlamaForCausalLM):  # type: ignore[misc]
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        vis_token_indices: Optional[Tuple[int, int]] = None,  # Vision-LNS support (ignored in LNS mode)
+        vis_token_indices: Optional[Tuple[int, int]] = None,  # Vision-LNS support
     ):
-        # Just call the parent implementation - vis_token_indices is ignored
-        return super().forward(
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # Forward through the model
+        outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
-            labels=labels,
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            vis_token_indices=vis_token_indices,  # Pass vision token indices
+        )
+
+        hidden_states = outputs[0]
+        logits = self.lm_head(hidden_states)
+
+        loss = None
+        if labels is not None:
+            # Shift so that tokens < n predict n
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            # Flatten the tokens
+            loss_fct = torch.nn.CrossEntropyLoss()
+            shift_logits = shift_logits.view(-1, self.config.vocab_size)
+            shift_labels = shift_labels.view(-1)
+            # Enable model parallelism
+            shift_labels = shift_labels.to(shift_logits.device)
+            loss = loss_fct(shift_logits, shift_labels)
+
+        if not return_dict:
+            output = (logits,) + outputs[1:]
+            return (loss,) + output if loss is not None else output
+
+        from transformers.modeling_outputs import CausalLMOutputWithPast
+        return CausalLMOutputWithPast(
+            loss=loss,
+            logits=logits,
+            past_key_values=outputs.past_key_values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
         )
 
 
-class LlamaForSequenceClassification(LlamaPreTrainedModel, hf.LlamaForSequenceClassification):  # type: ignore[misc]
-    def __init__(self, config):
-        LlamaPreTrainedModel.__init__(self, config)  # Get our gradient checkpointing support
-        # super(hf.LlamaForSequenceClassification, self).__init__(config)
-        self.model = LlamaModel(config)
-        self.score = nn.Linear(config.hidden_size, config.num_labels, bias=False)
-        self.post_init()
-
-
-# ---------------------------------------------------------------------------
-# 5.  Re-export config for convenience
-# ---------------------------------------------------------------------------
-LlamaConfig = hf.LlamaConfig  # Re-export unchanged
-
-__all__ = [
-    "LlamaConfig", 
-    "LlamaModel",
-    "LlamaPreTrainedModel",
-    "LlamaForCausalLM",
-    "LlamaForSequenceClassification",
-] 
+# Re-export the config and sequence classification for compatibility
+LlamaConfig = hf.LlamaConfig
+LlamaForSequenceClassification = hf.LlamaForSequenceClassification 

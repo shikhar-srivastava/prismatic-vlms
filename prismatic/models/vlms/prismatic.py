@@ -730,6 +730,14 @@ class PrismaticVLM(VLM):
             fused_labels = torch.vstack([multimodal_labels, unimodal_labels])
 
         # Run LLM Forward --> returns CausalLMOutputWithPast!
+        # Calculate visual token indices for vision_lns support
+        vis_token_indices = None
+        if len(multimodal_indices) > 0:
+            # Visual tokens are positioned after BOS token: <s> p1 p2 p3 ... <caption_text>
+            vis_start_idx = 1  # Starts after BOS token
+            vis_end_idx = vis_start_idx + projected_patch_embeddings.shape[1]
+            vis_token_indices = (vis_start_idx, vis_end_idx)
+        
         output = llm_backbone(
             input_ids=None,
             attention_mask=fused_attention_mask,
@@ -741,6 +749,8 @@ class PrismaticVLM(VLM):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states or output_layer_stats,
             return_dict=return_dict,
+            # === Vision-LNS Support ===
+            vis_token_indices=vis_token_indices,
         )
 
         # === Handle Return Values based on Flags ===
