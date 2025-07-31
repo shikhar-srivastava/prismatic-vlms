@@ -378,3 +378,9 @@ Error: Model directory 'evaluations/final-llava-v15-pythia+1b-pre(default)-ft(de
 final-llava-v15-pythia+1b-pre(init_cov_mlp)-ft(default) [2025-03-20 10:44:53]
 Error: Model directory 'evaluations/final-llava-v15-pythia+1b-pre(init_cov_mlp)-ft(default)' does not exist.
 
+finetune+llama+130m-prepre-vision_lns [2025-07-24 06:47:57]
+Error: Model directory 'evaluations/finetune+llama+130m-prepre-vision_lns' does not exist.
+
+finetune+llama+130m-prelns-vision_lns [2025-07-24 06:49:21]
+Error: Model directory 'evaluations/finetune+llama+130m-prelns-vision_lns' does not exist.
+

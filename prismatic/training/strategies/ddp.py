@@ -40,9 +40,15 @@ class DDPStrategy(TrainingStrategy):
         only_trainable: bool = True,
     ) -> None:
         """Save a checkpoint to the `run_dir` only containing the state_dicts for trainable parameters by default."""
-        assert isinstance(self.vlm.llm_backbone, DDP) and isinstance(self.vlm.projector, DDP), "save_checkpoint assumes llm_backbone and projector are already wrapped in DDP!"
-
-        self.remove_ddp_wrapper()
+        # Remove DDP wrappers only if the LLM backbone is actually wrapped in DDP (i.e., stages
+        # other than `align`). For the `align` stage the backbone is kept frozen and *not* wrapped
+        # to conserve memory, so we skip unwrapping to avoid disrupting ongoing DDP training on
+        # the projector.
+        if isinstance(self.vlm.llm_backbone, DDP):
+            self.remove_ddp_wrapper()
+            wrappers_removed = True
+        else:
+            wrappers_removed = False
         # # Splinter State Dictionary by Top-Level Submodules (or subset, if `only_trainable`)
         full_vlm_state_dict = self.vlm.state_dict()
         # model_state_dicts = {
@@ -72,6 +78,10 @@ class DDPStrategy(TrainingStrategy):
         # Save Checkpoint & Copy Latest to `latest-checkpoint.pt`
         torch.save({"model": model_state_dicts, "optimizer": optimizer_state_dict}, checkpoint_path)
         shutil.copy(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
+
+        # Re-wrap the model with DDP so that training can continue seamlessly after the checkpoint
+        if wrappers_removed:
+            self.rewrap_ddp()
         # supported_classes = (PeftModel,PeftModelForCausalLM)
         # peft_dir = run_dir / "checkpoint_llm_only"
         # peft_dir.mkdir(parents=True, exist_ok=True)
@@ -262,9 +272,14 @@ class DDPStrategy(TrainingStrategy):
             raise ValueError(f"Learning Rate Schedule with type `{self.lr_scheduler_type}` is not supported!")
        
     def remove_ddp_wrapper(self) -> None:
-        """Remove DDP Wrapping and Reinitialize VLM on CPU."""
-        self.vlm.llm_backbone = self.vlm.llm_backbone.module
-        self.vlm.projector = self.vlm.projector.module
+        """Remove DDP Wrapping (if present) and reinitialize VLM on CPU."""
+        # In some training stages (e.g., `align`) the LLM backbone may not be wrapped
+        # in DDP to save memory because its parameters are frozen. Guard against this
+        # by only attempting to unwrap when the module is actually an instance of DDP.
+        if isinstance(self.vlm.llm_backbone, DDP):
+            self.vlm.llm_backbone = self.vlm.llm_backbone.module
+        if isinstance(self.vlm.projector, DDP):
+            self.vlm.projector = self.vlm.projector.module
 
     def rewrap_ddp(self) -> None:
         """Wrap VLM with DDP on GPU."""
