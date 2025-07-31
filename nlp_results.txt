@@ -1,0 +1,100 @@
+130m_res_pre_lr1e-3_soft_alpha0.001_track_bytes/model_20001
+pretrained=/scratch/ssrivas9/large-activations//130m_res_pre_lr1e-3_soft_alpha0.001_track_bytes/model_20001,trust_remote_code=True
+bootstrapping for stddev: perplexity
+hf (pretrained=/scratch/ssrivas9/large-activations//130m_res_pre_lr1e-3_soft_alpha0.001_track_bytes/model_20001,trust_remote_code=True), gen_kwargs: (None), limit: None, num_fewshot: None, batch_size: 16
+|     Tasks      |Version|Filter|n-shot|  Metric  | Value  |   |Stderr |
+|----------------|------:|------|-----:|----------|-------:|---|------:|
+|wsc273          |      1|none  |     0|acc       |  0.5421|±  | 0.0302|
+|winogrande      |      1|none  |     0|acc       |  0.5091|±  | 0.0141|
+|lambada_standard|      1|none  |     0|perplexity|739.2937|±  |32.7715|
+|                |       |none  |     0|acc       |  0.1143|±  | 0.0044|
+|arc_easy        |      1|none  |     0|acc       |  0.3855|±  | 0.0100|
+|                |       |none  |     0|acc_norm  |  0.3561|±  | 0.0098|
+|arc_challenge   |      1|none  |     0|acc       |  0.1954|±  | 0.0116|
+|                |       |none  |     0|acc_norm  |  0.2201|±  | 0.0121|
+
+Completed evaluation for 130m_res_pre_lr1e-3_soft_alpha0.001_track_bytes/model_20001
+130m_res_pre_lr1e-3_llama_tokenizer/model_20001
+pretrained=/scratch/ssrivas9/large-activations//130m_res_pre_lr1e-3_llama_tokenizer/model_20001,trust_remote_code=True
+bootstrapping for stddev: perplexity
+hf (pretrained=/scratch/ssrivas9/large-activations//130m_res_pre_lr1e-3_llama_tokenizer/model_20001,trust_remote_code=True), gen_kwargs: (None), limit: None, num_fewshot: None, batch_size: 16
+|     Tasks      |Version|Filter|n-shot|  Metric  |  Value  |   | Stderr |
+|----------------|------:|------|-----:|----------|--------:|---|-------:|
+|wsc273          |      1|none  |     0|acc       |   0.5092|±  |  0.0303|
+|winogrande      |      1|none  |     0|acc       |   0.5083|±  |  0.0141|
+|lambada_standard|      1|none  |     0|perplexity|3131.0411|±  |222.8858|
+|                |       |none  |     0|acc       |   0.1832|±  |  0.0054|
+|arc_easy        |      1|none  |     0|acc       |   0.3106|±  |  0.0095|
+|                |       |none  |     0|acc_norm  |   0.3102|±  |  0.0095|
+|arc_challenge   |      1|none  |     0|acc       |   0.1852|±  |  0.0114|
+|                |       |none  |     0|acc_norm  |   0.2056|±  |  0.0118|
+
+Completed evaluation for 130m_res_pre_lr1e-3_llama_tokenizer/model_20001
+130m_res_pre_lr1e-3_track_bytes/model_20001
+pretrained=/scratch/ssrivas9/large-activations//130m_res_pre_lr1e-3_track_bytes/model_20001,trust_remote_code=True
+bootstrapping for stddev: perplexity
+hf (pretrained=/scratch/ssrivas9/large-activations//130m_res_pre_lr1e-3_track_bytes/model_20001,trust_remote_code=True), gen_kwargs: (None), limit: None, num_fewshot: None, batch_size: 16
+|     Tasks      |Version|Filter|n-shot|  Metric  | Value  |   |Stderr |
+|----------------|------:|------|-----:|----------|-------:|---|------:|
+|wsc273          |      1|none  |     0|acc       |  0.4945|±  | 0.0303|
+|winogrande      |      1|none  |     0|acc       |  0.5114|±  | 0.0140|
+|lambada_standard|      1|none  |     0|perplexity|695.4174|±  |31.1186|
+|                |       |none  |     0|acc       |  0.1232|±  | 0.0046|
+|arc_easy        |      1|none  |     0|acc       |  0.3813|±  | 0.0100|
+|                |       |none  |     0|acc_norm  |  0.3603|±  | 0.0099|
+|arc_challenge   |      1|none  |     0|acc       |  0.1809|±  | 0.0112|
+|                |       |none  |     0|acc_norm  |  0.2261|±  | 0.0122|
+
+Completed evaluation for 130m_res_pre_lr1e-3_track_bytes/model_20001
+130m_res_LNS_lr1e-3_track_bytes/model_20001
+pretrained=/scratch/ssrivas9/large-activations//130m_res_LNS_lr1e-3_track_bytes/model_20001,trust_remote_code=True
+bootstrapping for stddev: perplexity
+hf (pretrained=/scratch/ssrivas9/large-activations//130m_res_LNS_lr1e-3_track_bytes/model_20001,trust_remote_code=True), gen_kwargs: (None), limit: None, num_fewshot: None, batch_size: 16
+|     Tasks      |Version|Filter|n-shot|  Metric  |    Value    |   |   Stderr   |
+|----------------|------:|------|-----:|----------|------------:|---|-----------:|
+|wsc273          |      1|none  |     0|acc       |       0.4762|±  |      0.0303|
+|winogrande      |      1|none  |     0|acc       |       0.5028|±  |      0.0141|
+|lambada_standard|      1|none  |     0|perplexity|37672324.9221|±  |3746914.4939|
+|                |       |none  |     0|acc       |       0.0000|±  |      0.0000|
+|arc_easy        |      1|none  |     0|acc       |       0.2597|±  |      0.0090|
+|                |       |none  |     0|acc_norm  |       0.2643|±  |      0.0090|
+|arc_challenge   |      1|none  |     0|acc       |       0.2125|±  |      0.0120|
+|                |       |none  |     0|acc_norm  |       0.2654|±  |      0.0129|
+
+Completed evaluation for 130m_res_LNS_lr1e-3_track_bytes/model_20001
+130m_res_LNS_lr1e-3_llama_tokenizer/model_20001
+pretrained=/scratch/ssrivas9/large-activations//130m_res_LNS_lr1e-3_llama_tokenizer/model_20001,trust_remote_code=True
+bootstrapping for stddev: perplexity
+hf (pretrained=/scratch/ssrivas9/large-activations//130m_res_LNS_lr1e-3_llama_tokenizer/model_20001,trust_remote_code=True), gen_kwargs: (None), limit: None, num_fewshot: None, batch_size: 16
+|     Tasks      |Version|Filter|n-shot|  Metric  |    Value    |   |   Stderr   |
+|----------------|------:|------|-----:|----------|------------:|---|-----------:|
+|wsc273          |      1|none  |     0|acc       |       0.4872|±  |      0.0303|
+|winogrande      |      1|none  |     0|acc       |       0.5178|±  |      0.0140|
+|lambada_standard|      1|none  |     0|perplexity|84941050.6784|±  |8003561.2839|
+|                |       |none  |     0|acc       |       0.0002|±  |      0.0002|
+|arc_easy        |      1|none  |     0|acc       |       0.2643|±  |      0.0090|
+|                |       |none  |     0|acc_norm  |       0.2588|±  |      0.0090|
+|arc_challenge   |      1|none  |     0|acc       |       0.2201|±  |      0.0121|
+|                |       |none  |     0|acc_norm  |       0.2739|±  |      0.0130|
+
+Completed evaluation for 130m_res_LNS_lr1e-3_llama_tokenizer/model_20001
+130m_res_LNS_lr1e-3_llama_pad-unk/model_20001
+pretrained=/scratch/ssrivas9/large-activations//130m_res_LNS_lr1e-3_llama_pad-unk/model_20001,trust_remote_code=True
+bootstrapping for stddev: perplexity
+hf (pretrained=/scratch/ssrivas9/large-activations//130m_res_LNS_lr1e-3_llama_pad-unk/model_20001,trust_remote_code=True), gen_kwargs: (None), limit: None, num_fewshot: None, batch_size: 16
+|     Tasks      |Version|Filter|n-shot|  Metric  |    Value    |   |   Stderr   |
+|----------------|------:|------|-----:|----------|------------:|---|-----------:|
+|wsc273          |      1|none  |     0|acc       |       0.5201|±  |      0.0303|
+|winogrande      |      1|none  |     0|acc       |       0.5130|±  |      0.0140|
+|lambada_standard|      1|none  |     0|perplexity|77355894.7638|±  |7184739.4226|
+|                |       |none  |     0|acc       |       0.0000|±  |      0.0000|
+|arc_easy        |      1|none  |     0|acc       |       0.2576|±  |      0.0090|
+|                |       |none  |     0|acc_norm  |       0.2715|±  |      0.0091|
+|arc_challenge   |      1|none  |     0|acc       |       0.2321|±  |      0.0123|
+|                |       |none  |     0|acc_norm  |       0.2884|±  |      0.0132|
+
+Completed evaluation for 130m_res_LNS_lr1e-3_llama_pad-unk/model_20001
+130m_res_LNS_lr1e-3_llama_pad-eos/model_20001
+pretrained=/scratch/ssrivas9/large-activations//130m_res_LNS_lr1e-3_llama_pad-eos/model_20001,trust_remote_code=True
+Completed evaluation for 130m_res_LNS_lr1e-3_llama_pad-eos/model_20001
+All evaluations completed.
