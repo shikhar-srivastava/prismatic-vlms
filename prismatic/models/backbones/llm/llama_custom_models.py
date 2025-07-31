@@ -8,8 +8,8 @@ import os
 import torch
 from torch import nn as nn
 
-# Import custom advanced modeling when NORM_TYPE is set to lns or pre
-from prismatic.models.llama_custom.modeling_llama_advanced import LlamaForCausalLM, LlamaDecoderLayer
+# Dynamic import based on NORM_TYPE - this will be set properly in __init__
+# We'll import the correct implementation after determining the norm type
 from transformers.models.llama.configuration_llama import LlamaConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
@@ -33,7 +33,7 @@ CUSTOM_LLAMA_MODELS = {
     # checkpoint with different normalization schemes for MLLM training.
     "llama-130m": {
         "llm_family": "llama-custom", 
-        "llm_cls": LlamaForCausalLM, 
+        "llm_cls": None,  # Will be determined dynamically based on NORM_TYPE 
         "hf_hub_path": None,  # Will load from local checkpoint
         "local_config_path": "../large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001/config.json",
         "local_checkpoint_path": "../large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001",
@@ -44,7 +44,7 @@ CUSTOM_LLAMA_MODELS = {
     # These entries are kept for existing scripts that reference them directly
     "llama-130m-lns": {
         "llm_family": "llama-custom", 
-        "llm_cls": LlamaForCausalLM, 
+        "llm_cls": None,  # Will be determined dynamically based on NORM_TYPE 
         "hf_hub_path": None,  # Will load from local checkpoint
         "local_config_path": "../large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001/config.json",
         "local_checkpoint_path": "../large-activations/130m_res_LNS_lr1e-3_llama_tokenizer/model_20001",
@@ -53,7 +53,7 @@ CUSTOM_LLAMA_MODELS = {
     
     "llama-130m-pre": {
         "llm_family": "llama-custom", 
-        "llm_cls": LlamaForCausalLM, 
+        "llm_cls": None,  # Will be determined dynamically based on NORM_TYPE 
         "hf_hub_path": None,  # Will load from local checkpoint
         "local_config_path": "../large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001/config.json",
         "local_checkpoint_path": "../large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001",
@@ -90,6 +90,21 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         
         # Log the final decision
         print(f"CustomLlamaLLMBackbone: Final NORM_TYPE = {final_norm_type}")
+        
+        # Dynamically import the correct LLaMA implementation based on NORM_TYPE
+        if final_norm_type.lower() == "vision_lns":
+            from prismatic.models.llama_custom.modeling_llama_vision_lns import LlamaForCausalLM, LlamaDecoderLayer
+            print("Using Vision-LNS LLaMA implementation")
+        elif final_norm_type.lower() == "lns":
+            from prismatic.models.llama_custom.modeling_llama_lns import LlamaForCausalLM, LlamaDecoderLayer
+            print("Using LNS LLaMA implementation")
+        else:  # "pre" or any other value
+            from prismatic.models.llama_custom.modeling_llama_advanced import LlamaForCausalLM, LlamaDecoderLayer
+            print("Using PRE/Advanced LLaMA implementation")
+        
+        # Store the classes for later use
+        self._llama_cls = LlamaForCausalLM
+        self._decoder_layer_cls = LlamaDecoderLayer
         
         # Initialize the LLMBackbone base class directly (skip HFCausalLLMBackbone)
         from prismatic.models.backbones.llm.base_llm import LLMBackbone
@@ -141,7 +156,7 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         
         # Load the model from local checkpoint (overriding the parent's llm attribute)
         print(f"Loading custom LLaMa model from {self.local_checkpoint_path}")
-        self.llm = model_info["llm_cls"](config)
+        self.llm = self._llama_cls(config)
         
         # Load the state dict from the checkpoint if it exists
         state_dict_path = os.path.join(self.local_checkpoint_path, "pytorch_model.bin")
@@ -235,21 +250,41 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        vis_token_indices: Optional[tuple] = None,  # Support Vision-LNS
     ) -> CausalLMOutputWithPast:
         """Forward pass through the custom LLaMa model."""
         
-        output: CausalLMOutputWithPast = self.llm(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            labels=labels,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        # Check if the current implementation supports vis_token_indices
+        norm_type = os.environ.get("NORM_TYPE", "pre").lower()
+        if norm_type == "vision_lns" and vis_token_indices is not None:
+            # Pass vis_token_indices to Vision-LNS implementation
+            output: CausalLMOutputWithPast = self.llm(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                labels=labels,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                vis_token_indices=vis_token_indices,
+            )
+        else:
+            # Standard forward pass for LNS/PRE implementations
+            output: CausalLMOutputWithPast = self.llm(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                labels=labels,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
         return output
 
     @property
@@ -259,7 +294,7 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
 
     @property
     def transformer_layer_cls(self) -> Type[nn.Module]:
-        return LlamaDecoderLayer
+        return self._decoder_layer_cls
 
     @property
     def half_precision_dtype(self) -> torch.dtype:
