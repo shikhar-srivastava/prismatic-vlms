@@ -20,6 +20,9 @@ from torch import nn
 
 import transformers.models.llama.modeling_llama as hf
 
+
+
+
 # ---------------------------------------------------------------------------
 # 1.  Dtype-safe RMSNorm
 # ---------------------------------------------------------------------------
@@ -83,11 +86,8 @@ class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
         # Apply LNS scaling ONLY to visual token positions if they exist
         if vis_token_indices is not None:
             vis_start, vis_end = vis_token_indices
-            # Clone to avoid in-place operations that might affect gradients
-            scaled_hidden_states = hidden_states.clone()
             # Apply LNS scaling only to visual tokens [batch, vis_start:vis_end, dim]
-            scaled_hidden_states[:, vis_start:vis_end, :] = scale * hidden_states[:, vis_start:vis_end, :]
-            hidden_states = scaled_hidden_states
+            hidden_states[:, vis_start:vis_end, :] *= scale
         
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
             hidden_states=hidden_states,
@@ -106,11 +106,8 @@ class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
         # Apply LNS scaling ONLY to visual token positions if they exist
         if vis_token_indices is not None:
             vis_start, vis_end = vis_token_indices
-            # Clone to avoid in-place operations that might affect gradients
-            scaled_hidden_states = hidden_states.clone()
             # Apply LNS scaling only to visual tokens [batch, vis_start:vis_end, dim]
-            scaled_hidden_states[:, vis_start:vis_end, :] = scale * hidden_states[:, vis_start:vis_end, :]
-            hidden_states = scaled_hidden_states
+            hidden_states[:, vis_start:vis_end, :] *= scale
             
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
@@ -187,10 +184,10 @@ class LlamaModel(hf.LlamaModel):  # type: ignore[misc]
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
         
-        # Use HF attention mask handling - let the parent class handle this
-        # For now, we'll handle a simple case without complex attention masking
-        if attention_mask is None:
-            attention_mask = torch.ones((batch_size, seq_length), dtype=torch.bool, device=inputs_embeds.device)
+        # CRITICAL FIX: Prismatic's 2D attention mask causes IndexError in HF LlamaAttention
+        # HF expects 4D masks, but Prismatic provides 2D. Setting to None lets HF handle causal masking.
+        # For multimodal training, padding is handled upstream in the data collator.
+        effective_attention_mask_for_layers = None
         
         hidden_states = inputs_embeds
 
@@ -217,20 +214,30 @@ class LlamaModel(hf.LlamaModel):  # type: ignore[misc]
             if self.gradient_checkpointing and self.training:
                 def create_custom_forward(module):
                     def custom_forward(*inputs):
-                        # None for past_key_value
-                        return module(*inputs, output_attentions, None, vis_token_indices)
+                        # Unpack inputs properly
+                        hidden_states_checkpoint, attention_mask_checkpoint, position_ids_checkpoint = inputs
+                        return module(
+                            hidden_states_checkpoint,
+                            attention_mask=attention_mask_checkpoint,
+                            position_ids=position_ids_checkpoint,
+                            past_key_value=None,  # Can't use past_key_value with gradient checkpointing
+                            output_attentions=output_attentions,
+                            use_cache=False,  # Can't use cache with gradient checkpointing
+                            vis_token_indices=vis_token_indices,
+                        )
                     return custom_forward
 
                 layer_outputs = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(decoder_layer),
                     hidden_states,
-                    attention_mask,
+                    effective_attention_mask_for_layers,
                     position_ids,
+                    use_reentrant=False
                 )
             else:
                 layer_outputs = decoder_layer(
                     hidden_states,
-                    attention_mask=attention_mask,
+                    attention_mask=effective_attention_mask_for_layers,
                     position_ids=position_ids,
                     past_key_value=past_key_value,
                     output_attentions=output_attentions,
