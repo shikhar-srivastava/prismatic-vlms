@@ -50,7 +50,6 @@ from prismatic.util import set_global_seed
 
 # Disable Tokenizers Parallelism to Play Nice w/ PyTorch Multiprocessing DataLoaders
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-# Added by Shikhar
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 # Initialize Overwatch =>> Wraps `logging.Logger`
 os.environ['TORCH_NCCL_BLOCKING_WAIT'] = '1'  # not to enforce timeout

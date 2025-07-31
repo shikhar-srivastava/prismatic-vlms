@@ -59,7 +59,7 @@ repository = "https://github.com/TRI-ML/prismatic-vlms"
 documentation = "https://github.com/TRI-ML/prismatic-vlms"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["prismatic"]
 exclude = ["cache"]
 
 [tool.setuptools.package-data]
