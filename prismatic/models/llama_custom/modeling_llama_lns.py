@@ -35,6 +35,11 @@ class LlamaRMSNorm(hf.LlamaRMSNorm):  # type: ignore[misc]
 # 2.  Decoder layer with LNS branch
 # ---------------------------------------------------------------------------
 class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
+    def __init__(self, config, layer_idx: int):
+        super().__init__(config, layer_idx)
+        # Store layer_idx as an attribute for use in forward pass
+        self.layer_index = layer_idx
+    
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -118,7 +123,7 @@ class LlamaModel(hf.LlamaModel):  # type: ignore[misc]
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         vis_token_indices: Optional[Tuple[int, int]] = None,  # Vision-LNS support (ignored in LNS mode)
-yow        **kwargs  # Accept additional kwargs for compatibility with newer transformers versions
+        **kwargs  # Accept additional kwargs for compatibility with newer transformers versions
     ):
         # Just call the parent implementation - vis_token_indices is ignored
         return super().forward(
