@@ -93,7 +93,8 @@ def create_validation_sets(
     finetune_val_size: int,
     output_dir: Path,
     seed: int = 42,
-    hf_token: str = None
+    hf_token: str = None,
+    llm_checkpoint_path: str = None
 ):
     """
     Create validation sets for both align and finetune stages.
@@ -119,11 +120,18 @@ def create_validation_sets(
     
     # Load LLM backbone and tokenizer
     overwatch.info(f"Loading LLM backbone: {model_cfg.llm_backbone_id}")
+    
+    # Build config dict to pass checkpoint path override if provided
+    cfg_dict = {}
+    if llm_checkpoint_path is not None:
+        cfg_dict['llm_checkpoint_path'] = llm_checkpoint_path
+        overwatch.info(f"Using LLM checkpoint path override: {llm_checkpoint_path}")
+    
     llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
         model_cfg.llm_backbone_id,
         llm_max_length=model_cfg.llm_max_length,
         hf_token=hf_token,
-        cfg=None  # No specific config needed for validation set creation
+        cfg=cfg_dict if cfg_dict else None
     )
     
     # Create validation sets for both stages
@@ -201,6 +209,8 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--hf_token", type=str, default=None,
                        help="HuggingFace token (if needed)")
+    parser.add_argument("--llm_checkpoint_path", type=str, default=None,
+                       help="Override LLM checkpoint path (for custom models)")
     
     args = parser.parse_args()
     
@@ -225,7 +235,8 @@ def main():
         finetune_val_size=args.finetune_val_size,
         output_dir=args.output_dir,
         seed=args.seed,
-        hf_token=args.hf_token
+        hf_token=args.hf_token,
+        llm_checkpoint_path=args.llm_checkpoint_path
     )
     
     print("=" * 60)
