@@ -74,6 +74,35 @@ def load(
         cfg = json.load(f)
         model_cfg = cfg["model"]
 
+    # ------------------------------------------------------------------
+    # [CRITICAL FIX] Set normalization type from config before loading LLM backbone
+    # This ensures custom LLaMA models use the correct modeling file during evaluation
+    # ------------------------------------------------------------------
+    use_lns = cfg.get("use_lns", False)
+    use_pre = cfg.get("use_pre", False)
+    use_vision_lns = cfg.get("use_vision_lns", False)
+    
+    # Validate normalization flags (same as pretrain.py)
+    assert not (use_lns and use_pre), "Cannot use both use_lns and use_pre simultaneously"
+    assert not (use_vision_lns and use_lns), "Cannot use both use_vision_lns and use_lns simultaneously"
+    assert not (use_vision_lns and use_pre), "Cannot use both use_vision_lns and use_pre simultaneously"
+    
+    # Set environment variable based on config flags
+    if use_lns:
+        os.environ["NORM_TYPE"] = "lns"
+        overwatch.info("[bold green]Using LNS (Layer Norm Scaling) normalization from config[/]")
+    elif use_pre:
+        os.environ["NORM_TYPE"] = "pre"
+        overwatch.info("[bold green]Using PRE (Pre-Normalization) normalization from config[/]")
+    elif use_vision_lns:
+        os.environ["NORM_TYPE"] = "vision_lns"
+        overwatch.info("[bold green]Using Vision-LNS (Layer Norm Scaling) normalization from config[/]")
+    else:
+        # Default to PRE if no explicit flag is set (maintains backward compatibility)
+        os.environ["NORM_TYPE"] = "pre"
+        overwatch.info("[bold yellow]No normalization type specified in config, defaulting to PRE[/]")
+    # ------------------------------------------------------------------
+
     # = Load Individual Components necessary for Instantiating a VLM =
     #   =>> Print Minimal Config
     overwatch.info(
@@ -81,6 +110,7 @@ def load(
         f"             Vision Backbone =>> [bold]{model_cfg['vision_backbone_id']}[/]\n"
         f"             LLM Backbone    =>> [bold]{model_cfg['llm_backbone_id']}[/]\n"
         f"             Arch Specifier  =>> [bold]{model_cfg['arch_specifier']}[/]\n"
+        f"             Norm Type       =>> [bold green]{os.environ.get('NORM_TYPE', 'pre').upper()}[/]\n"
         f"             Mitigation Strategy      =>> [bold]{cfg.get('mitigation', None)}[/]"
         f"             LoRA      =>> [bold]rank: {cfg.get('lora_rank', None)}, alpha: {cfg.get('lora_alpha', None)}, lora_target_modules: {cfg.get('lora_target_modules', None)}[/]"
         f"             Load in 8bit     =>> [bold]{cfg.get('load_8bit', False)}[/]"
