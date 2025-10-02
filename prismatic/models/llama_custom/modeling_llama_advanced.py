@@ -341,7 +341,9 @@ class LlamaDecoderLayer(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
+        cache_position: Optional[torch.LongTensor] = None,  # HF transformers compatibility
         vis_token_indices: Optional[Tuple[int, int]] = None,  # Vision-LNS support (ignored in this implementation)
+        **kwargs,  # Accept additional kwargs for compatibility
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
         Args:

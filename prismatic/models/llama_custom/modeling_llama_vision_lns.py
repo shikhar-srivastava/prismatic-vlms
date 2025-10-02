@@ -53,6 +53,7 @@ class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
+        cache_position: Optional[torch.LongTensor] = None,  # HF transformers compatibility
         vis_token_indices: Optional[Tuple[int, int]] = None,  # (start_idx, end_idx)
         **kwargs: Any,
     ):
@@ -66,6 +67,7 @@ class LlamaDecoderLayer(hf.LlamaDecoderLayer):  # type: ignore[misc]
                 past_key_value=past_key_value,
                 output_attentions=output_attentions,
                 use_cache=use_cache,
+                cache_position=cache_position,
                 **kwargs,
             )
 
