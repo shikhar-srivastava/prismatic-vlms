@@ -118,6 +118,7 @@ class LlamaModel(hf.LlamaModel):  # type: ignore[misc]
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         vis_token_indices: Optional[Tuple[int, int]] = None,  # Vision-LNS support (ignored in LNS mode)
+        **kwargs  # Accept additional kwargs for compatibility with newer transformers versions
     ):
         # Just call the parent implementation - vis_token_indices is ignored
         return super().forward(
@@ -130,6 +131,7 @@ class LlamaModel(hf.LlamaModel):  # type: ignore[misc]
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            **kwargs  # Pass through additional kwargs
         )
 
 
