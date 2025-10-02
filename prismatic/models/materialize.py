@@ -92,6 +92,26 @@ LLM_BACKBONES = {
     # Legacy support for backward compatibility
     "llama-130m-lns": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
     "llama-130m-pre": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    
+    # === Custom 60M LLaMa Models ===
+    "llama-60m": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    "llama-60m-lns": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    "llama-60m-pre": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    
+    # === Custom 250M LLaMa Models ===
+    "llama-250m": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    "llama-250m-lns": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    "llama-250m-pre": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    
+    # === Custom 350M LLaMa Models ===
+    "llama-350m": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    "llama-350m-lns": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    "llama-350m-pre": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    
+    # === Custom 1B LLaMa Models ===
+    "llama-1b": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    "llama-1b-lns": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
+    "llama-1b-pre": {"cls": CustomLlamaLLMBackbone, "kwargs": {}},
 }
 
 # fmt: on

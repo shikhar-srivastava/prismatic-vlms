@@ -237,6 +237,90 @@ class Stage0_llama_130m(LLaVa_v15_Reproduction_7B):
     finetune_per_device_batch_size: int = 8
 
 @dataclass
+class Stage0_llama_60m_lns(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+60m-lns"
+    llm_backbone_id: str = "llama-60m-lns"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_60m_pre(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+60m-pre"
+    llm_backbone_id: str = "llama-60m-pre"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_60m(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+60m"
+    llm_backbone_id: str = "llama-60m"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_250m_lns(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+250m-lns"
+    llm_backbone_id: str = "llama-250m-lns"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_250m_pre(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+250m-pre"
+    llm_backbone_id: str = "llama-250m-pre"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_250m(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+250m"
+    llm_backbone_id: str = "llama-250m"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_350m_lns(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+350m-lns"
+    llm_backbone_id: str = "llama-350m-lns"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_350m_pre(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+350m-pre"
+    llm_backbone_id: str = "llama-350m-pre"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_350m(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+350m"
+    llm_backbone_id: str = "llama-350m"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_1b_lns(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+1b-lns"
+    llm_backbone_id: str = "llama-1b-lns"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_1b_pre(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+1b-pre"
+    llm_backbone_id: str = "llama-1b-pre"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
+class Stage0_llama_1b(LLaVa_v15_Reproduction_7B):
+    model_id: str = "stage0-llama+1b"
+    llm_backbone_id: str = "llama-1b"
+    align_per_device_batch_size: int = 16
+    finetune_per_device_batch_size: int = 8
+
+@dataclass
 class LLaVa_v15_Reproduction_13B(LLaVa_v15_Reproduction_7B):
     model_id: str = "reproduction-llava-v15+13b"
     llm_backbone_id: str = "vicuna-v15-13b"
@@ -601,6 +685,26 @@ class ModelRegistry(Enum):
     STAGE0_LLAMA_130M = Stage0_llama_130m
     STAGE0_LLAMA_130M_LNS = Stage0_llama_130m_lns
     STAGE0_LLAMA_130M_PRE = Stage0_llama_130m_pre
+    
+    # === Custom LLaMA 60M Variants ===
+    STAGE0_LLAMA_60M = Stage0_llama_60m
+    STAGE0_LLAMA_60M_LNS = Stage0_llama_60m_lns
+    STAGE0_LLAMA_60M_PRE = Stage0_llama_60m_pre
+    
+    # === Custom LLaMA 250M Variants ===
+    STAGE0_LLAMA_250M = Stage0_llama_250m
+    STAGE0_LLAMA_250M_LNS = Stage0_llama_250m_lns
+    STAGE0_LLAMA_250M_PRE = Stage0_llama_250m_pre
+    
+    # === Custom LLaMA 350M Variants ===
+    STAGE0_LLAMA_350M = Stage0_llama_350m
+    STAGE0_LLAMA_350M_LNS = Stage0_llama_350m_lns
+    STAGE0_LLAMA_350M_PRE = Stage0_llama_350m_pre
+    
+    # === Custom LLaMA 1B Variants ===
+    STAGE0_LLAMA_1B = Stage0_llama_1b
+    STAGE0_LLAMA_1B_LNS = Stage0_llama_1b_lns
+    STAGE0_LLAMA_1B_PRE = Stage0_llama_1b_pre
     
     # === LLaVa v1.5 Base Reproductions ===
     REPRODUCTION_7B = LLaVa_v15_Reproduction_7B

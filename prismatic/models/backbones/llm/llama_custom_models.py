@@ -59,6 +59,110 @@ CUSTOM_LLAMA_MODELS = {
         "local_checkpoint_path": "../large-activations/130m_res_pre_lr1e-3_llama_tokenizer/model_20001",
         "default_norm_type": "pre"
     },
+    
+    # === Custom 60M LLaMa Models ===
+    "llama-60m": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/60m_res_lns_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/60m_res_lns_lr1e-3_llama/model_20001",
+        "default_norm_type": "pre"
+    },
+    "llama-60m-lns": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/60m_res_lns_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/60m_res_lns_lr1e-3_llama/model_20001",
+        "default_norm_type": "lns"
+    },
+    "llama-60m-pre": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/60m_res_pre_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/60m_res_pre_lr1e-3_llama/model_20001",
+        "default_norm_type": "pre"
+    },
+    
+    # === Custom 250M LLaMa Models ===
+    "llama-250m": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/250m_res_lns_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/250m_res_lns_lr1e-3_llama/model_20001",
+        "default_norm_type": "pre"
+    },
+    "llama-250m-lns": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/250m_res_lns_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/250m_res_lns_lr1e-3_llama/model_20001",
+        "default_norm_type": "lns"
+    },
+    "llama-250m-pre": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/250m_res_pre_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/250m_res_pre_lr1e-3_llama/model_20001",
+        "default_norm_type": "pre"
+    },
+    
+    # === Custom 350M LLaMa Models ===
+    "llama-350m": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/350m_res_lns_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/350m_res_lns_lr1e-3_llama/model_20001",
+        "default_norm_type": "pre"
+    },
+    "llama-350m-lns": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/350m_res_lns_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/350m_res_lns_lr1e-3_llama/model_20001",
+        "default_norm_type": "lns"
+    },
+    "llama-350m-pre": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/350m_res_pre_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/350m_res_pre_lr1e-3_llama/model_20001",
+        "default_norm_type": "pre"
+    },
+    
+    # === Custom 1B LLaMa Models ===
+    "llama-1b": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/1b_res_lns_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/1b_res_lns_lr1e-3_llama/model_20001",
+        "default_norm_type": "pre"
+    },
+    "llama-1b-lns": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/1b_res_lns_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/1b_res_lns_lr1e-3_llama/model_20001",
+        "default_norm_type": "lns"
+    },
+    "llama-1b-pre": {
+        "llm_family": "llama-custom", 
+        "llm_cls": None,
+        "hf_hub_path": None,
+        "local_config_path": "../large-activations/1b_res_pre_lr1e-3_llama/model_20001/config.json",
+        "local_checkpoint_path": "../large-activations/1b_res_pre_lr1e-3_llama/model_20001",
+        "default_norm_type": "pre"
+    },
 }
 # fmt: on
 
