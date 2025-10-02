@@ -22,30 +22,53 @@
 #   --output_dir validation_sets/reproduction-llava-v15+7b 
 
 # LLaMa 130m with LNS norm
-echo "Creating validation sets for stage0-llama+130m..."
-python scripts/create_validation_sets.py \
-  --model stage0-llama+130m \
-  --dataset llava-v15 \
-  --align_val_size 200 \
-  --finetune_val_size 200 \
-  --output_dir validation_sets/stage0-llama+130m
+# echo "Creating validation sets for stage0-llama+130m..."
+# python scripts/create_validation_sets.py \
+#   --model stage0-llama+130m \
+#   --dataset llava-v15 \
+#   --align_val_size 200 \
+#   --finetune_val_size 200 \
+#   --output_dir validation_sets/stage0-llama+130m
 
-# LLaMa 130m with LNS norm
-echo "Creating validation sets for stage0-llama+130m-lns..."
-python scripts/create_validation_sets.py \
-  --model stage0-llama+130m-lns \
-  --dataset llava-v15 \
-  --align_val_size 200 \
-  --finetune_val_size 200 \
-  --output_dir validation_sets/stage0-llama+130m-lns
+# # LLaMa 130m with LNS norm
+# echo "Creating validation sets for stage0-llama+130m-lns..."
+# python scripts/create_validation_sets.py \
+#   --model stage0-llama+130m-lns \
+#   --dataset llava-v15 \
+#   --align_val_size 200 \
+#   --finetune_val_size 200 \
+#   --output_dir validation_sets/stage0-llama+130m-lns
 
-# LLaMa 130m with PRE norm  
-echo "Creating validation sets for stage0-llama+130m-pre..."
+# # LLaMa 130m with PRE norm  
+# echo "Creating validation sets for stage0-llama+130m-pre..."
+# python scripts/create_validation_sets.py \
+#   --model stage0-llama+130m-pre \
+#   --dataset llava-v15 \
+#   --align_val_size 200 \
+#   --finetune_val_size 200 \
+#   --output_dir validation_sets/stage0-llama+130m-pre
+
+
 python scripts/create_validation_sets.py \
-  --model stage0-llama+130m-pre \
+  --model stage0-llama+60m \
   --dataset llava-v15 \
   --align_val_size 200 \
   --finetune_val_size 200 \
-  --output_dir validation_sets/stage0-llama+130m-pre
+  --output_dir validation_sets/stage0-llama+60m
+
+python scripts/create_validation_sets.py \
+  --model stage0-llama+250m \
+  --dataset llava-v15 \
+  --align_val_size 200 \
+  --finetune_val_size 200 \
+  --output_dir validation_sets/stage0-llama+250m
+
+python scripts/create_validation_sets.py \
+  --model stage0-llama+350m \
+  --dataset llava-v15 \
+  --align_val_size 200 \
+  --finetune_val_size 200 \
+  --output_dir validation_sets/stage0-llama+350m
+
 
 echo "All validation sets created successfully!" 
