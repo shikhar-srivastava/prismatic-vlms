@@ -155,13 +155,8 @@ class WeightsBiasesTracker:
                         ax.set_title("Batch-Averaged Projected Visual Embeddings per Dimension")
                         ax.grid(True, linestyle="--", alpha=0.7)
                         
-                        # Use non-blocking figure conversion with timeout protection
-                        import io
-                        buf = io.BytesIO()
-                        fig.savefig(buf, format='png', bbox_inches='tight')
-                        buf.seek(0)
-                        processed_metrics["projected_embeddings_values_plot"] = wandb.Image(buf)
-                        buf.close()
+                        # Pass figure directly to wandb.Image (it handles the conversion)
+                        processed_metrics["projected_embeddings_values_plot"] = wandb.Image(fig)
                         plt.close(fig)
                     except Exception as e:
                         overwatch.warning(f"Failed to log plot for {key}: {e}")
