@@ -37,7 +37,7 @@ class JSONLinesTracker:
         for key, value in metrics.items():
             if isinstance(value, torch.Tensor):
                 # Skip complex tensor objects that can't be easily serialized
-                if key in ["projected_embeddings_histogram", "covariance_matrix"]:
+                if key in ["projected_embeddings_histogram", "covariance_matrix", "projected_embeddings_values"]:
                     continue
                 
                 # Handle scalar tensors
@@ -45,6 +45,10 @@ class JSONLinesTracker:
                     serializable_metrics[key] = value.item()
                 else:
                     # For multi-dimensional tensors, we'll just store stats to avoid huge files
+                    # Skip tensors that are too large
+                    if value.numel() > 1000000:
+                        overwatch.warning(f"Skipping large tensor {key} in JSON log ({value.numel()} elements)")
+                        continue
                     serializable_metrics[f"{key}_shape"] = list(value.shape)
                     serializable_metrics[f"{key}_mean"] = float(value.mean().item())
                     serializable_metrics[f"{key}_std"] = float(value.std().item())
@@ -55,8 +59,11 @@ class JSONLinesTracker:
                     continue
                 serializable_metrics[key] = value
         
-        with jsonlines.open(self.run_dir / f"{self.run_id}.jsonl", mode="a", sort_keys=True) as js_tracker:
-            js_tracker.write(serializable_metrics)
+        try:
+            with jsonlines.open(self.run_dir / f"{self.run_id}.jsonl", mode="a", sort_keys=True) as js_tracker:
+                js_tracker.write(serializable_metrics)
+        except Exception as e:
+            overwatch.warning(f"Failed to write metrics to JSON: {e}")
 
     def finalize(self) -> None:
         return
@@ -135,6 +142,11 @@ class WeightsBiasesTracker:
                 
                 elif key == "projected_embeddings_values":
                     try:
+                        # Skip if tensor is too large to prevent hangs
+                        if value.numel() > 100000:
+                            overwatch.warning(f"Skipping plot for {key}: tensor too large ({value.numel()} elements)")
+                            continue
+                        
                         values = value.numpy()
                         fig, ax = plt.subplots(figsize=(16, 12))
                         ax.plot(values, linewidth=1.0)
@@ -142,10 +154,22 @@ class WeightsBiasesTracker:
                         ax.set_ylabel("Batch-Averaged Value")
                         ax.set_title("Batch-Averaged Projected Visual Embeddings per Dimension")
                         ax.grid(True, linestyle="--", alpha=0.7)
-                        processed_metrics["projected_embeddings_values_plot"] = wandb.Image(fig)
+                        
+                        # Use non-blocking figure conversion with timeout protection
+                        import io
+                        buf = io.BytesIO()
+                        fig.savefig(buf, format='png', bbox_inches='tight')
+                        buf.seek(0)
+                        processed_metrics["projected_embeddings_values_plot"] = wandb.Image(buf)
+                        buf.close()
                         plt.close(fig)
                     except Exception as e:
                         overwatch.warning(f"Failed to log plot for {key}: {e}")
+                        # Make sure to close figure even on error to prevent memory leaks
+                        try:
+                            plt.close('all')
+                        except:
+                            pass
 
                 # Handle other tensor cases (e.g., histograms) as needed
                 else:
@@ -176,8 +200,30 @@ class WeightsBiasesTracker:
     @staticmethod
     def finalize() -> None:
         if overwatch.is_rank_zero():
-            wandb.finish()
-        time.sleep(30)
+            try:
+                # Add timeout protection for wandb.finish() to prevent indefinite hangs
+                overwatch.info("Finalizing WandB with timeout protection...")
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("WandB finish timed out after 120 seconds")
+                
+                # Set 2-minute timeout for wandb.finish()
+                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(120)
+                
+                try:
+                    wandb.finish()
+                    signal.alarm(0)  # Cancel the alarm
+                    overwatch.info("WandB finalized successfully")
+                except TimeoutError:
+                    overwatch.warning("WandB finish timed out, forcing exit")
+                    signal.alarm(0)
+                finally:
+                    signal.signal(signal.SIGALRM, old_handler)
+            except Exception as e:
+                overwatch.warning(f"Error during WandB finalization: {e}")
+        time.sleep(10)  # Reduced from 30s to 10s
 
 # === Core Metrics Container ===
 class Metrics:
