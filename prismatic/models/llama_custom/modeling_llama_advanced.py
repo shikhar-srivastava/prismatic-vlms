@@ -704,8 +704,17 @@ class LlamaModel(LlamaPreTrainedModel):
 
                 def create_custom_forward(module):
                     def custom_forward(*inputs):
-                        # None for past_key_value
-                        return module(*inputs, output_attentions, None, vis_token_indices)
+                        # Explicitly unpack inputs to avoid any positional argument mismatches
+                        hidden_states_checkpoint, attention_mask_checkpoint, position_ids_checkpoint = inputs
+                        return module(
+                            hidden_states_checkpoint,
+                            attention_mask=attention_mask_checkpoint,
+                            position_ids=position_ids_checkpoint,
+                            past_key_value=None,
+                            output_attentions=output_attentions, 
+                            use_cache=False,
+                            vis_token_indices=vis_token_indices
+                        )
 
                     return custom_forward
 
