@@ -548,10 +548,16 @@ def pretrain(cfg: PretrainConfig) -> None:
 
     # Finalize
     overwatch.info("Done with Training =>> Finalizing Metrics")
+    # Add barrier before finalizing to ensure all ranks have completed training
+    dist.barrier()
     metrics.finalize()
 
     # And... we're done!
     overwatch.info("... and that's all, folks!")
+    # Add a small delay to ensure all processes complete metrics finalization
+    import time
+    time.sleep(2)
+    # Final barrier before destroying process group
     dist.barrier()
     dist.destroy_process_group()
 
