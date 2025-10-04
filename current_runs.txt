@@ -416,3 +416,19 @@ finetune+llama+130m-prepre-lns [2025-10-02 15:37:04]
 Warning: RefCOCO metrics file not found at evaluations/finetune+llama+130m-prepre-lns/refcoco/refcoco-slim/prism-clip+7b/metrics.json. Ignoring RefCOCO from calculations.
 GQA: 0.2812, Text-VQA Pure: 0.0386, Text-VQA OCR: 0.0025, VQA-v2: 0.3327, RefCOCO: N/A, VL Avg: 0.0094, NLU Avg: 0.3346, NLU Delta: -0.0156, NLG Avg: 0.0320, NLG Delta: 0.1512, NL Avg: 0.0584, NL Delta: 0.1743
 
+finetune+llama+130m-prelns-lns [2025-10-04 14:47:38]
+Warning: RefCOCO metrics file not found at evaluations/finetune+llama+130m-prelns-lns/refcoco/refcoco-slim/prism-clip+7b/metrics.json. Ignoring RefCOCO from calculations.
+GQA: 0.3467, Text-VQA Pure: 0.0865, Text-VQA OCR: 0.0798, VQA-v2: 0.4477, RefCOCO: N/A, VL Avg: 0.1369, NLU Avg: 0.3311, NLU Delta: -0.0114, NLG Avg: 0.1547, NLG Delta: -0.1545, NL Avg: 0.2108, NL Delta: -0.2105
+
+finetune+llama+130m-prepre-pre [2025-10-04 15:16:58]
+Warning: RefCOCO metrics file not found at evaluations/finetune+llama+130m-prepre-pre/refcoco/refcoco-slim/prism-clip+7b/metrics.json. Ignoring RefCOCO from calculations.
+GQA: 0.3340, Text-VQA Pure: 0.1016, Text-VQA OCR: 0.0547, VQA-v2: 0.4350, RefCOCO: N/A, VL Avg: 0.1197, NLU Avg: 0.3324, NLU Delta: -0.0135, NLG Avg: 0.1764, NLG Delta: 0.0068, NL Avg: 0.2305, NL Delta: 0.0022
+
+finetune+llama+130m-prelns-pre [2025-10-04 15:47:00]
+Warning: RefCOCO metrics file not found at evaluations/finetune+llama+130m-prelns-pre/refcoco/refcoco-slim/prism-clip+7b/metrics.json. Ignoring RefCOCO from calculations.
+GQA: 0.3203, Text-VQA Pure: 0.0619, Text-VQA OCR: 0.0343, VQA-v2: 0.3894, RefCOCO: N/A, VL Avg: 0.0784, NLU Avg: 0.3180, NLU Delta: 0.0016, NLG Avg: 0.0501, NLG Delta: -0.0499, NL Avg: 0.0865, NL Delta: -0.0861
+
+finetune+llama+130m-prepre-lns [2025-10-04 16:17:47]
+Warning: RefCOCO metrics file not found at evaluations/finetune+llama+130m-prepre-lns/refcoco/refcoco-slim/prism-clip+7b/metrics.json. Ignoring RefCOCO from calculations.
+GQA: 0.2812, Text-VQA Pure: 0.0386, Text-VQA OCR: 0.0025, VQA-v2: 0.3327, RefCOCO: N/A, VL Avg: 0.0094, NLU Avg: 0.3251, NLU Delta: -0.0061, NLG Avg: 0.0072, NLG Delta: 0.1760, NL Avg: 0.0141, NL Delta: 0.2187
+

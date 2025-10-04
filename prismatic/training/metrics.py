@@ -201,11 +201,11 @@ class WeightsBiasesTracker:
                 import signal
                 
                 def timeout_handler(signum, frame):
-                    raise TimeoutError("WandB finish timed out after 120 seconds")
+                    raise TimeoutError("WandB finish timed out after 60 seconds")
                 
-                # Set 2-minute timeout for wandb.finish()
+                # Set 1-minute timeout for wandb.finish() (reduced from 2 minutes)
                 old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(120)
+                signal.alarm(60)
                 
                 try:
                     wandb.finish()
@@ -214,11 +214,19 @@ class WeightsBiasesTracker:
                 except TimeoutError:
                     overwatch.warning("WandB finish timed out, forcing exit")
                     signal.alarm(0)
+                    # Force wandb to exit even if it's stuck
+                    try:
+                        import os
+                        # Kill any lingering wandb processes
+                        os.system("pkill -9 -f wandb-service 2>/dev/null")
+                    except:
+                        pass
                 finally:
                     signal.signal(signal.SIGALRM, old_handler)
             except Exception as e:
                 overwatch.warning(f"Error during WandB finalization: {e}")
-        time.sleep(10)  # Reduced from 30s to 10s
+        # Reduce sleep time to minimize waiting in DDP scenarios
+        time.sleep(3)
 
 # === Core Metrics Container ===
 class Metrics:
