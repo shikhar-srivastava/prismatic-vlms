@@ -50,43 +50,42 @@
 
 
 # LLaMa 60m with PRE norm (using _llama checkpoint)
-echo "Creating validation sets for stage0-llama+60m-pre (using 60m_res_pre_lr1e-3_llama)..."
-python scripts/create_validation_sets.py \
-  --model stage0-llama+60m \
-  --dataset llava-v15 \
-  --align_val_size 200 \
-  --finetune_val_size 200 \
-  --llm_checkpoint_path "/scratch/ssrivas9/large-activations/60m_res_pre_lr1e-3_llama/model_20001" \
-  --output_dir validation_sets/stage0-llama+60m-pre-llama
+# echo "Creating validation sets for stage0-llama+60m-pre (using 60m_res_pre_lr1e-3_llama)..."
+# python scripts/create_validation_sets.py \
+#   --model stage0-llama+60m \
+#   --dataset llava-v15 \
+#   --align_val_size 200 \
+#   --finetune_val_size 200 \
+#   --llm_checkpoint_path "/scratch/ssrivas9/large-activations/60m_res_pre_lr1e-3_llama/model_20001" \
+#   --output_dir validation_sets/stage0-llama+60m-llama
 
-# LLaMa 60m with LNS norm (using _llama checkpoint)
-echo "Creating validation sets for stage0-llama+60m-lns (using 60m_res_pre_lr1e-3_llama)..."
-python scripts/create_validation_sets.py \
-  --model stage0-llama+60m \
-  --dataset llava-v15 \
-  --align_val_size 200 \
-  --finetune_val_size 200 \
-  --llm_checkpoint_path "/scratch/ssrivas9/large-activations/60m_res_pre_lr1e-3_llama/model_20001" \
-  --output_dir validation_sets/stage0-llama+60m-lns-llama
+# echo "Creating validation sets for stage0-llama+130m (using 130m_res_pre_lr1e-3_llama)..."
+# python scripts/create_validation_sets.py \
+#   --model stage0-llama+130m \
+#   --dataset llava-v15 \
+#   --align_val_size 200 \
+#   --finetune_val_size 200 \
+#   --llm_checkpoint_path "/scratch/ssrivas9/large-activations/130m_res_pre_lr1e-3_llama/model_20001" \
+#   --output_dir validation_sets/stage0-llama+130m-llama
 
-# LLaMa 250m with different checkpoint variants
-echo "Creating validation sets for stage0-llama+250m (using 250m_res_lns_lr1e-3_llama)..."
-python scripts/create_validation_sets.py \
-  --model stage0-llama+250m \
-  --dataset llava-v15 \
-  --align_val_size 200 \
-  --finetune_val_size 200 \
-  --llm_checkpoint_path "/scratch/ssrivas9/large-activations/250m_res_lns_lr1e-3_llama/model_20001" \
-  --output_dir validation_sets/stage0-llama+250m-llama
+# # LLaMa 250m with different checkpoint variants
+# echo "Creating validation sets for stage0-llama+250m (using 250m_res_pre_lr1e-3_llama)..."
+# python scripts/create_validation_sets.py \
+#   --model stage0-llama+250m \
+#   --dataset llava-v15 \
+#   --align_val_size 200 \
+#   --finetune_val_size 200 \
+#   --llm_checkpoint_path "/scratch/ssrivas9/large-activations/250m_res_pre_lr1e-3_llama/model_40001" \
+#   --output_dir validation_sets/stage0-llama+250m-llama
 
 # LLaMa 350m with different checkpoint variants
-echo "Creating validation sets for stage0-llama+350m (using 350m_res_lns_lr1e-3_llama)..."
+echo "Creating validation sets for stage0-llama+350m (using 350m_res_pre_lr5e-4_llama)..."
 python scripts/create_validation_sets.py \
   --model stage0-llama+350m \
   --dataset llava-v15 \
   --align_val_size 200 \
   --finetune_val_size 200 \
-  --llm_checkpoint_path "/scratch/ssrivas9/large-activations/350m_res_lns_lr1e-3_llama/model_20001" \
+  --llm_checkpoint_path "/scratch/ssrivas9/large-activations/350m_res_pre_lr5e-4_llama/model_60001" \
   --output_dir validation_sets/stage0-llama+350m-llama
 
 
