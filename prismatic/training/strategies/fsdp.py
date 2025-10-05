@@ -110,8 +110,13 @@ class FSDPStrategy(TrainingStrategy):
         epoch: int,
         train_loss: Optional[float] = None,
         only_trainable: bool = True,
+        rewrap: bool = True,
     ) -> None:
-        """Save a checkpoint to the `run_dir` only containing the state_dicts for trainable parameters by default."""
+        """Save a checkpoint to the `run_dir` only containing the state_dicts for trainable parameters by default.
+        
+        Args:
+            rewrap: Not used in FSDP strategy (included for interface consistency with DDP).
+        """
         assert isinstance(self.vlm, FSDP), "FSDPStrategy.save_checkpoint assumes VLM is already wrapped in FSDP!"
 
         # Summon Full State Dictionary =>> Reconstitute from Shards
@@ -411,6 +416,11 @@ class FSDPStrategy(TrainingStrategy):
     def clip_grad_norm(self) -> None:
         # Note =>> FSDP uses a custom `clip_grad_norm_` function; requires *uniform grad dtype*
         self.vlm.clip_grad_norm_(max_norm=self.max_grad_norm)
+    
+    def cleanup_ddp(self) -> None:
+        """Cleanup method for interface consistency with DDPStrategy.
+        FSDP doesn't require explicit cleanup like DDP does."""
+        pass
 
 def unwrap_model(model: nn.Module) -> nn.Module:
     """

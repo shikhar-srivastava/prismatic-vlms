@@ -554,9 +554,16 @@ def pretrain(cfg: PretrainConfig) -> None:
 
     # And... we're done!
     overwatch.info("... and that's all, folks!")
-    # Add a small delay to ensure all processes complete metrics finalization
+    
+    # CRITICAL: Cleanup DDP on ALL ranks before destroying process group
+    # This prevents hanging caused by DDP expecting process group to exist
+    if hasattr(train_strategy, 'cleanup_ddp'):
+        overwatch.info("Cleaning up DDP wrappers on all ranks...")
+        train_strategy.cleanup_ddp()
+    
+    # Add a small delay to ensure all processes complete cleanup
     import time
-    time.sleep(2)
+    time.sleep(1)
     # Final barrier before destroying process group
     dist.barrier()
     dist.destroy_process_group()

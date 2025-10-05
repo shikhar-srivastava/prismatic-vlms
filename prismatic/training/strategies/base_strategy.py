@@ -1435,7 +1435,7 @@ class TrainingStrategy(ABC):
 
                         # Check for Termination & Save Final Checkpoint (in case `max_steps` is not None)
                         if self.max_steps is not None and metrics.global_step >= self.max_steps:
-                            self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
+                            self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item(), rewrap=False)
                             dist.barrier()
                             return
 
@@ -1529,10 +1529,12 @@ class TrainingStrategy(ABC):
 
             # Save checkpoint at end each epoch (if `self.max_steps` is None)
             if self.max_steps is None:
+                # Check if this is the last epoch - if so, don't rewrap DDP to avoid deadlock
+                is_last_epoch = (epoch == self.epochs - 1)
                 if self.save_logits:
-                    self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, None)
+                    self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, None, rewrap=not is_last_epoch)
                 else:
-                    self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
+                    self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item(), rewrap=not is_last_epoch)
                 dist.barrier()
 
 

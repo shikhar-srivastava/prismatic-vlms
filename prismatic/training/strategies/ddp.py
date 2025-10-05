@@ -38,8 +38,14 @@ class DDPStrategy(TrainingStrategy):
         epoch: int,
         train_loss: Optional[float] = None,
         only_trainable: bool = True,
+        rewrap: bool = True,
     ) -> None:
-        """Save a checkpoint to the `run_dir` only containing the state_dicts for trainable parameters by default."""
+        """Save a checkpoint to the `run_dir` only containing the state_dicts for trainable parameters by default.
+        
+        Args:
+            rewrap: If True, rewrap model with DDP after saving (for intermediate checkpoints).
+                    If False, leave unwrapped (for final checkpoint at end of training).
+        """
         # Remove DDP wrappers only if the LLM backbone is actually wrapped in DDP (i.e., stages
         # other than `align`). For the `align` stage the backbone is kept frozen and *not* wrapped
         # to conserve memory, so we skip unwrapping to avoid disrupting ongoing DDP training on
@@ -80,7 +86,8 @@ class DDPStrategy(TrainingStrategy):
         shutil.copy(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
 
         # Re-wrap the model with DDP so that training can continue seamlessly after the checkpoint
-        if wrappers_removed:
+        # Only rewrap if this is an intermediate checkpoint (not the final one)
+        if wrappers_removed and rewrap:
             self.rewrap_ddp()
         # supported_classes = (PeftModel,PeftModelForCausalLM)
         # peft_dir = run_dir / "checkpoint_llm_only"
@@ -288,6 +295,15 @@ class DDPStrategy(TrainingStrategy):
         
     def clip_grad_norm(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.vlm.parameters(), max_norm=self.max_grad_norm)
+    
+    def cleanup_ddp(self) -> None:
+        """Cleanup DDP wrappers on ALL ranks before destroying process group.
+        This method should be called by ALL ranks, not just rank 0."""
+        if isinstance(self.vlm.llm_backbone, DDP):
+            self.vlm.llm_backbone = self.vlm.llm_backbone.module
+        if isinstance(self.vlm.projector, DDP):
+            self.vlm.projector = self.vlm.projector.module
+        overwatch.info(f"Rank {overwatch.rank()}: DDP wrappers removed for clean shutdown")
 
 def unwrap_model(model: nn.Module) -> nn.Module:
     """
