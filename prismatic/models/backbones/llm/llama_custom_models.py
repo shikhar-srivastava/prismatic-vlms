@@ -269,7 +269,11 @@ class CustomLlamaLLMBackbone(HFCausalLLMBackbone):
             self.llm.load_state_dict(state_dict, strict=False)
             print(f"Loaded model weights from {state_dict_path}")
         else:
-            print(f"No checkpoint found at {state_dict_path}, using randomly initialized weights")
+            raise FileNotFoundError(
+                f"No checkpoint found at {state_dict_path}. "
+                f"The provided llm_checkpoint_path '{self.local_checkpoint_path}' does not contain a valid checkpoint. "
+                f"Please verify the path is correct and the checkpoint exists."
+            )
         
         # [CRITICAL FIX] Set use_cache = False for training (inherited from HFCausalLLMBackbone)
         # Reference: https://discuss.huggingface.co/t/what-is-the-purpose-of-use-cache-in-decoder/958
